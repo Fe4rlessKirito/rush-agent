@@ -1,0 +1,25 @@
+import type { FsBackend } from "./fsTools";
+
+// In-memory FS for the dev/web build so tools resolve without the Tauri backend.
+// Swap for a real invoke()-backed implementation in the Tauri build.
+export function createDevFs(seed: Record<string, string> = {}): FsBackend {
+  const files = new Map<string, string>(Object.entries(seed));
+  return {
+    async readFile(path) {
+      if (!files.has(path)) throw new Error(`No such file: ${path}`);
+      return files.get(path)!;
+    },
+    async writeFile(path, content) {
+      files.set(path, content);
+    },
+    async listDir(prefix) {
+      const out = new Set<string>();
+      for (const key of files.keys()) {
+        if (!key.startsWith(prefix)) continue;
+        const rest = key.slice(prefix.length).replace(/^\//, "");
+        out.add(rest.split("/")[0]);
+      }
+      return [...out];
+    },
+  };
+}
