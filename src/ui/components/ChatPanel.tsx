@@ -180,7 +180,7 @@ export function ChatPanel() {
         />
         <div className="composer-bar">
           <button
-            className="icon-btn"
+            className="icon-btn attach-btn"
             onClick={() => fileRef.current?.click()}
             aria-label="Attach file"
             title="Attach file"
@@ -211,7 +211,8 @@ export function ChatPanel() {
               <span className="send-spinner" />
             ) : (
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                <path d="M12 19V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+                <path d="M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
               </svg>
             )}
           </button>

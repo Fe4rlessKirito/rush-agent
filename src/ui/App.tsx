@@ -11,6 +11,7 @@ import { checkForUpdates } from "../core/updater";
 import { useAppStore } from "../core/store";
 import { useProjectStore } from "../core/projectStore";
 import { useFileStore } from "../core/fileStore";
+import appIcon from "../../src-tauri/icons/32x32.png";
 
 type View = "chat" | "workspace";
 
@@ -66,7 +67,7 @@ export function App() {
     <div className="app">
       <header className="titlebar">
         <div className="brand">
-          <span className="brand-mark">R</span>
+          <img className="brand-mark" src={appIcon} alt="" aria-hidden="true" />
           <span className="brand-name">Rush</span>
         </div>
         <button className="ghost" onClick={() => setShowSettings((s) => !s)}>
