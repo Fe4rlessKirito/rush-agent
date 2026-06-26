@@ -7,6 +7,8 @@ import { ProjectSettings } from "./components/ProjectSettings";
 import { FileTree } from "./components/FileTree";
 import { EditorTabs } from "./components/EditorTabs";
 import { EditorPane } from "./components/EditorPane";
+import { checkForUpdates } from "../core/updater";
+import { useAppStore } from "../core/store";
 import { useProjectStore } from "../core/projectStore";
 import { useFileStore } from "../core/fileStore";
 
@@ -19,6 +21,7 @@ export function App() {
   // Within the workspace view: land on the Projects screen, or open the editor.
   const [inProject, setInProject] = useState(false);
   const [showProjectSettings, setShowProjectSettings] = useState(false);
+  const autoUpdateEnabled = useAppStore((s) => s.autoUpdateEnabled);
   const openProject = useProjectStore((s) => s.openProject);
   const saveActiveFiles = useProjectStore((s) => s.saveActiveFiles);
   const activeProject = useProjectStore((s) =>
@@ -53,6 +56,11 @@ export function App() {
       saveActiveFiles(); // final flush on unmount/leave
     };
   }, [inProject, saveActiveFiles]);
+
+  useEffect(() => {
+    if (!autoUpdateEnabled) return;
+    void checkForUpdates(true);
+  }, [autoUpdateEnabled]);
 
   return (
     <div className="app">

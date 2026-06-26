@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useAppStore } from "../../core/store";
 import type { ProviderConfig } from "../../core/providers/types";
 import { createProvider } from "../../core/providers/registry";
+import { checkForUpdates, type UpdateCheckResult } from "../../core/updater";
 import { useDraggable } from "../hooks/useDraggable";
 
-type Tab = "providers" | "proxies";
+type Tab = "general" | "providers" | "proxies";
 
 // Per-proxy model-list state. Models are fetched lazily the first time a proxy
 // is expanded, then cached here so reopening it doesn't re-hit the network.
@@ -16,13 +17,23 @@ interface ModelState {
 }
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
-  const { providers, upsertProvider, setActive, activeProviderId, activeModel } = useAppStore();
-  const [tab, setTab] = useState<Tab>("providers");
+  const {
+    providers,
+    upsertProvider,
+    setActive,
+    activeProviderId,
+    activeModel,
+    autoUpdateEnabled,
+    setAutoUpdateEnabled,
+  } = useAppStore();
+  const [tab, setTab] = useState<Tab>("general");
   const [draft, setDraft] = useState<Record<string, ProviderConfig>>(
     Object.fromEntries(providers.map((p) => [p.id, p])),
   );
   const [expanded, setExpanded] = useState<string | null>(null);
   const [modelState, setModelState] = useState<Record<string, ModelState>>({});
+  const [updateState, setUpdateState] = useState<UpdateCheckResult | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const { onMouseDown, style } = useDraggable();
 
   function edit(id: string, patch: Partial<ProviderConfig>) {
@@ -66,6 +77,14 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     setTimeout(() => toggleProxy(p), 0);
   }
 
+  async function checkNow() {
+    setCheckingUpdate(true);
+    setUpdateState(null);
+    const result = await checkForUpdates(true);
+    setUpdateState(result);
+    setCheckingUpdate(false);
+  }
+
   return (
     <div className="settings-overlay" onMouseDown={onClose}>
       <div
@@ -82,6 +101,12 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
         <div className="settings-tabs">
           <button
+            className={`settings-tab ${tab === "general" ? "active" : ""}`}
+            onClick={() => setTab("general")}
+          >
+            General
+          </button>
+          <button
             className={`settings-tab ${tab === "providers" ? "active" : ""}`}
             onClick={() => setTab("providers")}
           >
@@ -95,7 +120,37 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {tab === "providers" ? (
+        {tab === "general" ? (
+          <div className="settings-body">
+            <div className="settings-section">
+              <div>
+                <h3>Updates</h3>
+                <p className="hint">GitHub release updates</p>
+              </div>
+              <label className="toggle-row">
+                <span>
+                  <strong>Auto update</strong>
+                  <small>{autoUpdateEnabled ? "On" : "Off"}</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={autoUpdateEnabled}
+                  onChange={(e) => setAutoUpdateEnabled(e.target.checked)}
+                />
+              </label>
+              <div className="row">
+                <button onClick={checkNow} disabled={checkingUpdate}>
+                  {checkingUpdate ? "Checking..." : "Check now"}
+                </button>
+                {updateState && (
+                  <span className={`update-status ${updateState.status}`}>
+                    {updateState.message}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : tab === "providers" ? (
           <div className="settings-body">
             <p className="hint">
               Standard vendors and custom proxies share the same form. A proxy is just a

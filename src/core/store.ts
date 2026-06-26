@@ -41,6 +41,7 @@ export interface AppState {
   providers: ProviderConfig[];
   activeProviderId: string | null;
   activeModel: string | null;
+  autoUpdateEnabled: boolean;
 
   conversations: Conversation[];
   activeConversationId: string;
@@ -52,6 +53,7 @@ export interface AppState {
   upsertProvider: (p: ProviderConfig) => void;
   removeProvider: (id: string) => void;
   setActive: (providerId: string, model: string) => void;
+  setAutoUpdateEnabled: (enabled: boolean) => void;
 
   setChat: (updater: ChatLine[] | ((prev: ChatLine[]) => ChatLine[])) => void;
   clearChat: () => void;
@@ -68,6 +70,7 @@ export const useAppStore = create<AppState>()(
       providers: DEFAULT_PROVIDERS,
       activeProviderId: null,
       activeModel: null,
+      autoUpdateEnabled: true,
 
       conversations: [SEED_CONVO],
       activeConversationId: SEED_CONVO.id,
@@ -86,6 +89,7 @@ export const useAppStore = create<AppState>()(
         set((s) => ({ providers: s.providers.filter((p) => p.id !== id) })),
       setActive: (activeProviderId, activeModel) =>
         set({ activeProviderId, activeModel }),
+      setAutoUpdateEnabled: (autoUpdateEnabled) => set({ autoUpdateEnabled }),
 
       setChat: (updater) =>
         set((s) => {

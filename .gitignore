@@ -12,6 +12,10 @@ releases/
 # Tauri / Rust build output
 src-tauri/target/
 
+# Tauri updater signing key
+src-tauri/updater.key
+AGENTS.md
+
 # Logs
 logs/
 *.log
