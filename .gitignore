@@ -6,6 +6,9 @@ dist/
 dist-ssr/
 *.local
 
+# Local release artifacts
+releases/
+
 # Tauri / Rust build output
 src-tauri/target/
 
