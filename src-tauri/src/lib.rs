@@ -3,6 +3,7 @@
 // managers) will register here as they're built on top of this spine.
 
 mod fs_commands;
+mod code_commands;
 mod git_commands;
 mod package_commands;
 mod terminal_commands;
@@ -24,6 +25,9 @@ pub fn run() {
             fs_commands::create_dir,
             fs_commands::delete_file,
             fs_commands::list_dir,
+            code_commands::code_find_symbol,
+            code_commands::code_find_definition,
+            code_commands::code_rename_identifier,
             git_commands::git_status,
             git_commands::git_diff,
             git_commands::git_branch,
