@@ -34,21 +34,31 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const [modelState, setModelState] = useState<Record<string, ModelState>>({});
   const [updateState, setUpdateState] = useState<UpdateCheckResult | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [dirtyProviders, setDirtyProviders] = useState<Set<string>>(() => new Set());
+  const [savedProviderId, setSavedProviderId] = useState<string | null>(null);
   const { onMouseDown, style } = useDraggable();
 
   function edit(id: string, patch: Partial<ProviderConfig>) {
     setDraft((d) => ({ ...d, [id]: { ...d[id], ...patch } }));
+    setDirtyProviders((ids) => new Set(ids).add(id));
+    setSavedProviderId((savedId) => (savedId === id ? null : savedId));
   }
 
   useEffect(() => {
     setDraft((current) => {
       const next = { ...current };
       for (const p of providers) {
-        if (!next[p.id]) next[p.id] = p;
+        if (!dirtyProviders.has(p.id)) next[p.id] = p;
       }
       return next;
     });
-  }, [providers]);
+  }, [providers, dirtyProviders]);
+
+  useEffect(() => {
+    if (!savedProviderId) return;
+    const timer = setTimeout(() => setSavedProviderId(null), 1600);
+    return () => clearTimeout(timer);
+  }, [savedProviderId]);
 
   function saveProvider(config: ProviderConfig, activate = false) {
     const saved = {
@@ -61,6 +71,12 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
     upsertProvider(saved);
     setDraft((d) => ({ ...d, [saved.id]: saved }));
+    setDirtyProviders((ids) => {
+      const next = new Set(ids);
+      next.delete(saved.id);
+      return next;
+    });
+    setSavedProviderId(saved.id);
     if (activate || activeProviderId === saved.id) {
       setActive(saved.id, saved.defaultModel);
     }
@@ -203,7 +219,9 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                       <input value={d.defaultModel} onChange={(e) => edit(p.id, { defaultModel: e.target.value })} />
                     </label>
                     <div className="row">
-                      <button onClick={() => saveProvider(d)}>Save</button>
+                      <button onClick={() => saveProvider(d)}>
+                        {savedProviderId === p.id ? "Saved" : "Save"}
+                      </button>
                       <button className="ghost" onClick={() => saveProvider(d, true)}>
                         Use this
                       </button>

@@ -105,6 +105,8 @@ export function Sidebar({ view, onSelectView }: Props) {
           ))}
         </div>
       </div>
+
+      <div className="sb-version">v{__APP_VERSION__}</div>
     </aside>
   );
 }

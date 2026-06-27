@@ -98,7 +98,7 @@ body {
   .send-btn:not(:disabled) svg { animation: none; }
 }
 
-.sb-recents { margin-top: 20px; display: flex; flex-direction: column; min-height: 0; }
+.sb-recents { margin-top: 20px; display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .sb-recents-head {
   padding: 4px 10px 8px; color: var(--text-faint);
   font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
@@ -114,6 +114,12 @@ body {
 .sb-chat-title { overflow: hidden; text-overflow: ellipsis; }
 .sb-row-menu { padding-left: 8px; opacity: 0; font-size: 15px; }
 .sb-chat-row:hover .sb-row-menu, .sb-chat-row.active .sb-row-menu { opacity: 1; }
+.sb-version {
+  margin-top: 12px; padding: 4px 10px;
+  color: var(--text-faint); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.app-sidebar.collapsed .sb-version { display: none; }
 
 /* Titlebar */
 .titlebar {
