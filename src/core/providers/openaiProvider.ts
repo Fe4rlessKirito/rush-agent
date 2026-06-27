@@ -1,4 +1,5 @@
 import type { Provider, ProviderConfig, ChatRequest, ChatChunk } from "./types";
+import { parseModelList } from "./modelParser";
 
 // Speaks the OpenAI Chat Completions wire format. Because most custom proxies
 // (LiteLLM, OpenRouter, vLLM, Ollama's /v1, etc.) are OpenAI-compatible, the
@@ -20,7 +21,7 @@ export class OpenAIProvider implements Provider {
     const res = await fetch(this.url("/models"), { headers: this.headers() });
     if (!res.ok) throw new Error(`listModels ${res.status}: ${await res.text()}`);
     const json = await res.json();
-    return (json.data ?? []).map((m: { id: string }) => m.id);
+    return parseModelList(json, this.config.defaultModel);
   }
 
   async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {

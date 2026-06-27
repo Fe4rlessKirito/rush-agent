@@ -1,4 +1,5 @@
 import type { Provider, ProviderConfig, ChatRequest, ChatChunk, ChatMessage } from "./types";
+import { parseModelList } from "./modelParser";
 
 // Speaks Anthropic's Messages API. Differs from OpenAI in three ways we handle:
 // system prompt is a top-level field, the auth header is x-api-key, and a
@@ -24,7 +25,7 @@ export class AnthropicProvider implements Provider {
     const res = await fetch(this.url("/models"), { headers: this.headers() });
     if (!res.ok) return [this.config.defaultModel];
     const json = await res.json();
-    return (json.data ?? []).map((m: { id: string }) => m.id);
+    return parseModelList(json, this.config.defaultModel);
   }
 
   async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
