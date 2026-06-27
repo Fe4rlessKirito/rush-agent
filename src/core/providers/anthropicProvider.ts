@@ -45,6 +45,16 @@ export class AnthropicProvider implements Provider {
         max_tokens: req.maxTokens ?? 4096,
         temperature: req.temperature ?? 0.2,
         stream: true,
+        // Anthropic tool schema: top-level array with input_schema (JSON Schema).
+        ...(req.tools && req.tools.length
+          ? {
+              tools: req.tools.map((t) => ({
+                name: t.name,
+                description: t.description,
+                input_schema: t.parameters,
+              })),
+            }
+          : {}),
       }),
     });
     if (!res.ok || !res.body) {
@@ -54,6 +64,11 @@ export class AnthropicProvider implements Provider {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+
+    // tool_use blocks stream as: content_block_start (id+name) ->
+    // input_json_delta (partial_json fragments) -> content_block_stop. Track the
+    // currently-open tool_use block by its content index.
+    let activeTool: { index: number; id: string; name: string; args: string } | null = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -66,8 +81,28 @@ export class AnthropicProvider implements Provider {
         if (!trimmed.startsWith("data:")) continue;
         try {
           const json = JSON.parse(trimmed.slice(5).trim());
-          if (json.type === "content_block_delta" && json.delta?.text) {
+          if (json.type === "content_block_start" && json.content_block?.type === "tool_use") {
+            activeTool = {
+              index: json.index,
+              id: json.content_block.id,
+              name: json.content_block.name,
+              args: "",
+            };
+          } else if (json.type === "content_block_delta" && json.delta?.type === "input_json_delta") {
+            if (activeTool && json.index === activeTool.index) {
+              activeTool.args += json.delta.partial_json ?? "";
+            }
+          } else if (json.type === "content_block_delta" && json.delta?.text) {
             yield { delta: json.delta.text, done: false };
+          } else if (json.type === "content_block_stop") {
+            if (activeTool && json.index === activeTool.index) {
+              yield {
+                delta: "",
+                done: false,
+                toolCall: { id: activeTool.id, name: activeTool.name, argsJson: activeTool.args || "{}" },
+              };
+              activeTool = null;
+            }
           } else if (json.type === "message_stop") {
             yield { delta: "", done: true };
             return;

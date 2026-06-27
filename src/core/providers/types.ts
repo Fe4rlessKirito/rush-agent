@@ -23,17 +23,44 @@ export interface ChatMessage {
   toolCallId?: string;
 }
 
+// JSON-schema description of a tool the model may call natively. Normalized
+// shape; each provider serializes it into its own wire format. `parameters` is
+// a JSON Schema object (the registry's ToolDefinition.inputSchema slots in
+// directly).
+export interface ToolSchema {
+  name: string;
+  description: string;
+  parameters: {
+    type: "object";
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+// A fully-assembled native tool call surfaced by a provider. `argsJson` is the
+// raw JSON string the model produced for the arguments — the loop parses it.
+export interface NativeToolCall {
+  id: string;
+  name: string;
+  argsJson: string;
+}
+
 export interface ChatRequest {
   model: string;
   messages: ChatMessage[];
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  // When present, the provider advertises these tools to the model using its
+  // native tool-calling protocol instead of the XML-tag convention.
+  tools?: ToolSchema[];
 }
 
 export interface ChatChunk {
   delta: string;        // incremental text
   done: boolean;
+  // Present only on the chunk where a native tool call finishes assembling.
+  toolCall?: NativeToolCall;
 }
 
 // A Provider knows how to speak one wire protocol against one endpoint.

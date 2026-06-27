@@ -35,6 +35,20 @@ export class OpenAIProvider implements Provider {
         temperature: req.temperature ?? 0.2,
         max_tokens: req.maxTokens,
         stream: true,
+        // Advertise tools in OpenAI function-calling format when present.
+        ...(req.tools && req.tools.length
+          ? {
+              tools: req.tools.map((t) => ({
+                type: "function",
+                function: {
+                  name: t.name,
+                  description: t.description,
+                  parameters: t.parameters,
+                },
+              })),
+              tool_choice: "auto",
+            }
+          : {}),
       }),
     });
     if (!res.ok || !res.body) {
@@ -44,6 +58,19 @@ export class OpenAIProvider implements Provider {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+
+    // Native tool calls arrive as fragments across many chunks, keyed by index.
+    // Accumulate id/name/arguments per index, then flush when the stream signals
+    // completion (finish_reason "tool_calls" or [DONE]).
+    const pending = new Map<number, { id: string; name: string; args: string }>();
+    const flushToolCalls = function* (): Generator<ChatChunk> {
+      const ordered = [...pending.entries()].sort((a, b) => a[0] - b[0]);
+      for (const [, tc] of ordered) {
+        if (!tc.name) continue;
+        yield { delta: "", done: false, toolCall: { id: tc.id, name: tc.name, argsJson: tc.args || "{}" } };
+      }
+      pending.clear();
+    };
 
     while (true) {
       const { done, value } = await reader.read();
@@ -57,18 +84,37 @@ export class OpenAIProvider implements Provider {
         if (!trimmed.startsWith("data:")) continue;
         const payload = trimmed.slice(5).trim();
         if (payload === "[DONE]") {
+          yield* flushToolCalls();
           yield { delta: "", done: true };
           return;
         }
         try {
           const json = JSON.parse(payload);
-          const delta = json.choices?.[0]?.delta?.content ?? "";
+          const choice = json.choices?.[0];
+          const delta = choice?.delta?.content ?? "";
           if (delta) yield { delta, done: false };
+
+          const toolDeltas = choice?.delta?.tool_calls;
+          if (Array.isArray(toolDeltas)) {
+            for (const td of toolDeltas) {
+              const idx = td.index ?? 0;
+              const cur = pending.get(idx) ?? { id: "", name: "", args: "" };
+              if (td.id) cur.id = td.id;
+              if (td.function?.name) cur.name = td.function.name;
+              if (td.function?.arguments) cur.args += td.function.arguments;
+              pending.set(idx, cur);
+            }
+          }
+
+          if (choice?.finish_reason === "tool_calls") {
+            yield* flushToolCalls();
+          }
         } catch {
           // partial JSON across chunk boundary; ignore and wait for more
         }
       }
     }
+    yield* flushToolCalls();
     yield { delta: "", done: true };
   }
 }

@@ -5,6 +5,7 @@
 mod fs_commands;
 mod code_commands;
 mod git_commands;
+mod lsp_commands;
 mod package_commands;
 mod terminal_commands;
 
@@ -19,6 +20,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(ProjectRoot::default())
         .manage(TerminalState::default())
+        .manage(lsp_commands::LspState::default())
         .invoke_handler(tauri::generate_handler![
             fs_commands::set_project_root,
             fs_commands::read_file,
@@ -52,6 +54,11 @@ pub fn run() {
             terminal_commands::terminal_wait_for_output,
             terminal_commands::terminal_interrupt,
             terminal_commands::terminal_stop,
+            lsp_commands::lsp_start,
+            lsp_commands::lsp_definition,
+            lsp_commands::lsp_references,
+            lsp_commands::lsp_rename,
+            lsp_commands::lsp_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Rush");

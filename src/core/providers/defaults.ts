@@ -21,6 +21,16 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     enabled: false,
   },
   {
+    id: "deepseek-default",
+    label: "DeepSeek",
+    // DeepSeek's API is OpenAI-compatible, so it reuses the OpenAI wire format
+    // (including native tool-calling) with only a different base URL and model.
+    kind: "openai",
+    baseUrl: "https://api.deepseek.com/v1",
+    defaultModel: "deepseek-chat",
+    enabled: false,
+  },
+  {
     id: "local-proxy",
     label: "Custom Proxy",
     kind: "custom",

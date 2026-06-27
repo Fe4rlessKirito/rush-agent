@@ -1,4 +1,4 @@
-import type { Provider, ChatMessage } from "../providers/types";
+import type { Provider, ChatMessage, ToolSchema, NativeToolCall } from "../providers/types";
 import type { ToolRegistry } from "./tools";
 
 // The agent loop: stream a model response, detect tool calls, execute them via
@@ -43,7 +43,7 @@ function pendingTagTail(buf: string): number {
 // Split the accumulated buffer into the visible answer text and the thinking
 // text, suppressing tool_call blocks entirely. Returns only content that is
 // *safe to emit* — any trailing partial tag is held back for the next chunk.
-function segment(buf: string): { text: string; thinking: string } {
+export function segment(buf: string): { text: string; thinking: string } {
   const safe = buf.slice(0, buf.length - pendingTagTail(buf));
   let text = "";
   let thinking = "";
@@ -76,7 +76,7 @@ function segment(buf: string): { text: string; thinking: string } {
 // sees reasoning stream live, but we don't replay it back into context on the
 // next turn — that keeps the conversation lean and avoids anchoring the model to
 // stale reasoning.
-function stripThinking(text: string): string {
+export function stripThinking(text: string): string {
   return text.replace(THINKING_RE, "").trim();
 }
 
@@ -95,7 +95,7 @@ function stripThinking(text: string): string {
 const CONTROL_TAG_RE =
   /<\/?\s*(system_reminder|system|thinking|tool_call|tool_calls|tool_result)\b[^>]*>/gi;
 
-function sanitizeToolOutput(text: string): string {
+export function sanitizeToolOutput(text: string): string {
   // Defang any tag that could be mistaken for control framing by inserting a
   // zero-width break after '<'. The text stays readable to the model but no
   // longer parses as a real tag on either side (ours or a provider's).
@@ -175,7 +175,7 @@ interface ParsedToolCall {
   args: Record<string, unknown>;
 }
 
-function parseToolCalls(text: string): ParsedToolCall[] | null {
+export function parseToolCalls(text: string): ParsedToolCall[] | null {
   const batch = text.match(TOOL_CALLS_RE);
   if (batch) {
     const parsed = JSON.parse(batch[1]);
@@ -201,10 +201,19 @@ export async function* runAgent(
   maxSteps = 12,
   projectInstructions?: string,
 ): AsyncGenerator<AgentEvent> {
-  const toolList = tools
-    .list()
+  const definitions = tools.list();
+  const toolList = definitions
     .map((t) => `- ${t.name}: ${t.description}`)
     .join("\n");
+
+  // Advertise tools to providers that support native tool-calling. Providers
+  // that ignore the `tools` field fall back to the XML-tag convention, which is
+  // why the system prompt still documents that path.
+  const toolSchemas: ToolSchema[] = definitions.map((t) => ({
+    name: t.name,
+    description: t.description,
+    parameters: t.inputSchema,
+  }));
 
   const messages: ChatMessage[] = [
     { role: "system", content: buildSystemPrompt(toolList, projectInstructions) },
@@ -215,8 +224,13 @@ export async function* runAgent(
     let full = "";
     let emittedText = 0;
     let emittedThinking = 0;
+    // Native tool calls surfaced by the provider this turn (if any). When the
+    // provider speaks native tool-calling these are authoritative and we skip
+    // XML-tag parsing entirely.
+    const nativeCalls: NativeToolCall[] = [];
     try {
-      for await (const chunk of provider.streamChat({ model, messages, signal })) {
+      for await (const chunk of provider.streamChat({ model, messages, signal, tools: toolSchemas })) {
+        if (chunk.toolCall) nativeCalls.push(chunk.toolCall);
         if (chunk.delta) {
           full += chunk.delta;
           // Re-segment the whole buffer and emit only the newly-safe tail of
@@ -247,11 +261,26 @@ export async function* runAgent(
     }
 
     let parsedCalls: ParsedToolCall[] | null;
-    try {
-      parsedCalls = parseToolCalls(full);
-    } catch (err) {
-      yield { type: "error", text: `Malformed tool call JSON: ${String(err)}` };
-      return;
+    if (nativeCalls.length > 0) {
+      // Native path: the provider already structured the calls. Parse each
+      // arguments JSON string; a malformed payload is reported, not guessed at.
+      try {
+        parsedCalls = nativeCalls.map((c) => ({
+          name: c.name,
+          args: (c.argsJson ? JSON.parse(c.argsJson) : {}) as Record<string, unknown>,
+        }));
+      } catch (err) {
+        yield { type: "error", text: `Malformed native tool call arguments: ${String(err)}` };
+        return;
+      }
+    } else {
+      // Fallback path: parse the XML-tag convention from the text stream.
+      try {
+        parsedCalls = parseToolCalls(full);
+      } catch (err) {
+        yield { type: "error", text: `Malformed tool call JSON: ${String(err)}` };
+        return;
+      }
     }
 
     if (!parsedCalls || parsedCalls.length === 0) {
