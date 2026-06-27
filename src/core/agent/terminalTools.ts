@@ -49,12 +49,53 @@ export function createTerminalTools(): Tool[] {
     },
     {
       definition: {
+        name: "terminal_send_line",
+        description:
+          "Send one line of input to the persistent terminal session, automatically appending Enter. Use this to answer prompts such as Y/n.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            line: { type: "string", description: "Line to send without the trailing newline." },
+          },
+          required: ["line"],
+        },
+      },
+      execute: (args) => callTerminal("terminal_send_line", { line: String(args.line ?? "") }),
+    },
+    {
+      definition: {
         name: "terminal_read",
         description:
           "Read and clear buffered output from the persistent terminal session. Use after terminal_write to observe command output.",
         inputSchema: { type: "object", properties: {} },
       },
       execute: () => callTerminal("terminal_read"),
+    },
+    {
+      definition: {
+        name: "terminal_wait_for_output",
+        description:
+          "Wait briefly for new terminal output, then read and clear it. Use after sending input to observe prompts or command progress.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            timeoutMs: { type: "number", description: "Maximum wait time in milliseconds, capped at 30000." },
+          },
+        },
+      },
+      execute: (args) =>
+        callTerminal("terminal_wait_for_output", {
+          timeoutMs: typeof args.timeoutMs === "number" ? args.timeoutMs : undefined,
+        }),
+    },
+    {
+      definition: {
+        name: "terminal_interrupt",
+        description:
+          "Send Ctrl+C to the persistent terminal session to interrupt the foreground command.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      execute: () => callTerminal("terminal_interrupt"),
     },
     {
       definition: {

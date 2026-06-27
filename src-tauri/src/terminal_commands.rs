@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use tauri::State;
 
@@ -150,6 +151,12 @@ pub fn terminal_write(terminal: State<TerminalState>, input: String) -> Result<S
 }
 
 #[tauri::command]
+pub fn terminal_send_line(terminal: State<TerminalState>, line: String) -> Result<String, String> {
+    let newline = if cfg!(windows) { "\r\n" } else { "\n" };
+    terminal_write(terminal, format!("{line}{newline}"))
+}
+
+#[tauri::command]
 pub fn terminal_read(terminal: State<TerminalState>) -> Result<String, String> {
     let guard = terminal.0.lock().map_err(|_| "terminal lock poisoned")?;
     let session = guard.as_ref().ok_or("no terminal session is running")?;
@@ -160,6 +167,33 @@ pub fn terminal_read(terminal: State<TerminalState>) -> Result<String, String> {
     let text = output.clone();
     output.clear();
     Ok(text)
+}
+
+#[tauri::command]
+pub fn terminal_wait_for_output(terminal: State<TerminalState>, timeout_ms: Option<u64>) -> Result<String, String> {
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms.unwrap_or(1500).min(30_000));
+    loop {
+        {
+            let guard = terminal.0.lock().map_err(|_| "terminal lock poisoned")?;
+            let session = guard.as_ref().ok_or("no terminal session is running")?;
+            let mut output = session.output.lock().map_err(|_| "output lock poisoned")?;
+            if !output.is_empty() {
+                let text = output.clone();
+                output.clear();
+                return Ok(text);
+            }
+        }
+
+        if Instant::now() >= deadline {
+            return Ok("No terminal output before timeout.".to_string());
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[tauri::command]
+pub fn terminal_interrupt(terminal: State<TerminalState>) -> Result<String, String> {
+    terminal_write(terminal, "\u{3}".to_string())
 }
 
 #[tauri::command]

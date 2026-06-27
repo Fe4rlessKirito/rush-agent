@@ -42,7 +42,10 @@ pub fn run() {
             package_commands::winget_search,
             terminal_commands::terminal_start,
             terminal_commands::terminal_write,
+            terminal_commands::terminal_send_line,
             terminal_commands::terminal_read,
+            terminal_commands::terminal_wait_for_output,
+            terminal_commands::terminal_interrupt,
             terminal_commands::terminal_stop,
         ])
         .run(tauri::generate_context!())
