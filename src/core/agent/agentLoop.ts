@@ -16,6 +16,7 @@ export interface AgentEvent {
 }
 
 const TOOL_CALL_RE = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/;
+const TOOL_CALLS_RE = /<tool_calls>\s*([\s\S]*?)\s*<\/tool_calls>/;
 const THINKING_RE = /<thinking>\s*([\s\S]*?)\s*<\/thinking>/g;
 
 // Any tag we treat specially. If the buffer ends with what *could* be the start
@@ -24,11 +25,12 @@ const THINKING_RE = /<thinking>\s*([\s\S]*?)\s*<\/thinking>/g;
 const OPEN_THINKING = "<thinking>";
 const CLOSE_THINKING = "</thinking>";
 const OPEN_TOOL = "<tool_call>";
+const OPEN_TOOLS = "<tool_calls>";
 
 // Largest suffix of `buf` that is a prefix of any control tag. We must not emit
 // it yet — the next chunk might complete the tag.
 function pendingTagTail(buf: string): number {
-  const tags = [OPEN_THINKING, CLOSE_THINKING, OPEN_TOOL];
+  const tags = [OPEN_THINKING, CLOSE_THINKING, OPEN_TOOL, OPEN_TOOLS];
   let hold = 0;
   for (const tag of tags) {
     for (let n = Math.min(tag.length - 1, buf.length); n > 0; n--) {
@@ -52,14 +54,16 @@ function segment(buf: string): { text: string; thinking: string } {
       const stop = end === -1 ? safe.length : end;
       thinking += safe.slice(i + OPEN_THINKING.length, stop);
       i = end === -1 ? safe.length : end + CLOSE_THINKING.length;
-    } else if (safe.startsWith(OPEN_TOOL, i)) {
-      // Suppress tool_call content from the visible stream entirely.
-      const end = safe.indexOf("</tool_call>", i);
-      i = end === -1 ? safe.length : end + "</tool_call>".length;
+    } else if (safe.startsWith(OPEN_TOOL, i) || safe.startsWith(OPEN_TOOLS, i)) {
+      // Suppress tool-call content from the visible stream entirely.
+      const close = safe.startsWith(OPEN_TOOLS, i) ? "</tool_calls>" : "</tool_call>";
+      const end = safe.indexOf(close, i);
+      i = end === -1 ? safe.length : end + close.length;
     } else {
       const nextThink = safe.indexOf(OPEN_THINKING, i);
       const nextTool = safe.indexOf(OPEN_TOOL, i);
-      const candidates = [nextThink, nextTool].filter((n) => n !== -1);
+      const nextTools = safe.indexOf(OPEN_TOOLS, i);
+      const candidates = [nextThink, nextTool, nextTools].filter((n) => n !== -1);
       const next = candidates.length ? Math.min(...candidates) : safe.length;
       text += safe.slice(i, next);
       i = next;
@@ -89,7 +93,7 @@ function stripThinking(text: string): string {
 //      instructions" envelope before it re-enters the message history.
 
 const CONTROL_TAG_RE =
-  /<\/?\s*(system_reminder|system|thinking|tool_call|tool_result)\b[^>]*>/gi;
+  /<\/?\s*(system_reminder|system|thinking|tool_call|tool_calls|tool_result)\b[^>]*>/gi;
 
 function sanitizeToolOutput(text: string): string {
   // Defang any tag that could be mistaken for control framing by inserting a
@@ -130,10 +134,14 @@ function buildSystemPrompt(toolList: string, projectInstructions?: string): stri
     "Keep the thinking short and concrete — a few lines, not an essay.",
     "",
     "# Tool calling",
-    "After your <thinking> block, call a tool by emitting exactly one block, then stop:",
+    "After your <thinking> block, call one tool by emitting exactly one block, then stop:",
     '<thinking>brief reasoning</thinking>',
     '<tool_call>{"name": "tool_name", "args": { ... }}</tool_call>',
-    "Call one tool at a time and wait for its result before deciding the next step.",
+    "If several tool calls are independent and safe to run together, emit a batch instead:",
+    '<tool_calls>[{"name": "tool_a", "args": { ... }}, {"name": "tool_b", "args": { ... }}]</tool_calls>',
+    "Use batches for independent read-only checks or unrelated lookups. Do not batch",
+    "dependent edits, destructive operations, commits, pushes, installs, terminal input,",
+    "or commands where one result should change the next action.",
     "When the task is fully done, reply normally with no thinking or tool_call block.",
     "",
     "# How to work",
@@ -160,6 +168,28 @@ function buildSystemPrompt(toolList: string, projectInstructions?: string): stri
     toolList,
     ...projectBlock,
   ].join("\n");
+}
+
+interface ParsedToolCall {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+function parseToolCalls(text: string): ParsedToolCall[] | null {
+  const batch = text.match(TOOL_CALLS_RE);
+  if (batch) {
+    const parsed = JSON.parse(batch[1]);
+    if (!Array.isArray(parsed)) throw new Error("tool_calls JSON must be an array");
+    return parsed.map((item) => ({
+      name: String(item?.name ?? ""),
+      args: (item?.args ?? {}) as Record<string, unknown>,
+    }));
+  }
+
+  const single = text.match(TOOL_CALL_RE);
+  if (!single) return null;
+  const parsed = JSON.parse(single[1]);
+  return [{ name: String(parsed.name ?? ""), args: (parsed.args ?? {}) as Record<string, unknown> }];
 }
 
 export async function* runAgent(
@@ -216,34 +246,50 @@ export async function* runAgent(
       return;
     }
 
-    const match = full.match(TOOL_CALL_RE);
-    if (!match) {
+    let parsedCalls: ParsedToolCall[] | null;
+    try {
+      parsedCalls = parseToolCalls(full);
+    } catch (err) {
+      yield { type: "error", text: `Malformed tool call JSON: ${String(err)}` };
+      return;
+    }
+
+    if (!parsedCalls || parsedCalls.length === 0) {
       yield { type: "done" };
       return;
     }
 
-    let parsed: { name: string; args: Record<string, unknown> };
-    try {
-      parsed = JSON.parse(match[1]);
-    } catch {
-      yield { type: "error", text: "Malformed tool_call JSON" };
+    if (parsedCalls.some((call) => !call.name)) {
+      yield { type: "error", text: "Tool call is missing a name" };
       return;
     }
 
-    yield { type: "tool_call", toolName: parsed.name, toolArgs: parsed.args };
-    const result = await tools.call(parsed.name, parsed.args ?? {});
-    const safeResult = sanitizeToolOutput(result.content);
-    yield { type: "tool_result", toolName: parsed.name, toolResult: safeResult };
+    for (const call of parsedCalls) {
+      yield { type: "tool_call", toolName: call.name, toolArgs: call.args };
+    }
+
+    const results = await Promise.all(
+      parsedCalls.map(async (call) => {
+        const result = await tools.call(call.name, call.args ?? {});
+        return { call, safeResult: sanitizeToolOutput(result.content) };
+      }),
+    );
+
+    for (const { call, safeResult } of results) {
+      yield { type: "tool_result", toolName: call.name, toolResult: safeResult };
+    }
 
     // Record the exchange so the model sees what happened next iteration. Strip
     // the <thinking> block first — it streamed to the user live, but replaying it
     // into context would bloat the conversation and anchor the next turn.
     messages.push({ role: "assistant", content: stripThinking(full) });
-    messages.push({
-      role: "tool",
-      name: parsed.name,
-      content: fenceToolOutput(parsed.name, safeResult),
-    });
+    for (const { call, safeResult } of results) {
+      messages.push({
+        role: "tool",
+        name: call.name,
+        content: fenceToolOutput(call.name, safeResult),
+      });
+    }
   }
 
   yield { type: "error", text: `Stopped after ${maxSteps} steps (loop guard).` };
