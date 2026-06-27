@@ -7,19 +7,20 @@ import { ProjectSettings } from "./components/ProjectSettings";
 import { FileTree } from "./components/FileTree";
 import { EditorTabs } from "./components/EditorTabs";
 import { EditorPane } from "./components/EditorPane";
+import { TerminalPanel } from "./components/TerminalPanel";
 import { checkForUpdates } from "../core/updater";
 import { useAppStore } from "../core/store";
 import { useProjectStore } from "../core/projectStore";
 import { useFileStore } from "../core/fileStore";
+import { setDesktopProjectRoot } from "../core/projectRoot";
 import appIcon from "../../src-tauri/icons/32x32.png";
 
-type View = "chat" | "workspace";
+type View = "chat" | "workspace" | "flow";
 
 export function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showEditor, setShowEditor] = useState(true);
   const [view, setView] = useState<View>("chat");
-  // Within the workspace view: land on the Projects screen, or open the editor.
   const [inProject, setInProject] = useState(false);
   const [showProjectSettings, setShowProjectSettings] = useState(false);
   const autoUpdateEnabled = useAppStore((s) => s.autoUpdateEnabled);
@@ -29,32 +30,34 @@ export function App() {
     s.projects.find((p) => p.id === s.activeProjectId),
   );
 
-  // Open a project: load its files into the editor, then enter the workspace.
-  const enterProject = (id: string) => {
+  const enterProject = async (id: string) => {
     openProject(id);
+    const project = useProjectStore.getState().projects.find((p) => p.id === id);
+    if (project?.path) {
+      await setDesktopProjectRoot(project.path).catch((err) => {
+        console.warn("set_project_root failed", err);
+      });
+    }
     setInProject(true);
   };
 
-  // Leave a project: snapshot the live files back into it first.
   const leaveProject = () => {
     saveActiveFiles();
     setInProject(false);
   };
 
-  // Autosave: while inside a project, debounce-snapshot live file edits back
-  // into the active project so a refresh mid-edit doesn't lose work.
   useEffect(() => {
     if (!inProject) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const unsub = useFileStore.subscribe((state, prev) => {
-      if (state.files === prev.files) return; // only react to file changes
+      if (state.files === prev.files) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => saveActiveFiles(), 600);
     });
     return () => {
       if (timer) clearTimeout(timer);
       unsub();
-      saveActiveFiles(); // final flush on unmount/leave
+      saveActiveFiles();
     };
   }, [inProject, saveActiveFiles]);
 
@@ -70,49 +73,62 @@ export function App() {
           <img className="brand-mark" src={appIcon} alt="" aria-hidden="true" />
           <span className="brand-name">Rush</span>
         </div>
-        <button className="ghost" onClick={() => setShowSettings((s) => !s)}>
-          {showSettings ? "Close" : "Settings"}
+        <button
+          className={"settings-cog-btn" + (showSettings ? " active" : "")}
+          onClick={() => setShowSettings((s) => !s)}
+          title={showSettings ? "Close settings" : "Settings"}
+          aria-label={showSettings ? "Close settings" : "Settings"}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+            <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05a2.1 2.1 0 0 1-2.97 2.97l-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V21.3a2.1 2.1 0 0 1-4.2 0v-.07a1.8 1.8 0 0 0-1.09-1.65 1.8 1.8 0 0 0-1.98.36l-.05.05a2.1 2.1 0 1 1-2.97-2.97l.05-.05A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.09H2.7a2.1 2.1 0 0 1 0-4.2h.25A1.8 1.8 0 0 0 4.6 8.62a1.8 1.8 0 0 0-.36-1.98l-.05-.05A2.1 2.1 0 0 1 7.16 3.6l.05.05a1.8 1.8 0 0 0 1.98.36A1.8 1.8 0 0 0 10.28 2.36V2.3a2.1 2.1 0 0 1 4.2 0v.07a1.8 1.8 0 0 0 1.09 1.65 1.8 1.8 0 0 0 1.98-.36l.05-.05a2.1 2.1 0 0 1 2.97 2.97l-.05.05a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.09h.19a2.1 2.1 0 0 1 0 4.2h-.19A1.8 1.8 0 0 0 19.4 15Z" />
+          </svg>
         </button>
       </header>
 
       <div className="app-body">
         <Sidebar view={view} onSelectView={setView} />
 
-        {/* Chat view — Claude-style centered conversation. */}
         {view === "chat" && (
           <main className="chat-view">
             <div className="chat-center">
-              <ChatPanel />
+              <ChatPanel mode="plain" />
             </div>
           </main>
         )}
 
-        {/* Workspace view — Projects landing, or the editor once in a project. */}
         {view === "workspace" && !inProject && (
           <ProjectsView onOpenProject={enterProject} />
         )}
 
         {view === "workspace" && inProject && (
-          <div className="workspace">
+          <div className="workspace code-workspace">
             <aside className="sidebar">
               <button className="projects-back" onClick={leaveProject}>
-                ← Projects
+                Projects
               </button>
               {activeProject && (
                 <div className="project-name-tag">
                   <span>{activeProject.name}</span>
                   <button
-                    className="project-settings-btn"
+                    className="project-settings-btn settings-cog-btn"
                     onClick={() => setShowProjectSettings(true)}
                     title="Project settings"
                     aria-label="Project settings"
                   >
-                    ⚙
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+                      <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05a2.1 2.1 0 0 1-2.97 2.97l-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V21.3a2.1 2.1 0 0 1-4.2 0v-.07a1.8 1.8 0 0 0-1.09-1.65 1.8 1.8 0 0 0-1.98.36l-.05.05a2.1 2.1 0 1 1-2.97-2.97l.05-.05A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.09H2.7a2.1 2.1 0 0 1 0-4.2h.25A1.8 1.8 0 0 0 4.6 8.62a1.8 1.8 0 0 0-.36-1.98l-.05-.05A2.1 2.1 0 0 1 7.16 3.6l.05.05a1.8 1.8 0 0 0 1.98.36A1.8 1.8 0 0 0 10.28 2.36V2.3a2.1 2.1 0 0 1 4.2 0v.07a1.8 1.8 0 0 0 1.09 1.65 1.8 1.8 0 0 0 1.98-.36l.05-.05a2.1 2.1 0 0 1 2.97 2.97l-.05.05a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.09h.19a2.1 2.1 0 0 1 0 4.2h-.19A1.8 1.8 0 0 0 19.4 15Z" />
+                    </svg>
                   </button>
                 </div>
               )}
               <FileTree />
             </aside>
+
+            <main className="code-agent-panel">
+              <ChatPanel mode="agent" />
+            </main>
 
             <aside className={"editor-panel dock-right" + (showEditor ? "" : " collapsed")}>
               <main className="editor">
@@ -120,6 +136,7 @@ export function App() {
                 <div className="editor-surface">
                   <EditorPane />
                 </div>
+                <TerminalPanel />
               </main>
             </aside>
 
@@ -128,9 +145,41 @@ export function App() {
               onClick={() => setShowEditor((v) => !v)}
               title={showEditor ? "Hide editor" : "Show editor"}
             >
-              {showEditor ? "⟨/⟩ ✕" : "⟨/⟩"}
+              {showEditor ? "Hide editor" : "Show editor"}
             </button>
           </div>
+        )}
+
+        {view === "flow" && (
+          <main className="flow-view">
+            <div className="flow-shell">
+              <div className="flow-head">
+                <span className="flow-title">Flow</span>
+                <span className="flow-tag">multi-agent</span>
+              </div>
+              <div className="flow-agents" aria-label="Flow agents">
+                <div className="flow-agent">
+                  <span className="flow-agent-dot" />
+                  <strong>Planner</strong>
+                  <span>Idle</span>
+                </div>
+                <div className="flow-agent">
+                  <span className="flow-agent-dot" />
+                  <strong>Workers</strong>
+                  <span>0 active</span>
+                </div>
+                <div className="flow-agent">
+                  <span className="flow-agent-dot" />
+                  <strong>Verifier</strong>
+                  <span>Waiting</span>
+                </div>
+              </div>
+              <div className="flow-composer">
+                <textarea placeholder="Command multiple agents..." disabled />
+                <button disabled>Start flow</button>
+              </div>
+            </div>
+          </main>
         )}
       </div>
 

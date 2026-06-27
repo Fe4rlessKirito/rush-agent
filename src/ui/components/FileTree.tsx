@@ -1,7 +1,7 @@
 import { useFileStore } from "../../core/fileStore";
 
 export function FileTree() {
-  const files = useFileStore((s) => Object.keys(s.files).sort());
+  const files = useFileStore((s) => s.tree);
   const activeFile = useFileStore((s) => s.activeFile);
   const open = useFileStore((s) => s.open);
 

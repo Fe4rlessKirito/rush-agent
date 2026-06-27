@@ -1,8 +1,12 @@
 import { create } from "zustand";
+import type { FsBackend } from "./agent/fsTools";
+import { createTauriFs, isTauriRuntime } from "./agent/tauriFs";
 
-// Shared, in-memory file store. The editor, file tree, and agent tools all read
-// and write through this so they stay in sync. In the Tauri build the same
-// interface is backed by the Rust FS layer; the UI doesn't need to change.
+// Shared file store. The editor, file tree, and agent tools all read and write
+// through this so they stay in sync. In "memory" mode it holds an in-memory map
+// (dev/seeded projects). In "disk" mode it is a write-through cache over the
+// real Tauri FS backend: the tree is loaded eagerly from a folder, file
+// contents are lazy-loaded on open, and edits are written through to disk.
 
 function langFor(path: string): string {
   if (path.endsWith(".ts") || path.endsWith(".tsx")) return "typescript";
@@ -14,6 +18,12 @@ function langFor(path: string): string {
   return "plaintext";
 }
 
+// Directories never walked when loading a real on-disk project tree.
+const IGNORE_DIRS = new Set(["node_modules", ".git", "target", "dist", "releases"]);
+
+// Debounce handles for write-through-to-disk, keyed by path.
+const writeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 const SEED: Record<string, string> = {
   "src/main.tsx": `import { createRoot } from "react-dom/client";\nimport { App } from "./ui/App";\n\ncreateRoot(document.getElementById("root")!).render(<App />);\n`,
   "src/ui/App.tsx": `// Rush workspace shell.\nexport function App() {\n  return <div>Rush</div>;\n}\n`,
@@ -24,8 +34,16 @@ const SEED: Record<string, string> = {
 // surface shows either a file (Monaco) or the live Preview.
 export type EditorSide = "left" | "right";
 
+// "memory" = in-memory seed/dev projects (unchanged legacy behavior).
+// "disk"   = a real folder-backed project; files read/written through Tauri FS.
+export type FileMode = "memory" | "disk";
+
 export interface FileStore {
   files: Record<string, string>;
+  tree: string[];         // sorted list of workspace-relative paths shown in the tree
+  mode: FileMode;
+  backend: FsBackend | null;
+  root: string;           // absolute disk root when mode === "disk"
   openTabs: string[];
   activeFile: string | null;
   showPreview: boolean;   // is the Preview tab the active surface?
@@ -39,23 +57,44 @@ export interface FileStore {
   setShowPreview: (show: boolean) => void;
   toggleSide: () => void;
   loadFiles: (files: Record<string, string>) => void;
+  loadFromDisk: (root: string) => Promise<void>;
 }
 
-export const useFileStore = create<FileStore>((set) => ({
+export const useFileStore = create<FileStore>((set, get) => ({
   files: { ...SEED },
+  tree: Object.keys(SEED).sort(),
+  mode: "memory",
+  backend: null,
+  root: "",
   openTabs: [],
   activeFile: null,
   showPreview: false,
   editorSide: "right",
   langFor,
 
-  open: (path) =>
-    set((s) => {
-      const files = path in s.files ? s.files : { ...s.files, [path]: "" };
-      const openTabs = s.openTabs.includes(path) ? s.openTabs : [...s.openTabs, path];
+  open: (path) => {
+    const s = get();
+    // Disk mode: if this file isn't cached yet, lazy-load its contents from disk.
+    if (s.mode === "disk" && s.backend && !(path in s.files)) {
+      const backend = s.backend;
+      backend
+        .readFile(`${s.root}/${path}`)
+        .then((content) =>
+          set((st) =>
+            st.mode === "disk" ? { files: { ...st.files, [path]: content } } : {},
+          ),
+        )
+        .catch(() => {
+          /* file may not exist yet; leave it absent until written */
+        });
+    }
+    set((st) => {
+      const files = path in st.files ? st.files : { ...st.files, [path]: "" };
+      const openTabs = st.openTabs.includes(path) ? st.openTabs : [...st.openTabs, path];
       // Opening a file switches the surface away from Preview to that file.
       return { files, openTabs, activeFile: path, showPreview: false };
-    }),
+    });
+  },
 
   close: (path) =>
     set((s) => {
@@ -67,23 +106,105 @@ export const useFileStore = create<FileStore>((set) => ({
 
   setActive: (path) => set({ activeFile: path, showPreview: false }),
 
-  setContent: (path, content) =>
-    set((s) => ({ files: { ...s.files, [path]: content } })),
+  setContent: (path, content) => {
+    set((s) => ({ files: { ...s.files, [path]: content } }));
+    // Disk mode: write-through to the real file, debounced so rapid keystrokes
+    // don't hammer the FS. The in-memory cache stays the instant source of truth.
+    const s = get();
+    if (s.mode === "disk" && s.backend) {
+      const backend = s.backend;
+      const abs = `${s.root}/${path}`;
+      const existing = writeTimers.get(path);
+      if (existing) clearTimeout(existing);
+      writeTimers.set(
+        path,
+        setTimeout(() => {
+          writeTimers.delete(path);
+          backend.writeFile(abs, content).catch(() => {
+            /* surface write failures elsewhere; don't crash the editor */
+          });
+        }, 250),
+      );
+      if (!s.tree.includes(path)) {
+        set((st) => ({ tree: [...st.tree, path].sort() }));
+      }
+    }
+  },
 
   setShowPreview: (showPreview) => set({ showPreview }),
 
   toggleSide: () =>
     set((s) => ({ editorSide: s.editorSide === "left" ? "right" : "left" })),
 
-  // Replace the working file set (used when opening a project) and reset the
-  // editor tabs so stale files from a previous project don't linger.
+  // Replace the working file set (used when opening a memory-backed project) and
+  // reset editor tabs so stale files from a previous project don't linger.
   loadFiles: (files) =>
-    set({ files: { ...files }, openTabs: [], activeFile: null, showPreview: false }),
+    set({
+      files: { ...files },
+      tree: Object.keys(files).sort(),
+      mode: "memory",
+      backend: null,
+      root: "",
+      openTabs: [],
+      activeFile: null,
+      showPreview: false,
+    }),
+
+  // Open a real on-disk folder: eagerly walk the tree (skipping IGNORE_DIRS) to
+  // populate the file list, but lazy-load file *contents* on open. Falls back to
+  // memory mode if not running under Tauri.
+  loadFromDisk: async (root) => {
+    if (!isTauriRuntime()) {
+      get().loadFiles({});
+      return;
+    }
+    const backend = createTauriFs();
+    const rootClean = root.replace(/[\\/]+$/, "");
+    const paths: string[] = [];
+
+    async function walk(absDir: string, rel: string): Promise<void> {
+      let entries: string[];
+      try {
+        entries = await backend.listDir(absDir);
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        // Tauri listDir returns "dir <abspath>" / "file <abspath>".
+        const isDir = entry.startsWith("dir ");
+        const abs = entry.slice(5);
+        const name = abs.split(/[\\/]/).pop() ?? "";
+        if (!name) continue;
+        const childRel = rel ? `${rel}/${name}` : name;
+        if (isDir) {
+          if (IGNORE_DIRS.has(name)) continue;
+          await walk(abs, childRel);
+        } else {
+          paths.push(childRel);
+        }
+      }
+    }
+
+    await walk(rootClean, "");
+    set({
+      files: {},
+      tree: paths.sort(),
+      mode: "disk",
+      backend,
+      root: rootClean,
+      openTabs: [],
+      activeFile: null,
+      showPreview: false,
+    });
+  },
 }));
 
 // Convenience for non-React callers (agent tools) to reach the same store.
 export const fileStore = {
-  list: () => Object.keys(useFileStore.getState().files).sort(),
+  list: () => {
+    const s = useFileStore.getState();
+    return s.mode === "disk" ? [...s.tree].sort() : Object.keys(s.files).sort();
+  },
   read: (path: string) => useFileStore.getState().files[path],
   write: (path: string, content: string) => {
     const s = useFileStore.getState();

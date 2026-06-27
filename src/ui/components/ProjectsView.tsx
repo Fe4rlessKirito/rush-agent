@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useProjectStore, selectProjects } from "../../core/projectStore";
+import { chooseAndSetProjectRoot } from "../../core/projectRoot";
 
 interface Props {
   onOpenProject: (id: string) => void;
@@ -23,11 +24,32 @@ export function ProjectsView({ onOpenProject }: Props) {
   const setSortBy = useProjectStore((s) => s.setSortBy);
   const createProject = useProjectStore((s) => s.createProject);
   const deleteProject = useProjectStore((s) => s.deleteProject);
+  const renameProject = useProjectStore((s) => s.renameProject);
+  const setProjectPath = useProjectStore((s) => s.setProjectPath);
+  const [opening, setOpening] = useState(false);
 
   const visible = selectProjects(projects, sortBy, query);
   const hasProjects = projects.length > 0;
 
   const handleNew = () => onOpenProject(createProject());
+
+  // Open a real folder from disk: pick it, register it as the desktop project
+  // root, then create a project bound to that path and open it.
+  const handleOpenFolder = async () => {
+    if (opening) return;
+    setOpening(true);
+    try {
+      const picked = await chooseAndSetProjectRoot();
+      if (!picked) return;
+      const folderName = picked.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || "Project";
+      const id = createProject(folderName);
+      setProjectPath(id, picked);
+      renameProject(id, folderName);
+      onOpenProject(id);
+    } finally {
+      setOpening(false);
+    }
+  };
 
   return (
     <div className="projects-view">
@@ -44,6 +66,9 @@ export function ProjectsView({ onOpenProject }: Props) {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
+            </button>
+            <button className="projects-open-folder" onClick={handleOpenFolder} disabled={opening}>
+              {opening ? "Opening\u2026" : "Open folder"}
             </button>
             <button className="projects-new" onClick={handleNew}>
               New project

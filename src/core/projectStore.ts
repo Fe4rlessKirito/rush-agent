@@ -10,6 +10,7 @@ import { useFileStore } from "./fileStore";
 export interface Project {
   id: string;
   name: string;
+  path: string;
   instructions: string;
   files: Record<string, string>;
   createdAt: number;
@@ -40,6 +41,7 @@ export interface ProjectState {
   openProject: (id: string) => void;
   saveActiveFiles: () => void;
   renameProject: (id: string, name: string) => void;
+  setProjectPath: (id: string, path: string) => void;
   setInstructions: (id: string, instructions: string) => void;
   deleteProject: (id: string) => void;
   setSortBy: (k: SortKey) => void;
@@ -57,6 +59,7 @@ export const useProjectStore = create<ProjectState>()(
         const project: Project = {
           id: newId(),
           name: name?.trim() || "Untitled project",
+          path: "",
           instructions: "",
           files: starterFiles(),
           createdAt: now,
@@ -90,6 +93,13 @@ export const useProjectStore = create<ProjectState>()(
         set((s) => ({
           projects: s.projects.map((p) =>
             p.id === id ? { ...p, name: name.trim() || p.name, updatedAt: Date.now() } : p,
+          ),
+        })),
+
+      setProjectPath: (id, path) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === id ? { ...p, path: path.trim(), updatedAt: Date.now() } : p,
           ),
         })),
 

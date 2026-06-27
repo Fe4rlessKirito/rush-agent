@@ -28,4 +28,12 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     defaultModel: "llama3.1",
     enabled: false,
   },
+  {
+    id: "localhost-default",
+    label: "Local Host",
+    kind: "custom",
+    baseUrl: "http://localhost:1234/v1",
+    defaultModel: "local-model",
+    enabled: false,
+  },
 ];

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useProjectStore } from "../../core/projectStore";
+import { setDesktopProjectRoot } from "../../core/projectRoot";
 
 interface Props {
   onClose: () => void;
@@ -12,22 +13,29 @@ export function ProjectSettings({ onClose }: Props) {
     s.projects.find((p) => p.id === s.activeProjectId),
   );
   const renameProject = useProjectStore((s) => s.renameProject);
+  const setProjectPath = useProjectStore((s) => s.setProjectPath);
   const setInstructions = useProjectStore((s) => s.setInstructions);
 
   const [name, setName] = useState(project?.name ?? "");
+  const [path, setPath] = useState(project?.path ?? "");
   const [instructions, setLocalInstructions] = useState(project?.instructions ?? "");
 
   // Re-sync local fields if the active project changes underneath the drawer.
   useEffect(() => {
     setName(project?.name ?? "");
+    setPath(project?.path ?? "");
     setLocalInstructions(project?.instructions ?? "");
   }, [project?.id]);
 
   if (!project) return null;
 
-  const save = () => {
+  const save = async () => {
     renameProject(project.id, name);
+    setProjectPath(project.id, path);
     setInstructions(project.id, instructions);
+    await setDesktopProjectRoot(path).catch((err) => {
+      console.warn("set_project_root failed", err);
+    });
     onClose();
   };
 
@@ -49,6 +57,21 @@ export function ProjectSettings({ onClose }: Props) {
             onChange={(e) => setName(e.target.value)}
             placeholder="Project name"
           />
+        </label>
+
+        <label className="drawer-field">
+          <span>Project path</span>
+          <div className="path-field">
+            <input
+              type="text"
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+              placeholder="C:\\Users\\marko\\Projects\\my-app"
+            />
+          </div>
+          <small className="drawer-hint">
+            Used as the working folder for project tools when this project is active.
+          </small>
         </label>
 
         <label className="drawer-field">

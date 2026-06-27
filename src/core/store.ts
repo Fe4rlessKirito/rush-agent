@@ -48,6 +48,7 @@ export interface AppState {
   // Mirror of the active conversation's lines — keeps ChatPanel's existing
   // chat/setChat/clearChat API working unchanged.
   chat: ChatLine[];
+  plainChat: ChatLine[];
 
   setProviders: (p: ProviderConfig[]) => void;
   upsertProvider: (p: ProviderConfig) => void;
@@ -56,7 +57,9 @@ export interface AppState {
   setAutoUpdateEnabled: (enabled: boolean) => void;
 
   setChat: (updater: ChatLine[] | ((prev: ChatLine[]) => ChatLine[])) => void;
+  setPlainChat: (updater: ChatLine[] | ((prev: ChatLine[]) => ChatLine[])) => void;
   clearChat: () => void;
+  clearPlainChat: () => void;
   newConversation: () => void;
   selectConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
@@ -64,10 +67,19 @@ export interface AppState {
 
 const SEED_CONVO = freshConversation();
 
+function mergeDefaultProviders(providers: ProviderConfig[] | undefined): ProviderConfig[] {
+  const saved = providers ?? [];
+  const savedIds = new Set(saved.map((p) => p.id));
+  return [
+    ...saved,
+    ...DEFAULT_PROVIDERS.filter((p) => !savedIds.has(p.id)),
+  ];
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      providers: DEFAULT_PROVIDERS,
+      providers: mergeDefaultProviders(DEFAULT_PROVIDERS),
       activeProviderId: null,
       activeModel: null,
       autoUpdateEnabled: true,
@@ -75,6 +87,7 @@ export const useAppStore = create<AppState>()(
       conversations: [SEED_CONVO],
       activeConversationId: SEED_CONVO.id,
       chat: [],
+      plainChat: [],
 
       setProviders: (providers) => set({ providers }),
       upsertProvider: (p) =>
@@ -113,6 +126,14 @@ export const useAppStore = create<AppState>()(
           ),
         })),
 
+      setPlainChat: (updater) =>
+        set((s) => ({
+          plainChat:
+            typeof updater === "function" ? updater(s.plainChat) : updater,
+        })),
+
+      clearPlainChat: () => set({ plainChat: [] }),
+
       newConversation: () =>
         set((s) => {
           const convo = freshConversation();
@@ -150,6 +171,7 @@ export const useAppStore = create<AppState>()(
       // Restore the active conversation's lines into the `chat` mirror on load.
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        state.providers = mergeDefaultProviders(state.providers);
         const active = state.conversations?.find(
           (c) => c.id === state.activeConversationId,
         );
