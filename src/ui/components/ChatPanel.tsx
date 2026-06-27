@@ -6,6 +6,7 @@ import { ToolRegistry } from "../../core/agent/tools";
 import { createFsTools } from "../../core/agent/fsTools";
 import { createDevFs } from "../../core/agent/devFs";
 import { createGitTools } from "../../core/agent/gitTools";
+import { createPackageTools } from "../../core/agent/packageTools";
 import { runAgent, type AgentEvent } from "../../core/agent/agentLoop";
 import { Markdown } from "./Markdown";
 import "highlight.js/styles/github-dark.css";
@@ -14,6 +15,7 @@ const fs = createDevFs();
 const tools = new ToolRegistry();
 tools.registerAll(createFsTools(fs));
 tools.registerAll(createGitTools());
+tools.registerAll(createPackageTools());
 
 export function ChatPanel() {
   const { providers, activeProviderId, activeModel, setActive, chat, setChat, clearChat } =

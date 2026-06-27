@@ -4,6 +4,7 @@
 
 mod fs_commands;
 mod git_commands;
+mod package_commands;
 
 use fs_commands::ProjectRoot;
 
@@ -27,6 +28,15 @@ pub fn run() {
             git_commands::git_commit,
             git_commands::git_push,
             git_commands::git_pull,
+            package_commands::npm_scripts,
+            package_commands::npm_run_script,
+            package_commands::npm_install,
+            package_commands::npm_ci,
+            package_commands::cargo_check_cmd,
+            package_commands::cargo_test_cmd,
+            package_commands::cargo_build_cmd,
+            package_commands::pip_install,
+            package_commands::winget_search,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Rush");
