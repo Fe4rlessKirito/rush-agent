@@ -3,6 +3,7 @@
 // managers) will register here as they're built on top of this spine.
 
 mod fs_commands;
+mod git_commands;
 
 use fs_commands::ProjectRoot;
 
@@ -19,6 +20,13 @@ pub fn run() {
             fs_commands::create_dir,
             fs_commands::delete_file,
             fs_commands::list_dir,
+            git_commands::git_status,
+            git_commands::git_diff,
+            git_commands::git_branch,
+            git_commands::git_current_branch,
+            git_commands::git_commit,
+            git_commands::git_push,
+            git_commands::git_pull,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Rush");
