@@ -47,10 +47,10 @@ fn safe_relative(rel: &str) -> Result<PathBuf, String> {
 // enforcing the traversal guard. Returns the absolute on-disk path.
 fn resolve(state: &State<ProjectRoot>, rel: &str) -> Result<PathBuf, String> {
     let guard = state.0.lock().map_err(|_| "root lock poisoned")?;
-    let root = guard
-        .as_ref()
-        .ok_or("no project is open")?
-        .clone();
+    let root = match guard.as_ref() {
+        Some(root) => root.clone(),
+        None => std::env::current_dir().map_err(|e| format!("current_dir: {e}"))?,
+    };
     let clean = safe_relative(rel)?;
     let full = root.join(&clean);
 
@@ -122,7 +122,10 @@ pub fn delete_file(state: State<ProjectRoot>, path: String) -> Result<(), String
 pub fn list_dir(state: State<ProjectRoot>, path: String) -> Result<Vec<DirEntry>, String> {
     let full = resolve(&state, if path.is_empty() { "." } else { &path })?;
     let guard = state.0.lock().map_err(|_| "root lock poisoned")?;
-    let root = guard.as_ref().ok_or("no project is open")?.clone();
+    let root = match guard.as_ref() {
+        Some(root) => root.clone(),
+        None => std::env::current_dir().map_err(|e| format!("current_dir: {e}"))?,
+    };
     drop(guard);
 
     let mut entries = Vec::new();
