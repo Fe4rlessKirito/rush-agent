@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "../../core/store";
 import type { ProviderConfig } from "../../core/providers/types";
 import { createProvider } from "../../core/providers/registry";
@@ -38,6 +38,32 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
   function edit(id: string, patch: Partial<ProviderConfig>) {
     setDraft((d) => ({ ...d, [id]: { ...d[id], ...patch } }));
+  }
+
+  useEffect(() => {
+    setDraft((current) => {
+      const next = { ...current };
+      for (const p of providers) {
+        if (!next[p.id]) next[p.id] = p;
+      }
+      return next;
+    });
+  }, [providers]);
+
+  function saveProvider(config: ProviderConfig, activate = false) {
+    const saved = {
+      ...config,
+      baseUrl: config.baseUrl.trim(),
+      apiKey: config.apiKey?.trim() || undefined,
+      defaultModel: config.defaultModel.trim(),
+      enabled: true,
+    };
+
+    upsertProvider(saved);
+    setDraft((d) => ({ ...d, [saved.id]: saved }));
+    if (activate || activeProviderId === saved.id) {
+      setActive(saved.id, saved.defaultModel);
+    }
   }
 
   // Toggle a proxy open/closed. On first open, fetch its model list through a
@@ -177,8 +203,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                       <input value={d.defaultModel} onChange={(e) => edit(p.id, { defaultModel: e.target.value })} />
                     </label>
                     <div className="row">
-                      <button onClick={() => upsertProvider({ ...d, enabled: true })}>Save</button>
-                      <button className="ghost" onClick={() => setActive(p.id, d.defaultModel)}>
+                      <button onClick={() => saveProvider(d)}>Save</button>
+                      <button className="ghost" onClick={() => saveProvider(d, true)}>
                         Use this
                       </button>
                     </div>
@@ -239,7 +265,17 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                                 ))}
                               </select>
                               <button
-                                onClick={() => ms.selected && setActive(p.id, ms.selected)}
+                                onClick={() => {
+                                  if (!ms.selected) return;
+                                  const saved = {
+                                    ...p,
+                                    defaultModel: ms.selected,
+                                    enabled: true,
+                                  };
+                                  upsertProvider(saved);
+                                  setDraft((d) => ({ ...d, [saved.id]: saved }));
+                                  setActive(p.id, ms.selected);
+                                }}
                                 disabled={!ms.selected}
                               >
                                 Use
