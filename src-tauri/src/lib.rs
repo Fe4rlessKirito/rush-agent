@@ -5,8 +5,10 @@
 mod fs_commands;
 mod git_commands;
 mod package_commands;
+mod terminal_commands;
 
 use fs_commands::ProjectRoot;
+use terminal_commands::TerminalState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,6 +16,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(ProjectRoot::default())
+        .manage(TerminalState::default())
         .invoke_handler(tauri::generate_handler![
             fs_commands::set_project_root,
             fs_commands::read_file,
@@ -37,6 +40,10 @@ pub fn run() {
             package_commands::cargo_build_cmd,
             package_commands::pip_install,
             package_commands::winget_search,
+            terminal_commands::terminal_start,
+            terminal_commands::terminal_write,
+            terminal_commands::terminal_read,
+            terminal_commands::terminal_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Rush");
