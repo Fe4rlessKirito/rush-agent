@@ -31,16 +31,102 @@ log = logging.getLogger("direct")
 # Pattern: any <tag ...>...</tag> or self-closing <tag .../> where tag is NOT
 # one of our own. Catches <system ...>, <reminder ...>, <context ...>, etc.
 _OWN_TAGS = {"thinking", "response"}
-_INJECTED_TAG_RE = re.compile(
-    r'<(?!(?:' + '|'.join(_OWN_TAGS) + r')(?:\s|>|/))([a-zA-Z][\w-]*)(?:[^>]*)>.*?</\1>|'
-    r'<(?!(?:' + '|'.join(_OWN_TAGS) + r')(?:\s|>|/))([a-zA-Z][\w-]*)(?:[^>]*)/?>',
-    re.DOTALL
-)
+
+# Tags we suppress entirely — use.ai injects these as hidden system context
+_SUPPRESS_TAGS = {"system", "reminder", "context", "hidden", "instructions", "note"}
 
 
 def _strip_injected_tags(text: str) -> str:
-    """Remove use.ai system/reminder/context injections silently."""
-    return _INJECTED_TAG_RE.sub('', text)
+    """
+    Single-delta fast path: strip self-contained injected tags that open and
+    close within the same chunk. Whitelists _OWN_TAGS so they pass through.
+    Multi-delta injections are handled by InjectionFilter below.
+    """
+    result = text
+    for tag in _SUPPRESS_TAGS:
+        # Full open+close in one chunk
+        result = re.sub(rf'<{tag}(?:\s[^>]*)?>.*?</{tag}>', '', result, flags=re.DOTALL | re.IGNORECASE)
+        # Self-closing
+        result = re.sub(rf'<{tag}(?:\s[^>]*)?/>', '', result, flags=re.IGNORECASE)
+    return result
+
+
+class InjectionFilter:
+    """
+    Stateful filter that suppresses injected tag blocks even when they span
+    multiple WebSocket deltas. Safe text is passed through immediately;
+    content inside a suppressed tag is silently dropped.
+    """
+    def __init__(self):
+        self._suppressing: str | None = None  # tag name we're currently inside
+        self._buf: str = ""                   # partial tag buffer (guards split boundaries)
+
+    def feed(self, delta: str) -> str:
+        """Feed a delta, returns the safe text to emit (may be empty)."""
+        self._buf += delta
+        out = []
+
+        while self._buf:
+            if self._suppressing:
+                # Look for the closing tag
+                close = f"</{self._suppressing}>"
+                idx = self._buf.lower().find(close.lower())
+                if idx == -1:
+                    # Closing tag not yet arrived — hold the whole buffer
+                    # but keep a tail guard to catch a split closing tag
+                    guard = len(close) - 1
+                    if len(self._buf) > guard:
+                        # Everything before the guard window is definitely inside
+                        # the suppressed block — drop it
+                        self._buf = self._buf[-guard:]
+                    break
+                else:
+                    # Found the closing tag — drop everything up to and including it
+                    self._buf = self._buf[idx + len(close):]
+                    self._suppressing = None
+            else:
+                # Look for the start of any suppressed tag
+                earliest_idx = len(self._buf)
+                earliest_tag = None
+                for tag in _SUPPRESS_TAGS:
+                    # Match <tagname or <tagname> or <tagname ...>
+                    m = re.search(rf'<{tag}(?:\s|>|/)', self._buf, re.IGNORECASE)
+                    if m and m.start() < earliest_idx:
+                        earliest_idx = m.start()
+                        earliest_tag = tag
+
+                if earliest_tag is None:
+                    # No injected tag found — safe to emit everything except
+                    # a small tail that could be a partial opening tag
+                    guard = 20
+                    if len(self._buf) > guard:
+                        out.append(self._buf[:-guard])
+                        self._buf = self._buf[-guard:]
+                    break
+                else:
+                    # Emit everything before the tag, then start suppressing
+                    out.append(self._buf[:earliest_idx])
+                    self._buf = self._buf[earliest_idx:]
+                    self._suppressing = earliest_tag
+                    # Advance past the opening tag
+                    m = re.match(rf'<{earliest_tag}(?:[^>]*)>', self._buf, re.IGNORECASE)
+                    if m:
+                        self._buf = self._buf[m.end():]
+                    else:
+                        # Partial opening tag — wait for more data
+                        break
+
+        return "".join(out)
+
+    def flush(self) -> str:
+        """Call at end of stream to emit any remaining safe buffered text."""
+        if self._suppressing:
+            self._buf = ""
+            self._suppressing = None
+            return ""
+        result = self._buf
+        self._buf = ""
+        return result
 
 try:
     import websockets
@@ -288,11 +374,12 @@ async def _stream_gen(acct: dict, model: str, parts: list):
            f"&userEmail={acct['email']}&planType=free&isTestUser=false")
     hdrs = {"Cookie": acct["cookie_header"], "Origin": "https://use.ai", "User-Agent": _UA}
     idle = getattr(config, "WS_IDLE_TIMEOUT", 90)
-    
-    # Build the frame
+
     frame = _build_frame(chat_id, acct["user_id"], acct["email"], model, parts)
     log.info(f"Sending frame with {len(parts)} message parts")
-    
+
+    injection_filter = InjectionFilter()
+
     async with websockets.connect(uri, additional_headers=hdrs, max_size=None,
                                   open_timeout=config.WS_OPEN_TIMEOUT,
                                   ping_interval=20, ping_timeout=60) as ws:
@@ -307,6 +394,8 @@ async def _stream_gen(acct: dict, model: str, parts: list):
             except websockets.ConnectionClosed:
                 log.info(f"WebSocket closed after {delta_count} deltas")
                 break
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8")
             try:
                 o = json.loads(raw)
             except Exception:
@@ -321,7 +410,7 @@ async def _stream_gen(acct: dict, model: str, parts: list):
                     d = chunk.get("delta", "")
                     if isinstance(d, bytes):
                         d = d.decode("utf-8")
-                    d = _strip_injected_tags(d)
+                    d = injection_filter.feed(d)
                     if d:
                         delta_count += 1
                         log.info(f"WebSocket delta #{delta_count}: {d[:40]!r}")
@@ -332,6 +421,11 @@ async def _stream_gen(acct: dict, model: str, parts: list):
             if o.get("type") == "stream-complete":
                 log.info(f"WebSocket stream-complete after {delta_count} deltas")
                 break
+
+        # Flush any remaining buffered safe text
+        tail = injection_filter.flush()
+        if tail:
+            yield tail
 
 
 async def stream(model: str, prompt: str | None = None,

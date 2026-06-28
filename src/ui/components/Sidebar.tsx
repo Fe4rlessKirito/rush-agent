@@ -40,19 +40,6 @@ export function Sidebar({ view, onSelectView, projectContext = null }: Props) {
         </button>
 
         <button
-          className={"sb-item" + (view === "chat" ? " active" : "")}
-          onClick={() => onSelectView("chat")}
-          title="Chats"
-        >
-          <span className="sb-ico sb-ico-chats">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 11.5a8.5 8.5 0 0 1-9.5 8.4L7 21l1-3.2A8.5 8.5 0 1 1 21 11.5z" />
-            </svg>
-          </span>
-          <span className="sb-label">Chats</span>
-        </button>
-
-        <button
           className={"sb-item" + (view === "projects" ? " active" : "")}
           onClick={() => onSelectView("projects")}
           title="Projects"

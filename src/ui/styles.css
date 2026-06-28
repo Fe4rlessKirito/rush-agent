@@ -62,9 +62,6 @@ body {
 .sb-ico-new svg { transition: transform 0.2s ease; }
 .sb-item:hover .sb-ico-new svg { transform: rotate(90deg); }
 
-.sb-ico-chats svg { transition: transform 0.2s ease; }
-.sb-item:hover .sb-ico-chats svg { transform: translateY(-2px); }
-
 .sb-ico-projects svg .folder-lid {
   transform-origin: 6px 7px; transition: transform 0.2s ease;
 }
@@ -94,7 +91,6 @@ body {
   .sb-ico svg, .sb-ico-projects .folder-lid { transition: none; }
   .sb-item.active .sb-ico { animation: none; }
   .sb-item:hover .sb-ico-new svg,
-  .sb-item:hover .sb-ico-chats svg,
   .sb-item:hover .sb-ico-projects .folder-lid,
   .sb-item:hover .sb-ico-library svg { transform: none; }
   .icon-btn svg, .attach-btn::after, .send-btn svg { transition: none; }
