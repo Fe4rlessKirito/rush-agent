@@ -29,6 +29,28 @@ describe("Claude-compatible filesystem tools", () => {
     );
   });
 
+  it("passes absolute paths through to list_dir without workspace normalization", async () => {
+    const seen: string[] = [];
+    const tools = createFsTools({
+      async readFile() {
+        throw new Error("not used");
+      },
+      async writeFile() {
+        throw new Error("not used");
+      },
+      async listDir(path) {
+        seen.push(path);
+        return ["file C:/Users/marko/Downloads/oblivian/app.py"];
+      },
+    });
+    const listDir = tools.find((tool) => tool.definition.name === "list_dir")!;
+
+    const result = await listDir.execute({ path: "C:\\Users\\marko\\Downloads\\oblivian" });
+
+    expect(seen).toEqual(["C:/Users/marko/Downloads/oblivian"]);
+    expect(result.content).toContain("app.py");
+  });
+
   it("requires Read before Edit", async () => {
     const tools = toolMap({ "src/a.ts": "const value = 1;\n" });
 

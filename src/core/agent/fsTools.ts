@@ -39,6 +39,19 @@ function pathArg(args: Record<string, unknown>, fallback = ""): string {
   return normalizePath(String(args.file_path ?? args.path ?? fallback));
 }
 
+function listDirPathArg(args: Record<string, unknown>, fallback = "."): string {
+  const raw = String(args.file_path ?? args.path ?? fallback).trim();
+  if (!raw) return "";
+  const forward = raw.replace(/\\/g, "/");
+  const isAbsolute =
+    /^[A-Za-z]:\//.test(forward) ||
+    forward.startsWith("/") ||
+    forward.startsWith("//");
+  if (!isAbsolute) return normalizePath(forward);
+  if (/^[A-Za-z]:\/?$/.test(forward)) return forward.endsWith("/") ? forward : `${forward}/`;
+  return forward.length > 1 ? forward.replace(/\/$/, "") : forward;
+}
+
 function readKey(path: string): string {
   return normalizePath(path);
 }
@@ -251,7 +264,7 @@ export function createFsTools(fs: FsBackend): Tool[] {
         },
       },
       async execute(args) {
-        const entries = await fs.listDir(pathArg(args, ".") || ".");
+        const entries = await fs.listDir(listDirPathArg(args, ".") || ".");
         return { ok: true, content: entries.join("\n") };
       },
     },
