@@ -56,7 +56,11 @@ function dependencyWaitText(run: FlowRun | undefined, lane: FlowLane): string {
   return waitingOn.length ? `Waiting on ${waitingOn.join(", ")}` : "";
 }
 
-export function FlowView() {
+interface FlowViewProps {
+  embedded?: boolean;
+}
+
+export function FlowView({ embedded = false }: FlowViewProps) {
   const [showReport, setShowReport] = useState(false);
   const [reportSaved, setReportSaved] = useState(false);
   const [selectedLaneId, setSelectedLaneId] = useState<string | null>(null);
@@ -439,8 +443,10 @@ export function FlowView() {
     }
   }
 
+  const FlowFrame = embedded ? "div" : "main";
+
   return (
-    <main className="flow-view">
+    <FlowFrame className={`flow-view${embedded ? " embedded" : ""}`}>
       <div className="flow-shell">
         <div className="flow-head">
           <div>
@@ -622,6 +628,6 @@ export function FlowView() {
           </div>
         )}
       </div>
-    </main>
+    </FlowFrame>
   );
 }

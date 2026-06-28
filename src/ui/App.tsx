@@ -10,7 +10,6 @@ import { BrainView } from "./components/BrainView";
 import { DeepResearchView } from "./components/DeepResearchView";
 import { FlowView } from "./components/FlowView";
 import { ProjectSettings } from "./components/ProjectSettings";
-import { FileTree } from "./components/FileTree";
 import { EditorTabs } from "./components/EditorTabs";
 import { EditorPane } from "./components/EditorPane";
 import { TerminalPanel } from "./components/TerminalPanel";
@@ -43,7 +42,6 @@ export function App() {
   const [inProject, setInProject] = useState(false);
   const [showProjectSettings, setShowProjectSettings] = useState(false);
   const [projectPaneWidths, setProjectPaneWidths] = useState({
-    explorer: 260,
     ai: 420,
   });
   const [projectAiMode, setProjectAiMode] = useState<ProjectAiMode>("agent");
@@ -109,14 +107,14 @@ export function App() {
   };
 
   const startProjectResize =
-    (pane: "explorer" | "ai") => (e: ReactMouseEvent<HTMLDivElement>) => {
+    (pane: "ai") => (e: ReactMouseEvent<HTMLDivElement>) => {
       const startX = e.clientX;
       const start = projectPaneWidths[pane];
 
       const move = (ev: MouseEvent) => {
         const delta = ev.clientX - startX;
-        const min = pane === "explorer" ? 190 : 300;
-        const max = pane === "explorer" ? 420 : 760;
+        const min = 300;
+        const max = 760;
         const next = Math.max(min, Math.min(max, start + delta));
         setProjectPaneWidths((widths) => ({ ...widths, [pane]: next }));
       };
@@ -338,47 +336,36 @@ export function App() {
 
         {view === "projects" && inProject && (
           <div className="workspace project-workspace">
-            <aside
-              className="project-explorer"
-              style={{ flexBasis: projectPaneWidths.explorer }}
-            >
-              <div className="project-explorer-head">
-                <button className="projects-back" onClick={leaveProject}>
-                  Projects
-                </button>
-                {activeProject && (
-                  <div className="project-name-tag">
-                    <span>{activeProject.name}</span>
-                    <button
-                      className="project-settings-btn settings-cog-btn"
-                      onClick={() => setShowProjectSettings(true)}
-                      title="Project settings"
-                      aria-label="Project settings"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-                        <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05a2.1 2.1 0 0 1-2.97 2.97l-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V21.3a2.1 2.1 0 0 1-4.2 0v-.07a1.8 1.8 0 0 0-1.09-1.65 1.8 1.8 0 0 0-1.98.36l-.05.05a2.1 2.1 0 1 1-2.97-2.97l.05-.05A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.09H2.7a2.1 2.1 0 0 1 0-4.2h.25A1.8 1.8 0 0 0 4.6 8.62a1.8 1.8 0 0 0-.36-1.98l-.05-.05A2.1 2.1 0 0 1 7.16 3.6l.05.05a1.8 1.8 0 0 0 1.98.36A1.8 1.8 0 0 0 10.28 2.36V2.3a2.1 2.1 0 0 1 4.2 0v.07a1.8 1.8 0 0 0 1.09 1.65 1.8 1.8 0 0 0 1.98-.36l.05-.05a2.1 2.1 0 0 1 2.97 2.97l-.05.05a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.09h.19a2.1 2.1 0 0 1 0 4.2h-.19A1.8 1.8 0 0 0 19.4 15Z" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
-              </div>
-              <FileTree />
-            </aside>
-
-            <div
-              className="pane-resizer"
-              role="separator"
-              aria-orientation="vertical"
-              onMouseDown={startProjectResize("explorer")}
-            />
-
             <section
               className="project-ai-pane"
-              style={{ flexBasis: projectEditorMinimized ? "auto" : projectPaneWidths.ai }}
+              style={{
+                flexBasis: projectEditorMinimized ? "auto" : projectPaneWidths.ai,
+                flexGrow: projectEditorMinimized ? 1 : 0,
+              }}
             >
               <div className="project-ai-chat">
                 <div className="project-ai-toolbar">
+                  <div className="project-ai-toolbar-project">
+                    <button className="projects-back" onClick={leaveProject}>
+                      Projects
+                    </button>
+                    {activeProject && (
+                      <div className="project-name-tag">
+                        <span>{activeProject.name}</span>
+                        <button
+                          className="project-settings-btn settings-cog-btn"
+                          onClick={() => setShowProjectSettings(true)}
+                          title="Project settings"
+                          aria-label="Project settings"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+                            <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05a2.1 2.1 0 0 1-2.97 2.97l-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V21.3a2.1 2.1 0 0 1-4.2 0v-.07a1.8 1.8 0 0 0-1.09-1.65 1.8 1.8 0 0 0-1.98.36l-.05.05a2.1 2.1 0 1 1-2.97-2.97l.05-.05A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.09H2.7a2.1 2.1 0 0 1 0-4.2h.25A1.8 1.8 0 0 0 4.6 8.62a1.8 1.8 0 0 0-.36-1.98l-.05-.05A2.1 2.1 0 0 1 7.16 3.6l.05.05a1.8 1.8 0 0 0 1.98.36A1.8 1.8 0 0 0 10.28 2.36V2.3a2.1 2.1 0 0 1 4.2 0v.07a1.8 1.8 0 0 0 1.09 1.65 1.8 1.8 0 0 0 1.98-.36l.05-.05a2.1 2.1 0 0 1 2.97 2.97l-.05.05a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.09h.19a2.1 2.1 0 0 1 0 4.2h-.19A1.8 1.8 0 0 0 19.4 15Z" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <div className="project-ai-mode-tabs" role="tablist" aria-label="Project AI mode">
                     <button
                       className={projectAiMode === "agent" ? "active" : ""}
@@ -419,7 +406,11 @@ export function App() {
                   </button>
                 </div>
                 <div className="project-ai-chat-body">
-                  <ChatPanel mode={projectAiMode} />
+                  {projectAiMode === "flow" ? (
+                    <FlowView embedded />
+                  ) : (
+                    <ChatPanel mode="agent" />
+                  )}
                 </div>
               </div>
               <TerminalPanel />
