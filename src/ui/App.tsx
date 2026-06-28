@@ -28,6 +28,10 @@ type LspToast = {
   installJob?: string;
 };
 
+function normalizeProjectRoot(path: string): string {
+  return path.trim().replace(/[\\/]+$/, "");
+}
+
 export function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
@@ -134,6 +138,30 @@ export function App() {
     if (!autoUpdateEnabled) return;
     void checkForUpdates(true);
   }, [autoUpdateEnabled]);
+
+  useEffect(() => {
+    const root = normalizeProjectRoot(activeProject?.path ?? "");
+    if (!root) return;
+
+    let cancelled = false;
+    async function syncProjectRoot() {
+      try {
+        await setDesktopProjectRoot(root);
+        if (cancelled) return;
+        const fileState = useFileStore.getState();
+        if (fileState.mode !== "disk" || normalizeProjectRoot(fileState.root) !== root) {
+          await fileState.loadFromDisk(root);
+        }
+      } catch (err) {
+        console.warn("sync project root failed", err);
+      }
+    }
+
+    void syncProjectRoot();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProject?.path]);
 
   useEffect(() => {
     const handler = (event: Event) => {

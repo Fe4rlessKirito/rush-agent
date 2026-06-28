@@ -1000,7 +1000,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
         mode === "flow" ? flowTools : codeTools,
         [...history, { role: "user", content: userContent }],
         abortRef.current.signal,
-        undefined,
+        24,
         [projectInstructions, brainContext, selectedLibraryContext, flowContext].filter(Boolean).join("\n\n"),
         effortThinking,
       )) {
