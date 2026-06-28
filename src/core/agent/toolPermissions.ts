@@ -32,13 +32,19 @@ const PATH_ARG_TOOLS = new Set([
   "Glob",
   "Grep",
   "read_file",
+  "read_file_range",
+  "read_many_files",
   "write_file",
+  "write_many_files",
   "edit_file",
   "delete_file",
   "move_file",
+  "create_dir",
   "list_dir",
+  "list_tree",
   "glob_files",
   "grep_search",
+  "search_replace",
 ]);
 const COMMAND_ARG_TOOLS = new Set(["Bash", "PowerShell", "Monitor", "background_start"]);
 const DOMAIN_ARG_TOOLS = new Set(["WebFetch"]);

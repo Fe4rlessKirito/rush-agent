@@ -10,6 +10,7 @@ mod local_proxy_commands;
 mod lsp_commands;
 mod mcp_commands;
 mod package_commands;
+mod system_commands;
 mod terminal_commands;
 mod worktree_commands;
 
@@ -42,6 +43,7 @@ pub fn run() {
             fs_commands::write_file,
             fs_commands::create_dir,
             fs_commands::delete_file,
+            fs_commands::move_file,
             fs_commands::list_dir,
             code_commands::code_find_symbol,
             code_commands::code_find_definition,
@@ -50,14 +52,22 @@ pub fn run() {
             git_commands::git_diff,
             git_commands::git_branch,
             git_commands::git_current_branch,
+            git_commands::git_log,
+            git_commands::git_show,
+            git_commands::git_blame,
             git_commands::git_commit,
             git_commands::git_push,
             git_commands::git_pull,
+            git_commands::git_reset,
             package_commands::npm_scripts,
             package_commands::npm_run_script,
             package_commands::npm_install,
             package_commands::npm_ci,
+            package_commands::npm_audit,
             package_commands::cargo_check_cmd,
+            package_commands::cargo_fmt_cmd,
+            package_commands::cargo_clippy_cmd,
+            package_commands::cargo_audit_cmd,
             package_commands::cargo_test_cmd,
             package_commands::cargo_build_cmd,
             package_commands::pip_install,
@@ -83,6 +93,8 @@ pub fn run() {
             local_proxy_commands::local_proxy_status,
             local_proxy_commands::local_proxy_restart,
             local_proxy_commands::local_proxy_set_enabled,
+            system_commands::open_url,
+            system_commands::process_memory_status,
             lsp_commands::lsp_probe,
             lsp_commands::lsp_start,
             lsp_commands::lsp_definition,

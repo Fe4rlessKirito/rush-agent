@@ -144,10 +144,28 @@ body {
 }
 .sb-row-menu { padding-left: 8px; opacity: 0; font-size: 15px; }
 .sb-chat-row:hover .sb-row-menu, .sb-chat-row.active .sb-row-menu { opacity: 1; }
-.sb-version {
-  margin-top: 12px; padding: 4px 10px;
-  color: var(--text-faint); font-size: 11px; font-weight: 600;
+.sb-status-line {
+  margin-top: 12px;
+  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.04em;
+}
+.sb-version,
+.sb-ram {
+  min-width: 0;
+  white-space: nowrap;
+}
+.sb-ram {
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
 }
 
 /* Titlebar */

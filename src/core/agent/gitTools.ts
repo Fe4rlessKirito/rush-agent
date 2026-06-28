@@ -68,6 +68,64 @@ export function createGitTools(): Tool[] {
     },
     {
       definition: {
+        name: "git_log",
+        description:
+          "Show recent Git commits for the active workspace. Use this instead of running git log through a terminal.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "Maximum number of commits to show. Defaults to 10." },
+          },
+        },
+      },
+      execute: (args) =>
+        callGit("git_log", {
+          limit: typeof args.limit === "number" && Number.isFinite(args.limit) ? args.limit : undefined,
+        }),
+    },
+    {
+      definition: {
+        name: "git_show",
+        description:
+          "Show a Git commit, tag, branch, or file-at-revision with stat and patch output.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            rev: { type: "string", description: "Revision to show. Defaults to HEAD." },
+            path: { type: "string", description: "Optional workspace-relative path to limit output." },
+          },
+        },
+      },
+      execute: (args) =>
+        callGit("git_show", {
+          rev: optionalString(args.rev),
+          path: optionalString(args.path),
+        }),
+    },
+    {
+      definition: {
+        name: "git_blame",
+        description:
+          "Show Git blame for a workspace file, optionally limited to a line range.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            path: { type: "string", description: "Workspace-relative file path." },
+            start_line: { type: "number", description: "Optional first one-based line number." },
+            end_line: { type: "number", description: "Optional last one-based line number." },
+          },
+          required: ["path"],
+        },
+      },
+      execute: (args) =>
+        callGit("git_blame", {
+          path: String(args.path ?? ""),
+          startLine: typeof args.start_line === "number" ? args.start_line : undefined,
+          endLine: typeof args.end_line === "number" ? args.end_line : undefined,
+        }),
+    },
+    {
+      definition: {
         name: "git_commit",
         description:
           "Create a Git commit in the active workspace. Set all=true to stage all changes " +
@@ -125,6 +183,26 @@ export function createGitTools(): Tool[] {
         callGit("git_pull", {
           remote: optionalString(args.remote),
           branch: optionalString(args.branch),
+        }),
+    },
+    {
+      definition: {
+        name: "git_reset",
+        description:
+          "Run git reset in the active workspace. mode may be soft, mixed, or hard. Hard reset is destructive and requires confirmation.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            mode: { type: "string", description: "Reset mode: soft, mixed, or hard. Defaults to mixed." },
+            ref: { type: "string", description: "Optional target ref. Defaults to HEAD." },
+            target: { type: "string", description: "Alias for ref." },
+          },
+        },
+      },
+      execute: (args) =>
+        callGit("git_reset", {
+          mode: optionalString(args.mode),
+          target: optionalString(args.ref) ?? optionalString(args.target),
         }),
     },
   ];

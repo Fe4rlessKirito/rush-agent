@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBackgroundTools, type BackgroundBackend, type BackgroundJobSummary } from "./backgroundTools";
 
 function mockBackend(): { backend: BackgroundBackend; calls: string[] } {
@@ -38,6 +38,10 @@ function toolMap(backend: BackgroundBackend) {
 }
 
 describe("background tools", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("starts and monitors a background command", async () => {
     const { backend, calls } = mockBackend();
     const tools = toolMap(backend);
@@ -62,5 +66,17 @@ describe("background tools", () => {
     expect((await tools.get("background_list")!.execute({})).content).toContain("npm run dev");
     expect((await tools.get("background_stop")!.execute({ id: "job_1" })).content).toContain("Stopped job_1");
     expect(calls).toEqual(["read:job_1", "list", "stop:job_1"]);
+  });
+
+  it("starts and checks dev servers", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("ok", { status: 200 })));
+    const { backend, calls } = mockBackend();
+    const tools = toolMap(backend);
+
+    expect((await tools.get("dev_server_start")!.execute({})).content).toContain("Expected URL: http://localhost:5173");
+    const status = await tools.get("dev_server_status")!.execute({ url: "http://localhost:5173" });
+
+    expect(status.content).toContain("HTTP 200");
+    expect(calls).toEqual(["start::npm run dev", "list"]);
   });
 });

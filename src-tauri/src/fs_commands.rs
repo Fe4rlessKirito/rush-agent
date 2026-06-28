@@ -136,6 +136,16 @@ pub fn delete_file(state: State<ProjectRoot>, path: String) -> Result<(), String
     }
 }
 
+#[tauri::command]
+pub fn move_file(state: State<ProjectRoot>, from: String, to: String) -> Result<(), String> {
+    let src = resolve(&state, &from)?;
+    let dst = resolve(&state, &to)?;
+    if let Some(parent) = dst.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("mkdir for {to}: {e}"))?;
+    }
+    fs::rename(&src, &dst).map_err(|e| format!("move {from} to {to}: {e}"))
+}
+
 // List one directory level (non-recursive). `path` may be workspace-relative or
 // absolute. Absolute listing is read-only; file reads/writes still use `resolve`.
 #[tauri::command]

@@ -65,18 +65,26 @@ const READ_TOOLS = new Set([
   "TodoWrite",
   "WaitForMcpServers",
   "read_file",
+  "read_file_range",
+  "read_many_files",
+  "file_info",
+  "project_files_summary",
   "list_dir",
+  "list_tree",
   "glob_files",
   "grep_search",
   "git_status",
   "git_diff",
   "git_log",
+  "git_show",
+  "git_blame",
   "git_branch",
   "git_current_branch",
   "terminal_read",
   "terminal_wait_for_output",
   "background_read",
   "background_list",
+  "dev_server_status",
   "lsp_start",
   "lsp_find_definition",
   "lsp_find_references",
@@ -86,6 +94,13 @@ const READ_TOOLS = new Set([
   "code_find_definition",
   "npm_scripts",
   "winget_search",
+  "project_context",
+  "deep_research_search",
+  "ui_inspect",
+  "screenshot_url",
+  "release_prepare",
+  "release_verify",
+  "dependency_audit",
 ]);
 
 // Tools that are always destructive regardless of args.
@@ -100,6 +115,8 @@ const DESTRUCTIVE_TOOLS = new Set([
   "npm_install",
   "npm_ci",
   "pip_install",
+  "run_tests",
+  "dev_server_start",
   "McpServerConfigure",
   "McpServerConnect",
   "McpServerDisconnect",
@@ -118,16 +135,27 @@ export function riskOf(name: string, args: Record<string, unknown>): ToolRisk {
   if (name === "git_reset") {
     return String(args.mode ?? "").toLowerCase() === "hard" ? "destructive" : "write";
   }
+  if (name === "search_replace") {
+    return args.dryRun === false ? "write" : "read";
+  }
+  if (name === "format_files") {
+    return args.check === true ? "destructive" : "destructive";
+  }
   // Executing terminal commands and committing run real side effects.
   if (
     name === "Bash" ||
     name === "PowerShell" ||
     name === "Monitor" ||
     name === "background_start" ||
+    name === "terminal_write" ||
     name === "terminal_send_line" ||
     name === "terminal_start" ||
     name === "git_commit" ||
     name === "npm_run_script" ||
+    name === "run_tests" ||
+    name === "diagnostics" ||
+    name === "lint" ||
+    name === "cargo_check" ||
     name === "cargo_build" ||
     name === "cargo_test"
   ) {

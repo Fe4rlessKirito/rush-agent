@@ -149,8 +149,46 @@ pub fn npm_ci(state: State<ProjectRoot>) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn npm_audit(state: State<ProjectRoot>) -> Result<String, String> {
+    run_in_project(
+        state,
+        npm_bin(),
+        &["audit".to_string(), "--audit-level=moderate".to_string()],
+    )
+}
+
+#[tauri::command]
 pub fn cargo_check_cmd(state: State<ProjectRoot>) -> Result<String, String> {
     run_in_project(state, cargo_bin(), &["check".to_string()])
+}
+
+#[tauri::command]
+pub fn cargo_fmt_cmd(state: State<ProjectRoot>, check: bool) -> Result<String, String> {
+    let mut args = vec!["fmt".to_string()];
+    if check {
+        args.push("--check".to_string());
+    }
+    run_in_project(state, cargo_bin(), &args)
+}
+
+#[tauri::command]
+pub fn cargo_clippy_cmd(state: State<ProjectRoot>) -> Result<String, String> {
+    run_in_project(
+        state,
+        cargo_bin(),
+        &[
+            "clippy".to_string(),
+            "--all-targets".to_string(),
+            "--".to_string(),
+            "-D".to_string(),
+            "warnings".to_string(),
+        ],
+    )
+}
+
+#[tauri::command]
+pub fn cargo_audit_cmd(state: State<ProjectRoot>) -> Result<String, String> {
+    run_in_project(state, cargo_bin(), &["audit".to_string()])
 }
 
 #[tauri::command]

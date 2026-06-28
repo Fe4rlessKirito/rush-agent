@@ -30,6 +30,9 @@ import { createPlanningTools } from "../../core/agent/planningTools";
 import { createWorktreeTools } from "../../core/agent/worktreeTools";
 import { createSkillTools } from "../../core/agent/skillTools";
 import { createMcpTools } from "../../core/agent/mcpTools";
+import { createProjectTools } from "../../core/agent/projectTools";
+import { createReleaseTools } from "../../core/agent/releaseTools";
+import { createBrowserTools } from "../../core/agent/browserTools";
 import { createDynamicMcpTools, createMcpConfigTools, mcpRuntimeSource } from "../../core/agent/mcpRuntime";
 import { isToolAvailableInMode } from "../../core/agent/toolModes";
 import { buildFlowRuntimeInstructions } from "../../core/agent/flowPrompt";
@@ -41,7 +44,7 @@ import "highlight.js/styles/github-dark.css";
 
 const fs = isTauriRuntime() ? createTauriFs() : createDevFs();
 
-function registerCodeToolset(registry: ToolRegistry) {
+function registerCodeToolset(registry: ToolRegistry, mode: "code" | "flow") {
   registry.registerAll(createFsTools(fs));
   registry.registerAll(createCodeTools());
   registry.registerAll(createGitTools());
@@ -54,13 +57,28 @@ function registerCodeToolset(registry: ToolRegistry) {
   registry.registerAll(createSkillTools());
   registry.registerAll(createMcpTools(mcpRuntimeSource));
   registry.registerAll(createMcpConfigTools());
+  registry.registerAll(createReleaseTools(fs));
+  registry.registerAll(createBrowserTools());
+  registry.registerAll(createProjectTools({
+    getContext: () => {
+      const projectState = useProjectStore.getState();
+      const project = projectState.projects.find((item) => item.id === projectState.activeProjectId);
+      return {
+        mode,
+        activeProjectId: projectState.activeProjectId,
+        projectName: project?.name,
+        projectPath: project?.path,
+        instructions: project?.instructions,
+      };
+    },
+  }));
   registry.registerDynamic(() => createDynamicMcpTools());
 }
 
 export const codeTools = new ToolRegistry({
   isToolEnabled: (name) => isToolAvailableInMode("code", name),
 });
-registerCodeToolset(codeTools);
+registerCodeToolset(codeTools, "code");
 
 export const chatTools = new ToolRegistry({
   isToolEnabled: (name) => isToolAvailableInMode("chat", name),
@@ -75,7 +93,7 @@ chatTools.registerAll(createChatTools({
 export const flowTools = new ToolRegistry({
   isToolEnabled: (name) => isToolAvailableInMode("flow", name),
 });
-registerCodeToolset(flowTools);
+registerCodeToolset(flowTools, "flow");
 flowTools.registerAll(createFlowTools({
   getProvider: () => {
     const state = useAppStore.getState();
@@ -142,24 +160,51 @@ function toolTarget(args: Record<string, unknown> | undefined, keys: string[]): 
 function friendlyToolName(name: string | undefined): string {
   switch (name) {
     case "list_dir": return "list folder";
+    case "list_tree": return "show tree";
     case "read_file":
     case "Read": return "read file";
+    case "read_file_range": return "read lines";
+    case "read_many_files": return "read files";
+    case "file_info": return "inspect file";
+    case "project_files_summary": return "summarize files";
     case "write_file":
     case "Write": return "write file";
+    case "write_many_files": return "write files";
     case "edit_file":
     case "Edit": return "edit file";
+    case "create_dir": return "create folder";
+    case "delete_file": return "delete file";
+    case "move_file": return "move file";
+    case "search_replace": return "search and replace";
     case "glob_files":
     case "Glob": return "find files";
     case "grep_search":
     case "Grep": return "search files";
     case "git_status": return "check Git status";
     case "git_diff": return "inspect Git diff";
+    case "git_log": return "show Git history";
+    case "git_show": return "show Git commit";
+    case "git_blame": return "inspect Git blame";
     case "npm_scripts": return "inspect package scripts";
+    case "run_tests": return "run tests";
+    case "diagnostics": return "run diagnostics";
+    case "format_files": return "format files";
+    case "lint": return "run lint";
+    case "dependency_audit": return "audit dependencies";
     case "PowerShell":
     case "Bash":
     case "terminal_start": return "run command";
     case "WebSearch": return "search the web";
+    case "deep_research_search": return "research search";
     case "WebFetch": return "read web page";
+    case "ui_inspect": return "inspect UI";
+    case "screenshot_url": return "capture screenshot";
+    case "project_context": return "inspect project";
+    case "open_url": return "open URL";
+    case "dev_server_start": return "start dev server";
+    case "dev_server_status": return "check dev server";
+    case "release_prepare": return "check release";
+    case "release_verify": return "verify release";
     case "Agent": return "run subagent";
     default: return name ? name.replace(/_/g, " ") : "tool";
   }

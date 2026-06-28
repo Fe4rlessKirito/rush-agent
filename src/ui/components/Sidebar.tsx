@@ -1,5 +1,8 @@
+import { useEffect, useMemo, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../../core/store";
 import type { Conversation, ConversationProjectContext } from "../../core/store";
+import { isTauriRuntime } from "../../core/agent/tauriFs";
 
 type View = "chat" | "code" | "projects" | "library" | "flow";
 
@@ -7,6 +10,22 @@ interface Props {
   view: View;
   onSelectView: (v: View) => void;
   projectContext?: ConversationProjectContext | null;
+}
+
+interface ProcessMemoryReport {
+  total_bytes: number;
+  processes: Array<{
+    pid: number;
+    name: string;
+    memory_bytes: number;
+  }>;
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 MB";
+  const mib = bytes / 1024 / 1024;
+  if (mib < 1024) return `${mib.toFixed(mib >= 100 ? 0 : 1)} MB`;
+  return `${(mib / 1024).toFixed(2)} GB`;
 }
 
 export function Sidebar({ view, onSelectView, projectContext = null }: Props) {
@@ -18,6 +37,35 @@ export function Sidebar({ view, onSelectView, projectContext = null }: Props) {
   const visibleConversations = getVisibleSidebarConversations(conversations, projectContext);
   const newMode = projectContext ? "agent" : view === "code" ? "agent" : view === "flow" ? "flow" : "plain";
   const newLabel = newMode === "agent" ? "New task" : newMode === "flow" ? "New flow" : "New chat";
+  const [memory, setMemory] = useState<ProcessMemoryReport | null>(null);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let alive = true;
+    async function refresh() {
+      try {
+        const report = await invoke<ProcessMemoryReport>("process_memory_status");
+        if (alive) setMemory(report);
+      } catch {
+        if (alive) setMemory(null);
+      }
+    }
+    refresh();
+    const id = window.setInterval(refresh, 2000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const memoryTitle = useMemo(() => {
+    if (!memory) return "RAM usage unavailable";
+    const top = memory.processes
+      .slice(0, 8)
+      .map((process) => `${process.name} (${process.pid}): ${formatBytes(process.memory_bytes)}`)
+      .join("\n");
+    return [`Rush process tree RAM: ${formatBytes(memory.total_bytes)}`, top].filter(Boolean).join("\n");
+  }, [memory]);
 
   return (
     <aside className="app-sidebar">
@@ -105,7 +153,10 @@ export function Sidebar({ view, onSelectView, projectContext = null }: Props) {
         </div>
       </div>
 
-      <div className="sb-version">v{__APP_VERSION__}</div>
+      <div className="sb-status-line" title={memoryTitle}>
+        <span className="sb-version">v{__APP_VERSION__}</span>
+        <span className="sb-ram">{memory ? formatBytes(memory.total_bytes) : "-- RAM"}</span>
+      </div>
     </aside>
   );
 }

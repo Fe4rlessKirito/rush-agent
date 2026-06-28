@@ -19,10 +19,26 @@ function toolMap() {
 }
 
 describe("web tools", () => {
+  it("registers deep_research_search", () => {
+    expect(toolMap().has("deep_research_search")).toBe(true);
+  });
+
   it("filters WebSearch results by allowed domains", async () => {
     const tools = toolMap();
 
     const result = await tools.get("WebSearch")!.execute({
+      query: "docs",
+      allowed_domains: ["example.com"],
+    });
+
+    expect(result.content).toContain("Allowed");
+    expect(result.content).not.toContain("Blocked");
+  });
+
+  it("filters deep_research_search results by allowed domains", async () => {
+    const tools = toolMap();
+
+    const result = await tools.get("deep_research_search")!.execute({
       query: "docs",
       allowed_domains: ["example.com"],
     });

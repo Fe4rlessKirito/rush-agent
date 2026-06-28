@@ -97,6 +97,36 @@ export function createWebTools(options: WebToolOptions = {}): Tool[] {
     },
     {
       definition: {
+        name: "deep_research_search",
+        description:
+          "Search with the configured Deep Research provider and return sources for iterative research. Use this to build broad reports over multiple focused searches.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "Focused research search query." },
+            engine: { type: "string", description: "Optional engine: Default, duckduckgo, searxng, tavily, brave." },
+            allowed_domains: { type: "array", items: { type: "string" }, description: "Only include results from these domains." },
+            blocked_domains: { type: "array", items: { type: "string" }, description: "Exclude results from these domains." },
+          },
+          required: ["query"],
+        },
+      },
+      async execute(args) {
+        const query = String(args.query ?? "").trim();
+        if (!query) return { ok: false, isError: true, content: "Missing query." };
+        const engine = String(args.engine ?? defaultEngine) as SearchEngine;
+        const response = await search(query, engine, getSearchConfig());
+        const filtered = {
+          ...response,
+          results: response.results.filter((result) =>
+            hostAllowed(result.url, args.allowed_domains, args.blocked_domains),
+          ),
+        };
+        return { ok: true, content: formatSearchResults(filtered) };
+      },
+    },
+    {
+      definition: {
         name: "WebFetch",
         description:
           "Fetch a URL and return readable page text. HTML is converted to plain text; large pages are truncated.",

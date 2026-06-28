@@ -54,6 +54,11 @@ function formatJobs(jobs: BackgroundJobSummary[]): string {
   return jobs.length ? jobs.map(formatJob).join("\n") : "No background jobs.";
 }
 
+function devUrl(value: unknown): string {
+  const url = String(value ?? "http://localhost:5173").trim();
+  return /^https?:\/\//i.test(url) ? url : `http://${url}`;
+}
+
 export function createBackgroundTools(backend: BackgroundBackend = tauriBackgroundBackend): Tool[] {
   return [
     {
@@ -75,6 +80,58 @@ export function createBackgroundTools(backend: BackgroundBackend = tauriBackgrou
         if (!command) return { ok: false, isError: true, content: "Missing command." };
         const job = await backend.start({ command, shell: shellArg(args) });
         return { ok: true, content: `Started ${formatJob(job)}` };
+      },
+    },
+    {
+      definition: {
+        name: "dev_server_start",
+        description:
+          "Start a development server as a background job. Defaults to npm run dev and returns the job id.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            command: { type: "string", description: "Server command. Defaults to npm run dev." },
+            shell: { type: "string", description: "Optional shell: powershell, pwsh, cmd, sh, bash." },
+            url: { type: "string", description: "Expected server URL, defaults to http://localhost:5173." },
+          },
+        },
+      },
+      async execute(args) {
+        const command = commandArg(args) || "npm run dev";
+        const job = await backend.start({ command, shell: shellArg(args) });
+        return {
+          ok: true,
+          content: [
+            `Started dev server ${formatJob(job)}`,
+            `Expected URL: ${devUrl(args.url)}`,
+            "Use dev_server_status to check readiness.",
+          ].join("\n"),
+        };
+      },
+    },
+    {
+      definition: {
+        name: "dev_server_status",
+        description:
+          "List dev-server background jobs and optionally check an expected local URL for a response.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            url: { type: "string", description: "Optional URL to check, defaults to http://localhost:5173." },
+          },
+        },
+      },
+      async execute(args) {
+        const jobs = (await backend.list()).filter((job) => /npm run dev|vite|next dev|dev server/i.test(job.command));
+        const url = devUrl(args.url);
+        let status = "";
+        try {
+          const res = await fetch(url, { method: "GET" });
+          status = `URL ${url}: HTTP ${res.status}`;
+        } catch (err) {
+          status = `URL ${url}: not reachable (${String(err)})`;
+        }
+        return { ok: true, content: [`Jobs:\n${formatJobs(jobs)}`, status].join("\n\n") };
       },
     },
     {

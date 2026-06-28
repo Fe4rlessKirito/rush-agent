@@ -15,6 +15,22 @@ function stringList(value: unknown): string[] {
   return value.map(String).map((v) => v.trim()).filter(Boolean);
 }
 
+function hasScript(scripts: string, name: string): boolean {
+  try {
+    const parsed = JSON.parse(scripts) as Record<string, string>;
+    return typeof parsed[name] === "string";
+  } catch {
+    return scripts.includes(`"${name}"`) || new RegExp(`^${name}\\b`, "m").test(scripts);
+  }
+}
+
+async function runNpmScriptIfPresent(script: string, args: string[] = []) {
+  const scripts = await callPackage("npm_scripts");
+  if (!scripts.ok) return null;
+  if (!hasScript(scripts.content, script)) return null;
+  return callPackage("npm_run_script", { script, args });
+}
+
 export function createPackageTools(): Tool[] {
   return [
     {
@@ -72,6 +88,127 @@ export function createPackageTools(): Tool[] {
         inputSchema: { type: "object", properties: {} },
       },
       execute: () => callPackage("npm_ci"),
+    },
+    {
+      definition: {
+        name: "run_tests",
+        description:
+          "Run the project's test suite. Auto-detects npm test first, then Cargo tests. Set kind to npm or cargo to force one.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            kind: { type: "string", description: "Optional: auto, npm, or cargo." },
+            args: { type: "array", description: "Optional extra test arguments." },
+          },
+        },
+      },
+      async execute(args) {
+        const kind = String(args.kind ?? "auto").toLowerCase();
+        const extra = stringList(args.args);
+        if (kind === "npm" || kind === "auto") {
+          const scripts = await callPackage("npm_scripts");
+          if (scripts.ok) {
+            const hasTest = hasScript(scripts.content, "test");
+            if (hasTest || kind === "npm") {
+              return callPackage("npm_run_script", { script: "test", args: extra });
+            }
+          } else if (kind === "npm") {
+            return scripts;
+          }
+        }
+        if (kind === "cargo" || kind === "auto") {
+          return callPackage("cargo_test_cmd");
+        }
+        return { ok: false, isError: true, content: `Unknown test kind: ${kind}` };
+      },
+    },
+    {
+      definition: {
+        name: "diagnostics",
+        description:
+          "Run project diagnostics. Auto mode tries npm build, npm test, and cargo check where available.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            kind: { type: "string", description: "Optional: auto, npm, cargo, or all." },
+          },
+        },
+      },
+      async execute(args) {
+        const kind = String(args.kind ?? "auto").toLowerCase();
+        const results: string[] = [];
+        if (kind === "npm" || kind === "auto" || kind === "all") {
+          const build = await runNpmScriptIfPresent("build");
+          if (build) results.push(`npm build:\n${build.content}`);
+          const test = await runNpmScriptIfPresent("test");
+          if (test) results.push(`npm test:\n${test.content}`);
+          if ((kind === "npm" || kind === "all") && !build && !test) results.push("npm: no build/test scripts found.");
+        }
+        if (kind === "cargo" || kind === "auto" || kind === "all") {
+          const cargo = await callPackage("cargo_check_cmd");
+          results.push(`cargo check:\n${cargo.content}`);
+        }
+        return { ok: true, content: results.length ? results.join("\n\n") : `No diagnostics found for kind: ${kind}` };
+      },
+    },
+    {
+      definition: {
+        name: "format_files",
+        description:
+          "Run the project formatter. Uses npm format when present, otherwise cargo fmt. Set check=true to verify without changing where supported.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            check: { type: "boolean", description: "Check formatting without writing when supported." },
+          },
+        },
+      },
+      async execute(args) {
+        const npmFormat = await runNpmScriptIfPresent("format", args.check === true ? ["--check"] : []);
+        if (npmFormat) return npmFormat;
+        return callPackage("cargo_fmt_cmd", { check: args.check === true });
+      },
+    },
+    {
+      definition: {
+        name: "lint",
+        description:
+          "Run static code-quality checks. Uses npm lint when present, otherwise cargo clippy for Rust projects.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      async execute() {
+        const npmLint = await runNpmScriptIfPresent("lint");
+        if (npmLint) return npmLint;
+        return callPackage("cargo_clippy_cmd");
+      },
+    },
+    {
+      definition: {
+        name: "dependency_audit",
+        description:
+          "Run dependency vulnerability checks. Uses npm audit and cargo audit when available.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            kind: { type: "string", description: "Optional: auto, npm, cargo, or all." },
+          },
+        },
+      },
+      async execute(args) {
+        const kind = String(args.kind ?? "auto").toLowerCase();
+        const results: string[] = [];
+        if (kind === "npm" || kind === "auto" || kind === "all") {
+          const audit = await callPackage("npm_audit");
+          results.push(`npm audit:\n${audit.content}`);
+          if (kind === "npm") return audit;
+        }
+        if (kind === "cargo" || kind === "all") {
+          const audit = await callPackage("cargo_audit_cmd");
+          results.push(`cargo audit:\n${audit.content}`);
+          if (kind === "cargo") return audit;
+        }
+        return { ok: true, content: results.join("\n\n") || "No audit checks ran." };
+      },
     },
     {
       definition: {
