@@ -1,5 +1,22 @@
-import type { Provider, ProviderConfig, ChatRequest, ChatChunk } from "./types";
+import type { Provider, ProviderConfig, ChatRequest, ChatChunk, ChatMessage } from "./types";
 import { parseModelList } from "./modelParser";
+
+function openAIContent(content: ChatMessage["content"]): unknown {
+  if (typeof content === "string") return content;
+  return content.map((part) => {
+    if (part.type === "text") return { type: "text", text: part.text };
+    return { type: "image_url", image_url: { url: part.dataUrl } };
+  });
+}
+
+function openAIMessage(msg: ChatMessage): Record<string, unknown> {
+  return {
+    role: msg.role,
+    content: openAIContent(msg.content),
+    ...(msg.name ? { name: msg.name } : {}),
+    ...(msg.toolCallId ? { tool_call_id: msg.toolCallId } : {}),
+  };
+}
 
 // Speaks the OpenAI Chat Completions wire format. Because most custom proxies
 // (LiteLLM, OpenRouter, vLLM, Ollama's /v1, etc.) are OpenAI-compatible, the
@@ -31,10 +48,11 @@ export class OpenAIProvider implements Provider {
       signal: req.signal,
       body: JSON.stringify({
         model: req.model,
-        messages: req.messages,
+        messages: req.messages.map(openAIMessage),
         temperature: req.temperature ?? 0.2,
         max_tokens: req.maxTokens,
         stream: true,
+        ...(this.config.supportsThinking && req.thinking ? { thinking: req.thinking } : {}),
         // Advertise tools in OpenAI function-calling format when present.
         ...(req.tools && req.tools.length
           ? {
@@ -63,11 +81,27 @@ export class OpenAIProvider implements Provider {
     // Accumulate id/name/arguments per index, then flush when the stream signals
     // completion (finish_reason "tool_calls" or [DONE]).
     const pending = new Map<number, { id: string; name: string; args: string }>();
+    const seenToolIds = new Set<string>();
+    const uniqueToolId = (rawId: string, index: number): string => {
+      const base = rawId || `call_${index}`;
+      if (!seenToolIds.has(base)) {
+        seenToolIds.add(base);
+        return base;
+      }
+      let suffix = 2;
+      let next = `${base}_${suffix}`;
+      while (seenToolIds.has(next)) {
+        suffix += 1;
+        next = `${base}_${suffix}`;
+      }
+      seenToolIds.add(next);
+      return next;
+    };
     const flushToolCalls = function* (): Generator<ChatChunk> {
       const ordered = [...pending.entries()].sort((a, b) => a[0] - b[0]);
-      for (const [, tc] of ordered) {
+      for (const [index, tc] of ordered) {
         if (!tc.name) continue;
-        yield { delta: "", done: false, toolCall: { id: tc.id, name: tc.name, argsJson: tc.args || "{}" } };
+        yield { delta: "", done: false, toolCall: { id: uniqueToolId(tc.id, index), name: tc.name, argsJson: tc.args || "{}" } };
       }
       pending.clear();
     };
@@ -92,7 +126,13 @@ export class OpenAIProvider implements Provider {
           const json = JSON.parse(payload);
           const choice = json.choices?.[0];
           const delta = choice?.delta?.content ?? "";
-          if (delta) yield { delta, done: false };
+          if (delta) {
+            if (choice?.delta?.thinking === true) {
+              yield { delta: "", done: false, thinking: delta };
+            } else {
+              yield { delta, done: false };
+            }
+          }
 
           const toolDeltas = choice?.delta?.tool_calls;
           if (Array.isArray(toolDeltas)) {

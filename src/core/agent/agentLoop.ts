@@ -1,5 +1,5 @@
-import type { Provider, ChatMessage, ToolSchema, NativeToolCall } from "../providers/types";
-import type { ToolRegistry } from "./tools";
+import type { Provider, ChatMessage, ChatRequest, ToolSchema, NativeToolCall } from "../providers/types";
+import type { ToolDefinition, ToolRegistry } from "./tools";
 
 // The agent loop: stream a model response, detect tool calls, execute them via
 // the registry, feed results back, and repeat until the model produces a final
@@ -112,7 +112,22 @@ function fenceToolOutput(tool: string, content: string): string {
   ].join("\n");
 }
 
-function buildSystemPrompt(toolList: string, projectInstructions?: string): string {
+function formatToolList(definitions: ToolDefinition[]): string {
+  return definitions
+    .map((tool) =>
+      [
+        `## ${tool.name}`,
+        tool.description,
+        "",
+        "Input schema:",
+        JSON.stringify(tool.inputSchema, null, 2),
+      ].join("\n"),
+    )
+    .join("\n\n");
+}
+
+export function buildSystemPrompt(definitions: ToolDefinition[], projectInstructions?: string): string {
+  const toolList = formatToolList(definitions);
   const projectBlock =
     projectInstructions && projectInstructions.trim()
       ? [
@@ -143,6 +158,19 @@ function buildSystemPrompt(toolList: string, projectInstructions?: string): stri
     "dependent edits, destructive operations, commits, pushes, installs, terminal input,",
     "or commands where one result should change the next action.",
     "When the task is fully done, reply normally with no thinking or tool_call block.",
+    "Always use the exact tool names and argument shapes from the tool reference below.",
+    "If the provider offers native tool calling, use the provider's native tool-call",
+    "mechanism with the same tool names and schemas instead of writing XML tags.",
+    "",
+    "# Tool selection",
+    "- Use filesystem tools for workspace inspection and edits.",
+    "- Use Git tools for Git state, diffs, commits, pulls, and pushes.",
+    "- Use terminal tools only when a dedicated tool is not available or when you",
+    "  need to run the project's own commands such as tests, builds, or scripts.",
+    "- Use code-aware tools for symbol lookup, definition lookup, references, and",
+    "  rename-style tasks before falling back to plain text search.",
+    "- Use package-manager tools for dependency and package-script questions when",
+    "  they cover the task.",
     "",
     "# How to work",
     "- Act when you can act. Once you have enough to proceed, proceed — don't",
@@ -171,8 +199,23 @@ function buildSystemPrompt(toolList: string, projectInstructions?: string): stri
 }
 
 interface ParsedToolCall {
+  id?: string;
   name: string;
   args: Record<string, unknown>;
+}
+
+function parseNativeToolCalls(calls: NativeToolCall[]): ParsedToolCall[] {
+  return calls.map((c) => {
+    const args = c.argsJson ? JSON.parse(c.argsJson) : {};
+    if (!args || typeof args !== "object" || Array.isArray(args)) {
+      throw new Error(`arguments for ${c.name || "(missing tool name)"} must be a JSON object`);
+    }
+    return {
+      id: c.id,
+      name: c.name,
+      args: args as Record<string, unknown>,
+    };
+  });
 }
 
 export function parseToolCalls(text: string): ParsedToolCall[] | null {
@@ -200,11 +243,9 @@ export async function* runAgent(
   signal?: AbortSignal,
   maxSteps = 12,
   projectInstructions?: string,
+  providerThinking?: ChatRequest["thinking"],
 ): AsyncGenerator<AgentEvent> {
   const definitions = tools.list();
-  const toolList = definitions
-    .map((t) => `- ${t.name}: ${t.description}`)
-    .join("\n");
 
   // Advertise tools to providers that support native tool-calling. Providers
   // that ignore the `tools` field fall back to the XML-tag convention, which is
@@ -216,7 +257,7 @@ export async function* runAgent(
   }));
 
   const messages: ChatMessage[] = [
-    { role: "system", content: buildSystemPrompt(toolList, projectInstructions) },
+    { role: "system", content: buildSystemPrompt(definitions, projectInstructions) },
     ...userMessages,
   ];
 
@@ -229,8 +270,17 @@ export async function* runAgent(
     // XML-tag parsing entirely.
     const nativeCalls: NativeToolCall[] = [];
     try {
-      for await (const chunk of provider.streamChat({ model, messages, signal, tools: toolSchemas })) {
+      for await (const chunk of provider.streamChat({
+        model,
+        messages,
+        signal,
+        tools: toolSchemas,
+        thinking: providerThinking,
+      })) {
         if (chunk.toolCall) nativeCalls.push(chunk.toolCall);
+        if (chunk.thinking) {
+          yield { type: "thinking", text: chunk.thinking };
+        }
         if (chunk.delta) {
           full += chunk.delta;
           // Re-segment the whole buffer and emit only the newly-safe tail of
@@ -253,8 +303,10 @@ export async function* runAgent(
       const { text, thinking } = segment(full + "\u0000");
       if (thinking.length > emittedThinking)
         yield { type: "thinking", text: thinking.slice(emittedThinking) };
-      if (text.length > emittedText)
-        yield { type: "text", text: text.slice(emittedText).replace(/\u0000$/, "") };
+      if (text.length > emittedText) {
+        const tail = text.slice(emittedText).replace(/\u0000$/, "");
+        if (tail) yield { type: "text", text: tail };
+      }
     } catch (err) {
       yield { type: "error", text: String(err) };
       return;
@@ -265,10 +317,7 @@ export async function* runAgent(
       // Native path: the provider already structured the calls. Parse each
       // arguments JSON string; a malformed payload is reported, not guessed at.
       try {
-        parsedCalls = nativeCalls.map((c) => ({
-          name: c.name,
-          args: (c.argsJson ? JSON.parse(c.argsJson) : {}) as Record<string, unknown>,
-        }));
+        parsedCalls = parseNativeToolCalls(nativeCalls);
       } catch (err) {
         yield { type: "error", text: `Malformed native tool call arguments: ${String(err)}` };
         return;
@@ -316,6 +365,7 @@ export async function* runAgent(
       messages.push({
         role: "tool",
         name: call.name,
+        toolCallId: call.id,
         content: fenceToolOutput(call.name, safeResult),
       });
     }

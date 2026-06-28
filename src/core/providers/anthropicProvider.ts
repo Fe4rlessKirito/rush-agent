@@ -1,6 +1,36 @@
 import type { Provider, ProviderConfig, ChatRequest, ChatChunk, ChatMessage } from "./types";
 import { parseModelList } from "./modelParser";
 
+function contentText(content: ChatMessage["content"]): string {
+  if (typeof content === "string") return content;
+  return content
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("\n");
+}
+
+function splitDataUrl(dataUrl: string): { mediaType: string; data: string } {
+  const match = /^data:([^;,]+);base64,(.*)$/s.exec(dataUrl);
+  if (!match) return { mediaType: "image/png", data: dataUrl };
+  return { mediaType: match[1], data: match[2] };
+}
+
+function anthropicContent(content: ChatMessage["content"]): unknown {
+  if (typeof content === "string") return content;
+  return content.map((part) => {
+    if (part.type === "text") return { type: "text", text: part.text };
+    const image = splitDataUrl(part.dataUrl);
+    return {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: part.mediaType || image.mediaType,
+        data: image.data,
+      },
+    };
+  });
+}
+
 // Speaks Anthropic's Messages API. Differs from OpenAI in three ways we handle:
 // system prompt is a top-level field, the auth header is x-api-key, and a
 // version header is required.
@@ -29,10 +59,10 @@ export class AnthropicProvider implements Provider {
   }
 
   async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
-    const system = req.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    const system = req.messages.filter((m) => m.role === "system").map((m) => contentText(m.content)).join("\n");
     const turns = req.messages
       .filter((m): m is ChatMessage => m.role === "user" || m.role === "assistant")
-      .map((m) => ({ role: m.role, content: m.content }));
+      .map((m) => ({ role: m.role, content: anthropicContent(m.content) }));
 
     const res = await fetch(this.url("/messages"), {
       method: "POST",
@@ -45,6 +75,7 @@ export class AnthropicProvider implements Provider {
         max_tokens: req.maxTokens ?? 4096,
         temperature: req.temperature ?? 0.2,
         stream: true,
+        ...(this.config.supportsThinking && req.thinking ? { thinking: req.thinking } : {}),
         // Anthropic tool schema: top-level array with input_schema (JSON Schema).
         ...(req.tools && req.tools.length
           ? {
@@ -66,9 +97,25 @@ export class AnthropicProvider implements Provider {
     let buffer = "";
 
     // tool_use blocks stream as: content_block_start (id+name) ->
-    // input_json_delta (partial_json fragments) -> content_block_stop. Track the
-    // currently-open tool_use block by its content index.
-    let activeTool: { index: number; id: string; name: string; args: string } | null = null;
+    // input_json_delta (partial_json fragments) -> content_block_stop. Track by
+    // content index so interleaved/parallel tool_use blocks assemble correctly.
+    const activeTools = new Map<number, { id: string; name: string; args: string }>();
+    const seenToolIds = new Set<string>();
+    const uniqueToolId = (rawId: string, index: number): string => {
+      const base = rawId || `toolu_${index}`;
+      if (!seenToolIds.has(base)) {
+        seenToolIds.add(base);
+        return base;
+      }
+      let suffix = 2;
+      let next = `${base}_${suffix}`;
+      while (seenToolIds.has(next)) {
+        suffix += 1;
+        next = `${base}_${suffix}`;
+      }
+      seenToolIds.add(next);
+      return next;
+    };
 
     while (true) {
       const { done, value } = await reader.read();
@@ -79,29 +126,35 @@ export class AnthropicProvider implements Provider {
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed.startsWith("data:")) continue;
+        const payload = trimmed.slice(5).trim();
+        if (payload === "[DONE]") {
+          yield { delta: "", done: true };
+          return;
+        }
         try {
-          const json = JSON.parse(trimmed.slice(5).trim());
-          if (json.type === "content_block_start" && json.content_block?.type === "tool_use") {
-            activeTool = {
-              index: json.index,
-              id: json.content_block.id,
+          const json = JSON.parse(payload);
+          if (json.type === "thinking_delta" && json.delta?.thinking) {
+            yield { delta: "", done: false, thinking: json.delta.thinking };
+          } else if (json.type === "content_block_start" && json.content_block?.type === "tool_use") {
+            activeTools.set(json.index, {
+              id: json.content_block.id ?? "",
               name: json.content_block.name,
               args: "",
-            };
+            });
           } else if (json.type === "content_block_delta" && json.delta?.type === "input_json_delta") {
-            if (activeTool && json.index === activeTool.index) {
-              activeTool.args += json.delta.partial_json ?? "";
-            }
+            const activeTool = activeTools.get(json.index);
+            if (activeTool) activeTool.args += json.delta.partial_json ?? "";
           } else if (json.type === "content_block_delta" && json.delta?.text) {
             yield { delta: json.delta.text, done: false };
           } else if (json.type === "content_block_stop") {
-            if (activeTool && json.index === activeTool.index) {
+            const activeTool = activeTools.get(json.index);
+            if (activeTool) {
               yield {
                 delta: "",
                 done: false,
-                toolCall: { id: activeTool.id, name: activeTool.name, argsJson: activeTool.args || "{}" },
+                toolCall: { id: uniqueToolId(activeTool.id, json.index), name: activeTool.name, argsJson: activeTool.args || "{}" },
               };
-              activeTool = null;
+              activeTools.delete(json.index);
             }
           } else if (json.type === "message_stop") {
             yield { delta: "", done: true };

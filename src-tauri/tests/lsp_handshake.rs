@@ -55,7 +55,9 @@ fn rust_analyzer_initialize_handshake() {
         let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
         if v.get("id").and_then(|x| x.as_i64()) == Some(1) {
             assert!(
-                v.get("result").and_then(|r| r.get("capabilities")).is_some(),
+                v.get("result")
+                    .and_then(|r| r.get("capabilities"))
+                    .is_some(),
                 "initialize response missing capabilities: {}",
                 v
             );

@@ -6,10 +6,10 @@
 // any compromised model output driving it) can never read or write outside the
 // project directory, even with inputs like "../../etc/passwd".
 
+use serde::Serialize;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
-use serde::Serialize;
 use tauri::State;
 
 // The active project root. None until the frontend opens a project folder.
@@ -58,7 +58,11 @@ fn resolve(state: &State<ProjectRoot>, rel: &str) -> Result<PathBuf, String> {
     // canonicalized root, catching symlink-based escapes the textual check misses.
     if let Ok(canon_root) = root.canonicalize() {
         // Only check existing ancestors; a not-yet-created file has no canonical form.
-        let check = if full.exists() { full.as_path() } else { full.parent().unwrap_or(&full) };
+        let check = if full.exists() {
+            full.as_path()
+        } else {
+            full.parent().unwrap_or(&full)
+        };
         if let Ok(canon) = check.canonicalize() {
             if !canon.starts_with(&canon_root) {
                 return Err(format!("resolved path escapes project root: {rel}"));

@@ -1,9 +1,23 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Tool } from "./tools";
 
-async function callTerminal(command: string, args: Record<string, unknown> = {}) {
+export interface TerminalBackend {
+  call(command: string, args?: Record<string, unknown>): Promise<string>;
+}
+
+const tauriTerminalBackend: TerminalBackend = {
+  call(command, args = {}) {
+    return invoke<string>(command, args);
+  },
+};
+
+async function callTerminal(
+  backend: TerminalBackend,
+  command: string,
+  args: Record<string, unknown> = {},
+) {
   try {
-    const content = await invoke<string>(command, args);
+    const content = await backend.call(command, args);
     return { ok: true, content: content || "Done." };
   } catch (err) {
     return { ok: false, isError: true, content: String(err) };
@@ -16,7 +30,42 @@ function optionalString(value: unknown): string | undefined {
   return trimmed || undefined;
 }
 
-export function createTerminalTools(): Tool[] {
+function optionalTimeout(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.max(250, Math.min(30_000, Math.round(value)));
+}
+
+async function executeShellCommand(
+  backend: TerminalBackend,
+  shell: "bash" | "powershell",
+  args: Record<string, unknown>,
+) {
+  const command = String(args.command ?? "").trim();
+  if (!command) return { ok: false, isError: true, content: "Missing command." };
+  const timeoutMs = optionalTimeout(args.timeout_ms ?? args.timeoutMs) ?? 3000;
+  const started = await callTerminal(backend, "terminal_start", { shell });
+  if (!started.ok) return started;
+  const sent = await callTerminal(backend, "terminal_send_line", { line: command });
+  if (!sent.ok) return sent;
+  if (args.run_in_background === true) {
+    return {
+      ok: true,
+      content: [
+        started.content,
+        `Started command in the persistent ${shell} terminal: ${command}`,
+        "Use terminal_read or terminal_wait_for_output to inspect output.",
+      ].join("\n"),
+    };
+  }
+  const output = await callTerminal(backend, "terminal_wait_for_output", { timeoutMs });
+  return {
+    ok: output.ok,
+    isError: output.isError,
+    content: [`$ ${command}`, output.content].join("\n"),
+  };
+}
+
+export function createTerminalTools(backend: TerminalBackend = tauriTerminalBackend): Tool[] {
   return [
     {
       definition: {
@@ -30,7 +79,7 @@ export function createTerminalTools(): Tool[] {
           },
         },
       },
-      execute: (args) => callTerminal("terminal_start", { shell: optionalString(args.shell) }),
+      execute: (args) => callTerminal(backend, "terminal_start", { shell: optionalString(args.shell) }),
     },
     {
       definition: {
@@ -45,7 +94,7 @@ export function createTerminalTools(): Tool[] {
           required: ["input"],
         },
       },
-      execute: (args) => callTerminal("terminal_write", { input: String(args.input ?? "") }),
+      execute: (args) => callTerminal(backend, "terminal_write", { input: String(args.input ?? "") }),
     },
     {
       definition: {
@@ -60,7 +109,7 @@ export function createTerminalTools(): Tool[] {
           required: ["line"],
         },
       },
-      execute: (args) => callTerminal("terminal_send_line", { line: String(args.line ?? "") }),
+      execute: (args) => callTerminal(backend, "terminal_send_line", { line: String(args.line ?? "") }),
     },
     {
       definition: {
@@ -69,7 +118,7 @@ export function createTerminalTools(): Tool[] {
           "Read and clear buffered output from the persistent terminal session. Use after terminal_write to observe command output.",
         inputSchema: { type: "object", properties: {} },
       },
-      execute: () => callTerminal("terminal_read"),
+      execute: () => callTerminal(backend, "terminal_read"),
     },
     {
       definition: {
@@ -84,7 +133,7 @@ export function createTerminalTools(): Tool[] {
         },
       },
       execute: (args) =>
-        callTerminal("terminal_wait_for_output", {
+        callTerminal(backend, "terminal_wait_for_output", {
           timeoutMs: typeof args.timeoutMs === "number" ? args.timeoutMs : undefined,
         }),
     },
@@ -95,7 +144,7 @@ export function createTerminalTools(): Tool[] {
           "Send Ctrl+C to the persistent terminal session to interrupt the foreground command.",
         inputSchema: { type: "object", properties: {} },
       },
-      execute: () => callTerminal("terminal_interrupt"),
+      execute: () => callTerminal(backend, "terminal_interrupt"),
     },
     {
       definition: {
@@ -103,7 +152,43 @@ export function createTerminalTools(): Tool[] {
         description: "Stop the persistent terminal session.",
         inputSchema: { type: "object", properties: {} },
       },
-      execute: () => callTerminal("terminal_stop"),
+      execute: () => callTerminal(backend, "terminal_stop"),
+    },
+    {
+      definition: {
+        name: "Bash",
+        description:
+          "Claude-compatible shell command tool. Runs one command in the persistent bash terminal and returns the first output captured before timeout_ms.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            command: { type: "string", description: "Shell command to run." },
+            description: { type: "string", description: "Short human-readable reason for the command." },
+            timeout_ms: { type: "number", description: "Maximum wait for output, capped at 30000." },
+            run_in_background: { type: "boolean", description: "Start the command and return without waiting for output." },
+          },
+          required: ["command"],
+        },
+      },
+      execute: (args) => executeShellCommand(backend, "bash", args),
+    },
+    {
+      definition: {
+        name: "PowerShell",
+        description:
+          "Claude-compatible PowerShell command tool. Runs one command in the persistent PowerShell terminal and returns the first output captured before timeout_ms.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            command: { type: "string", description: "PowerShell command to run." },
+            description: { type: "string", description: "Short human-readable reason for the command." },
+            timeout_ms: { type: "number", description: "Maximum wait for output, capped at 30000." },
+            run_in_background: { type: "boolean", description: "Start the command and return without waiting for output." },
+          },
+          required: ["command"],
+        },
+      },
+      execute: (args) => executeShellCommand(backend, "powershell", args),
     },
   ];
 }

@@ -86,7 +86,12 @@ fn shell_command(shell: Option<String>) -> Result<(String, Vec<String>), String>
 
     match normalized.as_str() {
         "powershell" | "pwsh" => Ok((
-            if normalized == "pwsh" { "pwsh" } else { "powershell" }.to_string(),
+            if normalized == "pwsh" {
+                "pwsh"
+            } else {
+                "powershell"
+            }
+            .to_string(),
             vec!["-NoLogo".to_string(), "-NoProfile".to_string()],
         )),
         "cmd" => Ok(("cmd".to_string(), vec!["/Q".to_string()])),
@@ -118,9 +123,18 @@ pub fn terminal_start(
         .spawn()
         .map_err(|e| format!("failed to start {program}: {e}"))?;
 
-    let stdin = child.stdin.take().ok_or("failed to capture terminal stdin")?;
-    let stdout = child.stdout.take().ok_or("failed to capture terminal stdout")?;
-    let stderr = child.stderr.take().ok_or("failed to capture terminal stderr")?;
+    let stdin = child
+        .stdin
+        .take()
+        .ok_or("failed to capture terminal stdin")?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or("failed to capture terminal stdout")?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or("failed to capture terminal stderr")?;
     let output = Arc::new(Mutex::new(String::new()));
     spawn_reader(stdout, Arc::clone(&output));
     spawn_reader(stderr, Arc::clone(&output));
@@ -170,7 +184,10 @@ pub fn terminal_read(terminal: State<TerminalState>) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn terminal_wait_for_output(terminal: State<TerminalState>, timeout_ms: Option<u64>) -> Result<String, String> {
+pub fn terminal_wait_for_output(
+    terminal: State<TerminalState>,
+    timeout_ms: Option<u64>,
+) -> Result<String, String> {
     let deadline = Instant::now() + Duration::from_millis(timeout_ms.unwrap_or(1500).min(30_000));
     loop {
         {

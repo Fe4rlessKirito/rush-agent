@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
+use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -13,18 +14,26 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
+#[derive(Clone)]
+struct LspCommand {
+    bin: String,
+    args: Vec<String>,
+    source: &'static str,
+}
+
 /// One running language-server connection.
 struct LspServer {
-    _child: Child,
+    child: Mutex<Child>,
     stdin: Mutex<ChildStdin>,
     next_id: AtomicI64,
+    opened_documents: Mutex<HashMap<String, i32>>,
     // request id -> response result (or error). Filled by the reader thread.
     pending: Arc<(Mutex<HashMap<i64, Value>>, Condvar)>,
 }
 
 #[derive(Default)]
 pub struct LspState {
-    // language key ("rust" | "typescript") -> server
+    // normalized language key ("rust" | "typescript") -> server
     servers: Mutex<HashMap<String, Arc<LspServer>>>,
 }
 
@@ -35,7 +44,9 @@ fn write_message(stdin: &Mutex<ChildStdin>, msg: &Value) -> Result<(), String> {
     guard
         .write_all(header.as_bytes())
         .map_err(|e| e.to_string())?;
-    guard.write_all(body.as_bytes()).map_err(|e| e.to_string())?;
+    guard
+        .write_all(body.as_bytes())
+        .map_err(|e| e.to_string())?;
     guard.flush().map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -121,6 +132,15 @@ impl LspServer {
         let msg = json!({"jsonrpc": "2.0", "method": method, "params": params});
         write_message(&self.stdin, &msg)
     }
+
+    fn shutdown(&self) {
+        let _ = self.request("shutdown", Value::Null, Duration::from_secs(3));
+        let _ = self.notify("exit", json!({}));
+        if let Ok(mut child) = self.child.lock() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
 }
 
 fn path_to_uri(path: &str) -> String {
@@ -134,15 +154,132 @@ fn path_to_uri(path: &str) -> String {
     }
 }
 
-fn binary_for(language: &str) -> Result<(String, Vec<String>), String> {
+fn normalize_language(language: &str) -> Result<String, String> {
+    match language.trim().to_ascii_lowercase().as_str() {
+        "rust" | "rs" => Ok("rust".to_string()),
+        "typescript" | "ts" | "tsx" | "javascript" | "js" | "jsx" => Ok("typescript".to_string()),
+        other => Err(format!("unsupported language for LSP: {}", other)),
+    }
+}
+
+fn bundled_binary_path(language: &str) -> Option<PathBuf> {
+    let file_name = match language {
+        "rust" => {
+            #[cfg(windows)]
+            {
+                "rust-analyzer.exe"
+            }
+            #[cfg(not(windows))]
+            {
+                "rust-analyzer"
+            }
+        }
+        "typescript" => {
+            #[cfg(windows)]
+            {
+                "typescript-language-server.cmd"
+            }
+            #[cfg(not(windows))]
+            {
+                "typescript-language-server"
+            }
+        }
+        _ => return None,
+    };
+    let exe = std::env::current_exe().ok()?;
+    let exe_dir = exe.parent()?;
+    [
+        exe_dir.join("language-servers").join(file_name),
+        exe_dir
+            .join("resources")
+            .join("language-servers")
+            .join(file_name),
+    ]
+    .into_iter()
+    .find(|path| path.exists())
+}
+
+fn command_from_path(language: &str, path: PathBuf, source: &'static str) -> LspCommand {
+    let path_text = path.to_string_lossy().to_string();
+    let mut args = if language == "typescript" {
+        vec!["--stdio".to_string()]
+    } else {
+        vec![]
+    };
+
+    #[cfg(windows)]
+    {
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if extension == "cmd" || extension == "bat" {
+            let mut cmd_args = vec!["/C".to_string(), path_text];
+            cmd_args.append(&mut args);
+            return LspCommand {
+                bin: "cmd".to_string(),
+                args: cmd_args,
+                source,
+            };
+        }
+    }
+
+    LspCommand {
+        bin: path_text,
+        args,
+        source,
+    }
+}
+
+fn path_command(language: &str) -> Result<LspCommand, String> {
     match language {
-        "rust" => Ok(("rust-analyzer".to_string(), vec![])),
-        "typescript" | "ts" | "javascript" | "js" => {
+        "rust" => Ok(LspCommand {
+            bin: "rust-analyzer".to_string(),
+            args: vec![],
+            source: "path",
+        }),
+        "typescript" => {
             // On Windows the npm shim is typescript-language-server.cmd, resolved via PATH.
-            Ok(("typescript-language-server".to_string(), vec!["--stdio".to_string()]))
+            #[cfg(windows)]
+            return Ok(LspCommand {
+                bin: "cmd".to_string(),
+                args: vec![
+                    "/C".to_string(),
+                    "typescript-language-server".to_string(),
+                    "--stdio".to_string(),
+                ],
+                source: "path",
+            });
+
+            #[cfg(not(windows))]
+            return Ok(LspCommand {
+                bin: "typescript-language-server".to_string(),
+                args: vec!["--stdio".to_string()],
+                source: "path",
+            });
         }
         other => Err(format!("unsupported language for LSP: {}", other)),
     }
+}
+
+fn binary_for(
+    language: &str,
+    binary_path: Option<String>,
+    prefer_bundled: Option<bool>,
+) -> Result<LspCommand, String> {
+    if let Some(path) = binary_path
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+    {
+        return Ok(command_from_path(language, PathBuf::from(path), "custom"));
+    }
+    if prefer_bundled.unwrap_or(false) {
+        if let Some(path) = bundled_binary_path(language) {
+            return Ok(command_from_path(language, path, "bundled"));
+        }
+    }
+    path_command(language)
 }
 
 #[tauri::command]
@@ -150,7 +287,10 @@ pub fn lsp_start(
     state: tauri::State<LspState>,
     language: String,
     root_path: String,
+    binary_path: Option<String>,
+    prefer_bundled: Option<bool>,
 ) -> Result<Value, String> {
+    let language = normalize_language(&language)?;
     {
         let servers = state.servers.lock().map_err(|e| e.to_string())?;
         if servers.contains_key(&language) {
@@ -158,9 +298,9 @@ pub fn lsp_start(
         }
     }
 
-    let (bin, args) = binary_for(&language)?;
-    let mut cmd = Command::new(&bin);
-    cmd.args(&args)
+    let command = binary_for(&language, binary_path, prefer_bundled)?;
+    let mut cmd = Command::new(&command.bin);
+    cmd.args(&command.args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
@@ -174,7 +314,7 @@ pub fn lsp_start(
 
     let mut child = cmd
         .spawn()
-        .map_err(|e| format!("failed to spawn {}: {}", bin, e))?;
+        .map_err(|e| format!("failed to spawn {}: {}", command.bin, e))?;
 
     let stdin = child.stdin.take().ok_or("no stdin")?;
     let stdout = child.stdout.take().ok_or("no stdout")?;
@@ -185,16 +325,18 @@ pub fn lsp_start(
 
     let root_uri = path_to_uri(&root_path);
     let server = Arc::new(LspServer {
-        _child: child,
+        child: Mutex::new(child),
         stdin: Mutex::new(stdin),
         next_id: AtomicI64::new(1),
+        opened_documents: Mutex::new(HashMap::new()),
         pending,
     });
 
     // initialize handshake
     let init_params = json!({
         "processId": std::process::id(),
-        "rootUri": root_uri,
+        "rootUri": root_uri.clone(),
+        "workspaceFolders": [{"uri": root_uri, "name": "workspace"}],
         "capabilities": {
             "textDocument": {
                 "definition": {"dynamicRegistration": false},
@@ -206,7 +348,10 @@ pub fn lsp_start(
     let init_result = server.request("initialize", init_params, Duration::from_secs(30))?;
     server.notify("initialized", json!({}))?;
 
-    let caps = init_result.get("capabilities").cloned().unwrap_or(Value::Null);
+    let caps = init_result
+        .get("capabilities")
+        .cloned()
+        .unwrap_or(Value::Null);
 
     state
         .servers
@@ -214,40 +359,103 @@ pub fn lsp_start(
         .map_err(|e| e.to_string())?
         .insert(language.clone(), server);
 
-    Ok(json!({"status": "initialized", "language": language, "capabilities": caps}))
+    Ok(
+        json!({"status": "initialized", "language": language, "source": command.source, "command": command.bin, "capabilities": caps}),
+    )
 }
 
-fn get_server(
-    state: &tauri::State<LspState>,
-    language: &str,
-) -> Result<Arc<LspServer>, String> {
+#[tauri::command]
+pub fn lsp_probe(
+    language: String,
+    binary_path: Option<String>,
+    prefer_bundled: Option<bool>,
+) -> Result<Value, String> {
+    let language = normalize_language(&language)?;
+    let command = binary_for(&language, binary_path, prefer_bundled)?;
+    let mut probe_args: Vec<String> = command
+        .args
+        .iter()
+        .filter(|arg| arg.as_str() != "--stdio")
+        .cloned()
+        .collect();
+    probe_args.push("--version".to_string());
+    let output = Command::new(&command.bin).args(&probe_args).output();
+    match output {
+        Ok(result) => {
+            let stdout = String::from_utf8_lossy(&result.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&result.stderr).trim().to_string();
+            Ok(json!({
+                "language": language,
+                "available": result.status.success(),
+                "source": command.source,
+                "command": command.bin,
+                "version": if stdout.is_empty() { stderr } else { stdout },
+                "error": if result.status.success() { Value::Null } else { json!(format!("exited with {}", result.status)) }
+            }))
+        }
+        Err(err) => Ok(json!({
+            "language": language,
+            "available": false,
+            "source": command.source,
+            "command": command.bin,
+            "version": "",
+            "error": err.to_string()
+        })),
+    }
+}
+
+fn get_server(state: &tauri::State<LspState>, language: &str) -> Result<Arc<LspServer>, String> {
+    let language = normalize_language(language)?;
     state
         .servers
         .lock()
         .map_err(|e| e.to_string())?
-        .get(language)
+        .get(&language)
         .cloned()
         .ok_or_else(|| format!("LSP for '{}' not started", language))
 }
 
-fn did_open(server: &LspServer, file_path: &str) -> Result<(), String> {
-    let text = std::fs::read_to_string(file_path).map_err(|e| e.to_string())?;
-    let language_id = if file_path.ends_with(".rs") {
+fn language_id_for(file_path: &str) -> &'static str {
+    if file_path.ends_with(".rs") {
         "rust"
     } else if file_path.ends_with(".ts") || file_path.ends_with(".tsx") {
         "typescript"
+    } else if file_path.ends_with(".js") || file_path.ends_with(".jsx") {
+        "javascript"
     } else {
         "plaintext"
+    }
+}
+
+fn sync_document(server: &LspServer, file_path: &str) -> Result<(), String> {
+    let text = std::fs::read_to_string(file_path).map_err(|e| e.to_string())?;
+    let uri = path_to_uri(file_path);
+    let version = {
+        let mut opened = server.opened_documents.lock().map_err(|e| e.to_string())?;
+        let current = opened.entry(uri.clone()).or_insert(0);
+        *current += 1;
+        *current
     };
-    server.notify(
-        "textDocument/didOpen",
-        json!({"textDocument": {
-            "uri": path_to_uri(file_path),
-            "languageId": language_id,
-            "version": 1,
-            "text": text
-        }}),
-    )
+
+    if version == 1 {
+        server.notify(
+            "textDocument/didOpen",
+            json!({"textDocument": {
+                "uri": uri,
+                "languageId": language_id_for(file_path),
+                "version": version,
+                "text": text
+            }}),
+        )
+    } else {
+        server.notify(
+            "textDocument/didChange",
+            json!({
+                "textDocument": {"uri": uri, "version": version},
+                "contentChanges": [{"text": text}]
+            }),
+        )
+    }
 }
 
 #[tauri::command]
@@ -259,7 +467,7 @@ pub fn lsp_definition(
     character: u32,
 ) -> Result<Value, String> {
     let server = get_server(&state, &language)?;
-    did_open(&server, &file_path)?;
+    sync_document(&server, &file_path)?;
     server.request(
         "textDocument/definition",
         json!({
@@ -279,7 +487,7 @@ pub fn lsp_references(
     character: u32,
 ) -> Result<Value, String> {
     let server = get_server(&state, &language)?;
-    did_open(&server, &file_path)?;
+    sync_document(&server, &file_path)?;
     server.request(
         "textDocument/references",
         json!({
@@ -301,7 +509,7 @@ pub fn lsp_rename(
     new_name: String,
 ) -> Result<Value, String> {
     let server = get_server(&state, &language)?;
-    did_open(&server, &file_path)?;
+    sync_document(&server, &file_path)?;
     server.request(
         "textDocument/rename",
         json!({
@@ -315,11 +523,52 @@ pub fn lsp_rename(
 
 #[tauri::command]
 pub fn lsp_stop(state: tauri::State<LspState>, language: String) -> Result<Value, String> {
+    let language = normalize_language(&language)?;
     let removed = state
         .servers
         .lock()
         .map_err(|e| e.to_string())?
-        .remove(&language)
-        .is_some();
-    Ok(json!({"stopped": removed, "language": language}))
+        .remove(&language);
+    let stopped = removed.is_some();
+    if let Some(server) = removed {
+        server.shutdown();
+    }
+    Ok(json!({"stopped": stopped, "language": language}))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_language_aliases() {
+        assert_eq!(normalize_language("ts").unwrap(), "typescript");
+        assert_eq!(normalize_language("JSX").unwrap(), "typescript");
+        assert_eq!(normalize_language("rs").unwrap(), "rust");
+    }
+
+    #[test]
+    fn rejects_unsupported_language() {
+        assert!(normalize_language("python").is_err());
+    }
+
+    #[test]
+    fn uses_custom_binary_path_when_provided() {
+        let command = binary_for(
+            "rust",
+            Some("C:/tools/rust-analyzer.exe".to_string()),
+            Some(true),
+        )
+        .unwrap();
+        assert_eq!(command.source, "custom");
+        assert!(command.bin.contains("rust-analyzer"));
+    }
+
+    #[test]
+    fn maps_language_ids_from_file_names() {
+        assert_eq!(language_id_for("src/main.rs"), "rust");
+        assert_eq!(language_id_for("src/App.tsx"), "typescript");
+        assert_eq!(language_id_for("src/app.jsx"), "javascript");
+        assert_eq!(language_id_for("README.md"), "plaintext");
+    }
 }

@@ -16,18 +16,25 @@ vi.hoisted(() => {
   (globalThis as unknown as { localStorage: Storage }).localStorage = mem;
 });
 
-import { useAppStore, type ChatLine } from "./store";
+import { DEFAULT_LANGUAGE_SERVER_SETTINGS, useAppStore } from "./store";
 import { DEFAULT_PROVIDERS } from "./providers/defaults";
 
 function resetStore() {
-  const convo = { id: "seed", title: "New chat", lines: [] as ChatLine[], createdAt: 0 };
   useAppStore.setState({
-    conversations: [convo],
-    activeConversationId: "seed",
+    conversations: [],
+    activeConversationId: "",
+    activeConversationIds: { plain: "", agent: "", flow: "" },
     chat: [],
     plainChat: [],
+    flowChat: [],
     activeProviderId: null,
     activeModel: null,
+    toolPermissions: {
+      allow: [],
+      ask: [],
+      deny: [],
+    },
+    languageServerSettings: DEFAULT_LANGUAGE_SERVER_SETTINGS,
   });
 }
 
@@ -76,6 +83,11 @@ describe("useAppStore providers", () => {
 describe("useAppStore conversations", () => {
   beforeEach(resetStore);
 
+  it("starts with no saved conversations", () => {
+    expect(useAppStore.getState().conversations).toEqual([]);
+    expect(useAppStore.getState().activeConversationIds).toEqual({ plain: "", agent: "", flow: "" });
+  });
+
   it("derives a conversation title from the first user message", () => {
     useAppStore.getState().setChat([{ role: "user", text: "Fix the login bug" }]);
     const active = useAppStore
@@ -100,43 +112,99 @@ describe("useAppStore conversations", () => {
     expect(useAppStore.getState().chat).toHaveLength(2);
   });
 
-  it("newConversation creates a fresh active chat at the front", () => {
+  it("newConversation starts an unsaved blank draft", () => {
     useAppStore.getState().setChat([{ role: "user", text: "old" }]);
-    useAppStore.getState().newConversation();
+    useAppStore.getState().newConversation("agent");
     expect(useAppStore.getState().chat).toEqual([]);
-    expect(useAppStore.getState().conversations[0].id).toBe(
-      useAppStore.getState().activeConversationId,
-    );
+    expect(useAppStore.getState().activeConversationIds.agent).toBe("");
+    expect(useAppStore.getState().conversations).toHaveLength(1);
   });
 
   it("selectConversation restores that conversation's lines into the chat mirror", () => {
     useAppStore.getState().setChat([{ role: "user", text: "convo one" }]);
-    const first = useAppStore.getState().activeConversationId;
-    useAppStore.getState().newConversation();
-    useAppStore.getState().selectConversation(first);
+    const first = useAppStore.getState().activeConversationIds.agent;
+    useAppStore.getState().newConversation("agent");
+    const mode = useAppStore.getState().selectConversation(first);
+    expect(mode).toBe("agent");
     expect(useAppStore.getState().chat[0].text).toBe("convo one");
   });
 
-  it("clearChat empties the active conversation and resets its title", () => {
+  it("keeps plain chat conversations separate from code agent tasks", () => {
+    useAppStore.getState().setPlainChat([{ role: "user", text: "plain question" }]);
+    const plain = useAppStore.getState().activeConversationIds.plain;
+    useAppStore.getState().setChat([{ role: "user", text: "code task" }]);
+    const agent = useAppStore.getState().activeConversationIds.agent;
+
+    expect(plain).not.toBe(agent);
+    expect(useAppStore.getState().conversations.find((c) => c.id === plain)?.mode).toBe("plain");
+    expect(useAppStore.getState().conversations.find((c) => c.id === agent)?.mode).toBe("agent");
+  });
+
+  it("new plain conversations do not wipe the active agent task", () => {
+    useAppStore.getState().setChat([{ role: "user", text: "agent work" }]);
+    useAppStore.getState().newConversation("plain");
+    expect(useAppStore.getState().plainChat).toEqual([]);
+    expect(useAppStore.getState().chat[0].text).toBe("agent work");
+  });
+
+  it("keeps flow conversations separate from code agent tasks", () => {
+    useAppStore.getState().setChat([{ role: "user", text: "code task" }]);
+    const agent = useAppStore.getState().activeConversationIds.agent;
+    useAppStore.getState().setFlowChat([{ role: "user", text: "flow task" }]);
+    const flow = useAppStore.getState().activeConversationIds.flow;
+
+    expect(flow).not.toBe(agent);
+    expect(useAppStore.getState().conversations.find((c) => c.id === flow)?.mode).toBe("flow");
+    expect(useAppStore.getState().chat[0].text).toBe("code task");
+    expect(useAppStore.getState().flowChat[0].text).toBe("flow task");
+  });
+
+  it("clearChat removes the saved active task", () => {
     useAppStore.getState().setChat([{ role: "user", text: "something" }]);
     useAppStore.getState().clearChat();
     expect(useAppStore.getState().chat).toEqual([]);
-    const active = useAppStore
-      .getState()
-      .conversations.find((c) => c.id === useAppStore.getState().activeConversationId)!;
-    expect(active.title).toBe("New chat");
+    expect(useAppStore.getState().activeConversationIds.agent).toBe("");
+    expect(useAppStore.getState().conversations).toEqual([]);
   });
 
-  it("never leaves zero conversations after deleting the last one", () => {
-    const only = useAppStore.getState().activeConversationId;
-    useAppStore.getState().deleteConversation(only);
-    expect(useAppStore.getState().conversations.length).toBeGreaterThanOrEqual(1);
-    expect(useAppStore.getState().activeConversationId).toBeTruthy();
+  it("can leave zero conversations after deleting the last saved task", () => {
+    useAppStore.getState().setChat([{ role: "user", text: "delete me" }]);
+    const onlyAgent = useAppStore.getState().activeConversationIds.agent;
+    useAppStore.getState().deleteConversation(onlyAgent);
+    expect(useAppStore.getState().conversations).toEqual([]);
+    expect(useAppStore.getState().activeConversationIds.agent).toBe("");
   });
 
   it("persists settings to localStorage under its store key", () => {
     useAppStore.getState().setActive("openai-default", "gpt-4o");
     const raw = globalThis.localStorage.getItem("rush-agent-settings");
     expect(raw).toBeTruthy();
+  });
+
+  it("stores tool permission rules", () => {
+    useAppStore.getState().setToolPermissions({
+      allow: ["Bash(npm test)"],
+      ask: ["Write(src/**)"],
+      deny: ["Read(secrets/**)"],
+    });
+
+    expect(useAppStore.getState().toolPermissions).toEqual({
+      allow: ["Bash(npm test)"],
+      ask: ["Write(src/**)"],
+      deny: ["Read(secrets/**)"],
+    });
+  });
+
+  it("stores language server preferences", () => {
+    useAppStore.getState().setLanguageServerConfig("typescript", {
+      mode: "custom",
+      customPath: "C:/tools/typescript-language-server.cmd",
+    });
+
+    expect(useAppStore.getState().languageServerSettings.typescript).toEqual({
+      mode: "custom",
+      customPath: "C:/tools/typescript-language-server.cmd",
+    });
+    expect(useAppStore.getState().languageServerSettings.rust).toEqual({ mode: "path", customPath: "" });
   });
 });

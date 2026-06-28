@@ -10,14 +10,21 @@ export interface ProviderConfig {
   baseUrl: string;       // full base URL; this is what makes custom proxies work
   apiKey?: string;       // optional for keyless local proxies
   defaultModel: string;
+  supportsThinking?: boolean;
+  supportsImageChatEndpoint?: boolean;
+  supportsFileChatEndpoint?: boolean;
   // Arbitrary extra headers a proxy may require (auth tokens, org ids, etc.)
   headers?: Record<string, string>;
   enabled: boolean;
 }
 
+export type ChatContentPart =
+  | { type: "text"; text: string }
+  | { type: "image"; dataUrl: string; mediaType: string; name?: string };
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content: string | ChatContentPart[];
   // Tool-call plumbing, filled in once MCP/tools land.
   name?: string;
   toolCallId?: string;
@@ -51,6 +58,10 @@ export interface ChatRequest {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  thinking?: "low" | "medium" | "high" | "max" | true | {
+    type: "enabled";
+    budget_tokens: number;
+  };
   // When present, the provider advertises these tools to the model using its
   // native tool-calling protocol instead of the XML-tag convention.
   tools?: ToolSchema[];
@@ -59,6 +70,7 @@ export interface ChatRequest {
 export interface ChatChunk {
   delta: string;        // incremental text
   done: boolean;
+  thinking?: string;    // incremental reasoning text, when provider exposes it
   // Present only on the chunk where a native tool call finishes assembling.
   toolCall?: NativeToolCall;
 }

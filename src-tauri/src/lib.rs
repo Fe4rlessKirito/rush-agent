@@ -2,15 +2,22 @@
 // state, then runs the app. More command modules (terminal, git, package
 // managers) will register here as they're built on top of this spine.
 
-mod fs_commands;
+mod background_commands;
 mod code_commands;
+mod fs_commands;
 mod git_commands;
 mod lsp_commands;
+mod local_proxy_commands;
+mod mcp_commands;
 mod package_commands;
 mod terminal_commands;
+mod worktree_commands;
 
+use background_commands::BackgroundState;
 use fs_commands::ProjectRoot;
+use mcp_commands::McpSessionState;
 use terminal_commands::TerminalState;
+use worktree_commands::WorktreeState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -20,7 +27,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(ProjectRoot::default())
         .manage(TerminalState::default())
+        .manage(BackgroundState::default())
+        .manage(WorktreeState::default())
+        .manage(McpSessionState::default())
         .manage(lsp_commands::LspState::default())
+        .manage(local_proxy_commands::LocalProxyState::default())
+        .setup(|app| {
+            local_proxy_commands::start_local_proxy(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             fs_commands::set_project_root,
             fs_commands::read_file,
@@ -54,6 +69,20 @@ pub fn run() {
             terminal_commands::terminal_wait_for_output,
             terminal_commands::terminal_interrupt,
             terminal_commands::terminal_stop,
+            background_commands::background_start,
+            background_commands::background_read,
+            background_commands::background_list,
+            background_commands::background_stop,
+            worktree_commands::enter_worktree,
+            worktree_commands::exit_worktree,
+            mcp_commands::mcp_probe_stdio,
+            mcp_commands::mcp_call_tool_stdio,
+            mcp_commands::mcp_start_stdio_session,
+            mcp_commands::mcp_call_tool_session,
+            mcp_commands::mcp_stop_session,
+            local_proxy_commands::local_proxy_status,
+            local_proxy_commands::local_proxy_restart,
+            lsp_commands::lsp_probe,
             lsp_commands::lsp_start,
             lsp_commands::lsp_definition,
             lsp_commands::lsp_references,

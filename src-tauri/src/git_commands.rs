@@ -49,7 +49,11 @@ pub fn git_status(state: State<ProjectRoot>) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn git_diff(state: State<ProjectRoot>, staged: bool, path: Option<String>) -> Result<String, String> {
+pub fn git_diff(
+    state: State<ProjectRoot>,
+    staged: bool,
+    path: Option<String>,
+) -> Result<String, String> {
     let mut args = vec!["diff"];
     if staged {
         args.push("--cached");
@@ -93,7 +97,11 @@ pub fn git_commit(state: State<ProjectRoot>, message: String, all: bool) -> Resu
 }
 
 #[tauri::command]
-pub fn git_push(state: State<ProjectRoot>, remote: Option<String>, branch: Option<String>) -> Result<String, String> {
+pub fn git_push(
+    state: State<ProjectRoot>,
+    remote: Option<String>,
+    branch: Option<String>,
+) -> Result<String, String> {
     let remote = remote.as_deref().unwrap_or("origin").trim();
     let branch = branch.as_deref().unwrap_or("").trim();
     if branch.is_empty() {
@@ -104,7 +112,11 @@ pub fn git_push(state: State<ProjectRoot>, remote: Option<String>, branch: Optio
 }
 
 #[tauri::command]
-pub fn git_pull(state: State<ProjectRoot>, remote: Option<String>, branch: Option<String>) -> Result<String, String> {
+pub fn git_pull(
+    state: State<ProjectRoot>,
+    remote: Option<String>,
+    branch: Option<String>,
+) -> Result<String, String> {
     let remote = remote.as_deref().unwrap_or("origin").trim();
     let branch = branch.as_deref().unwrap_or("").trim();
     if branch.is_empty() {

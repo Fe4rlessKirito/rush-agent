@@ -27,6 +27,10 @@ describe("riskOf", () => {
   });
 
   it("gates side-effecting commands (terminal/commit/build) behind confirmation", () => {
+    expect(riskOf("Bash", { command: "ls" })).toBe("destructive");
+    expect(riskOf("PowerShell", { command: "Get-ChildItem" })).toBe("destructive");
+    expect(riskOf("Monitor", { command: "npm run dev" })).toBe("destructive");
+    expect(riskOf("background_start", { command: "npm run dev" })).toBe("destructive");
     expect(riskOf("terminal_send_line", { line: "ls" })).toBe("destructive");
     expect(riskOf("terminal_start", {})).toBe("destructive");
     expect(riskOf("git_commit", { message: "x" })).toBe("destructive");
@@ -36,6 +40,8 @@ describe("riskOf", () => {
   it("keeps read-only terminal inspection cheap", () => {
     expect(riskOf("terminal_read", {})).toBe("read");
     expect(riskOf("terminal_wait_for_output", {})).toBe("read");
+    expect(riskOf("background_read", {})).toBe("read");
+    expect(riskOf("background_list", {})).toBe("read");
   });
 });
 

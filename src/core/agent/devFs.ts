@@ -14,10 +14,15 @@ export function createDevFs(seed: Record<string, string> = {}): FsBackend {
     },
     async listDir(prefix) {
       const out = new Set<string>();
+      const cleanPrefix = prefix.replace(/\\/g, "/").replace(/^\.\/?$/, "").replace(/\/$/, "");
+      const base = cleanPrefix ? `${cleanPrefix}/` : "";
       for (const key of files.keys()) {
-        if (!key.startsWith(prefix)) continue;
-        const rest = key.slice(prefix.length).replace(/^\//, "");
-        out.add(rest.split("/")[0]);
+        if (cleanPrefix && key !== cleanPrefix && !key.startsWith(base)) continue;
+        const rest = key.slice(base.length);
+        if (!rest) continue;
+        const [name, ...tail] = rest.split("/");
+        const child = base ? `${base}${name}` : name;
+        out.add(`${tail.length > 0 ? "dir" : "file"} ${child}`);
       }
       return [...out];
     },

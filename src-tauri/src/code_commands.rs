@@ -7,8 +7,8 @@ use tauri::State;
 use crate::fs_commands::ProjectRoot;
 
 const CODE_EXTENSIONS: &[&str] = &[
-    "ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py", "go", "java", "cs", "cpp", "c",
-    "h", "hpp", "css", "html", "json", "md",
+    "ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py", "go", "java", "cs", "cpp", "c", "h", "hpp",
+    "css", "html", "json", "md",
 ];
 
 const SKIP_DIRS: &[&str] = &[
@@ -116,29 +116,62 @@ fn find_word_positions(line: &str, symbol: &str) -> Vec<usize> {
 
 fn likely_definition(line: &str, symbol: &str) -> bool {
     let trimmed = line.trim_start();
-    let patterns = [
-        format!("function {symbol}"),
-        format!("class {symbol}"),
-        format!("interface {symbol}"),
-        format!("type {symbol}"),
-        format!("const {symbol}"),
-        format!("let {symbol}"),
-        format!("var {symbol}"),
-        format!("def {symbol}"),
-        format!("struct {symbol}"),
-        format!("enum {symbol}"),
-        format!("fn {symbol}"),
-        format!("pub fn {symbol}"),
-    ];
-    patterns.iter().any(|pattern| trimmed.starts_with(pattern))
-        || trimmed.starts_with(&format!("export {}", patterns[0]))
-        || trimmed.starts_with(&format!("export {}", patterns[1]))
-        || trimmed.starts_with(&format!("export {}", patterns[2]))
-        || trimmed.starts_with(&format!("export {}", patterns[3]))
-        || trimmed.starts_with(&format!("export {}", patterns[4]))
+    let Some(symbol_idx) = find_word_positions(trimmed, symbol).first().copied() else {
+        return false;
+    };
+    let before = trimmed[..symbol_idx].trim_end();
+    let after = trimmed[symbol_idx + symbol.len()..].trim_start();
+    let before_tokens: Vec<&str> = before.split_whitespace().collect();
+    let prev = before_tokens.last().copied().unwrap_or("");
+    let method_like = (after.starts_with('(') || after.starts_with('<'))
+        && (after.contains('{')
+            || after.contains("=>")
+            || (after.contains(':') && after.ends_with(';')));
+
+    matches!(
+        prev,
+        "function"
+            | "class"
+            | "interface"
+            | "type"
+            | "const"
+            | "let"
+            | "var"
+            | "def"
+            | "struct"
+            | "enum"
+            | "fn"
+            | "trait"
+            | "impl"
+    ) || (before_tokens.ends_with(&["async", "function"])
+        || before_tokens.ends_with(&["export", "function"])
+        || before_tokens.ends_with(&["export", "async", "function"])
+        || before_tokens.ends_with(&["export", "default", "function"])
+        || before_tokens.ends_with(&["export", "class"])
+        || before_tokens.ends_with(&["export", "default", "class"])
+        || before_tokens.ends_with(&["export", "interface"])
+        || before_tokens.ends_with(&["export", "type"])
+        || before_tokens.ends_with(&["export", "const"])
+        || before_tokens.ends_with(&["export", "let"])
+        || before_tokens.ends_with(&["export", "var"])
+        || before_tokens.ends_with(&["pub", "fn"])
+        || before_tokens.ends_with(&["pub(crate)", "fn"])
+        || before_tokens.ends_with(&["pub", "struct"])
+        || before_tokens.ends_with(&["pub", "enum"])
+        || before_tokens.ends_with(&["async", "def"]))
+        || (before.is_empty() && method_like)
+        || (matches!(
+            prev,
+            "static" | "public" | "private" | "protected" | "override"
+        ) && method_like)
 }
 
-fn find_matches(root: &Path, symbol: &str, definitions_only: bool, limit: usize) -> Result<Vec<CodeMatch>, String> {
+fn find_matches(
+    root: &Path,
+    symbol: &str,
+    definitions_only: bool,
+    limit: usize,
+) -> Result<Vec<CodeMatch>, String> {
     if !is_identifier(symbol) {
         return Err(format!("invalid identifier: {symbol}"));
     }
@@ -193,13 +226,21 @@ fn replace_identifier(content: &str, old_name: &str, new_name: &str) -> (String,
 }
 
 #[tauri::command]
-pub fn code_find_symbol(state: State<ProjectRoot>, symbol: String, limit: Option<usize>) -> Result<Vec<CodeMatch>, String> {
+pub fn code_find_symbol(
+    state: State<ProjectRoot>,
+    symbol: String,
+    limit: Option<usize>,
+) -> Result<Vec<CodeMatch>, String> {
     let root = project_root(&state)?;
     find_matches(&root, symbol.trim(), false, limit.unwrap_or(100).min(1000))
 }
 
 #[tauri::command]
-pub fn code_find_definition(state: State<ProjectRoot>, symbol: String, limit: Option<usize>) -> Result<Vec<CodeMatch>, String> {
+pub fn code_find_definition(
+    state: State<ProjectRoot>,
+    symbol: String,
+    limit: Option<usize>,
+) -> Result<Vec<CodeMatch>, String> {
     let root = project_root(&state)?;
     find_matches(&root, symbol.trim(), true, limit.unwrap_or(50).min(500))
 }
@@ -238,7 +279,8 @@ pub fn code_rename_identifier(
         replacements += count;
         changed.push(to_rel_string(&root, &file));
         if !dry_run {
-            fs::write(&file, next).map_err(|e| format!("write {}: {e}", to_rel_string(&root, &file)))?;
+            fs::write(&file, next)
+                .map_err(|e| format!("write {}: {e}", to_rel_string(&root, &file)))?;
         }
     }
 
@@ -247,4 +289,71 @@ pub fn code_rename_identifier(
         replacements,
         files: changed,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{find_word_positions, is_identifier, likely_definition, replace_identifier};
+
+    #[test]
+    fn likely_definition_handles_common_ts_forms() {
+        assert!(likely_definition(
+            "export async function loadUser(id: string) {",
+            "loadUser"
+        ));
+        assert!(likely_definition(
+            "export const useThing = () => {",
+            "useThing"
+        ));
+        assert!(likely_definition("class Widget {", "Widget"));
+        assert!(likely_definition("  render(props) {", "render"));
+        assert!(likely_definition("  private hydrate<T>() {", "hydrate"));
+    }
+
+    #[test]
+    fn likely_definition_handles_python_and_rust_forms() {
+        assert!(likely_definition("async def fetch_user(id):", "fetch_user"));
+        assert!(likely_definition(
+            "pub(crate) fn parse_item(input: &str) -> Item {",
+            "parse_item"
+        ));
+        assert!(likely_definition("pub struct ProjectRoot {", "ProjectRoot"));
+        assert!(likely_definition("trait Runner {", "Runner"));
+    }
+
+    #[test]
+    fn likely_definition_rejects_plain_references() {
+        assert!(!likely_definition(
+            "const value = loadUser(id);",
+            "loadUser"
+        ));
+        assert!(!likely_definition(
+            "import { loadUser } from './users';",
+            "loadUser"
+        ));
+        assert!(!likely_definition("object.loadUser();", "loadUser"));
+        assert!(!likely_definition("loadUser();", "loadUser"));
+    }
+
+    #[test]
+    fn word_positions_match_whole_identifiers_only() {
+        assert_eq!(
+            find_word_positions("foo fooBar _foo foo", "foo"),
+            vec![0, 16]
+        );
+    }
+
+    #[test]
+    fn rename_uses_identifier_boundaries() {
+        let (next, count) = replace_identifier("foo fooBar\nfoo", "foo", "bar");
+        assert_eq!(next, "bar fooBar\nbar");
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn identifier_validation_allows_supported_identifier_chars() {
+        assert!(is_identifier("$value_1"));
+        assert!(!is_identifier("1value"));
+        assert!(!is_identifier("value-name"));
+    }
 }

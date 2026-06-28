@@ -14,22 +14,42 @@ fn work_dir(state: &State<ProjectRoot>) -> Result<PathBuf, String> {
 }
 
 fn npm_bin() -> &'static str {
-    if cfg!(windows) { "npm.cmd" } else { "npm" }
+    if cfg!(windows) {
+        "npm.cmd"
+    } else {
+        "npm"
+    }
 }
 
 fn cargo_bin() -> &'static str {
-    if cfg!(windows) { "cargo.exe" } else { "cargo" }
+    if cfg!(windows) {
+        "cargo.exe"
+    } else {
+        "cargo"
+    }
 }
 
 fn python_bin() -> &'static str {
-    if cfg!(windows) { "python.exe" } else { "python3" }
+    if cfg!(windows) {
+        "python.exe"
+    } else {
+        "python3"
+    }
 }
 
 fn winget_bin() -> &'static str {
-    if cfg!(windows) { "winget.exe" } else { "winget" }
+    if cfg!(windows) {
+        "winget.exe"
+    } else {
+        "winget"
+    }
 }
 
-fn run_in_project(state: State<ProjectRoot>, program: &str, args: &[String]) -> Result<String, String> {
+fn run_in_project(
+    state: State<ProjectRoot>,
+    program: &str,
+    args: &[String],
+) -> Result<String, String> {
     let cwd = work_dir(&state)?;
     let output = Command::new(program)
         .args(args)
@@ -78,18 +98,15 @@ fn clean_values(values: Vec<String>, label: &str) -> Result<Vec<String>, String>
 
 #[tauri::command]
 pub fn npm_scripts(state: State<ProjectRoot>) -> Result<String, String> {
-    run_in_project(
-        state,
-        npm_bin(),
-        &[
-            "run".to_string(),
-            "--json".to_string(),
-        ],
-    )
+    run_in_project(state, npm_bin(), &["run".to_string(), "--json".to_string()])
 }
 
 #[tauri::command]
-pub fn npm_run_script(state: State<ProjectRoot>, script: String, args: Option<Vec<String>>) -> Result<String, String> {
+pub fn npm_run_script(
+    state: State<ProjectRoot>,
+    script: String,
+    args: Option<Vec<String>>,
+) -> Result<String, String> {
     let script = require_nonempty(&script, "script")?;
     let mut command_args = vec!["run".to_string(), script];
     if let Some(extra) = args {
@@ -101,7 +118,11 @@ pub fn npm_run_script(state: State<ProjectRoot>, script: String, args: Option<Ve
 }
 
 #[tauri::command]
-pub fn npm_install(state: State<ProjectRoot>, packages: Vec<String>, dev: bool) -> Result<String, String> {
+pub fn npm_install(
+    state: State<ProjectRoot>,
+    packages: Vec<String>,
+    dev: bool,
+) -> Result<String, String> {
     let packages = clean_values(packages, "package")?;
     let mut args = vec!["install".to_string()];
     if dev {
