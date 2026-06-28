@@ -1505,10 +1505,91 @@ body {
   flex: 1;
   min-height: 0;
   display: flex;
+  flex-direction: column;
   border-bottom: 1px solid var(--border);
 }
 .project-ai-chat .chat-panel {
   min-width: 0;
+}
+.project-ai-toolbar {
+  flex: 0 0 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.project-ai-mode-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(58px, 1fr));
+  gap: 3px;
+  min-width: 130px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.project-ai-mode-tabs button {
+  height: 26px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  transition: background 0.14s ease, color 0.14s ease, transform 0.14s ease;
+}
+.project-ai-mode-tabs button:hover {
+  filter: none;
+  color: var(--text);
+  background: var(--panel-2);
+}
+.project-ai-mode-tabs button.active {
+  color: var(--text);
+  background: var(--border);
+}
+.project-ai-mode-tabs button:active {
+  transform: scale(0.97);
+}
+.project-ai-chat-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.project-editor-toggle {
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+.project-editor-toggle:hover {
+  filter: none;
+  color: var(--text);
+  background: var(--border);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+.project-editor-toggle svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* Editor fills the space beside the file tree; collapses off-screen to the right. */

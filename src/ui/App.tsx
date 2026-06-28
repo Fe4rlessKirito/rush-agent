@@ -21,6 +21,7 @@ import { useFileStore } from "../core/fileStore";
 import { setDesktopProjectRoot } from "../core/projectRoot";
 
 type View = "chat" | "code" | "projects" | "library" | "flow";
+type ProjectAiMode = "agent" | "flow";
 type SettingsTab = "general" | "providers" | "proxies" | "tools" | "lsp" | "mcp";
 type LspToast = {
   language: "rust" | "typescript";
@@ -45,6 +46,8 @@ export function App() {
     explorer: 260,
     ai: 420,
   });
+  const [projectAiMode, setProjectAiMode] = useState<ProjectAiMode>("agent");
+  const [projectEditorMinimized, setProjectEditorMinimized] = useState(false);
   const [lspToast, setLspToast] = useState<LspToast | null>(null);
   const [dismissedLspToasts, setDismissedLspToasts] = useState<Set<string>>(() => new Set());
   const autoUpdateEnabled = useAppStore((s) => s.autoUpdateEnabled);
@@ -372,29 +375,75 @@ export function App() {
 
             <section
               className="project-ai-pane"
-              style={{ flexBasis: projectPaneWidths.ai }}
+              style={{ flexBasis: projectEditorMinimized ? "auto" : projectPaneWidths.ai }}
             >
               <div className="project-ai-chat">
-                <ChatPanel mode="agent" />
+                <div className="project-ai-toolbar">
+                  <div className="project-ai-mode-tabs" role="tablist" aria-label="Project AI mode">
+                    <button
+                      className={projectAiMode === "agent" ? "active" : ""}
+                      onClick={() => setProjectAiMode("agent")}
+                      role="tab"
+                      aria-selected={projectAiMode === "agent"}
+                    >
+                      Code
+                    </button>
+                    <button
+                      className={projectAiMode === "flow" ? "active" : ""}
+                      onClick={() => setProjectAiMode("flow")}
+                      role="tab"
+                      aria-selected={projectAiMode === "flow"}
+                    >
+                      Flow
+                    </button>
+                  </div>
+                  <button
+                    className="project-editor-toggle"
+                    onClick={() => setProjectEditorMinimized((minimized) => !minimized)}
+                    title={projectEditorMinimized ? "Show code editor" : "Minimize code editor"}
+                    aria-label={projectEditorMinimized ? "Show code editor" : "Minimize code editor"}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      {projectEditorMinimized ? (
+                        <>
+                          <rect x="4" y="5" width="16" height="14" rx="2" />
+                          <path d="M8 9h8M8 13h5M15 16l3-3-3-3" />
+                        </>
+                      ) : (
+                        <>
+                          <rect x="4" y="5" width="16" height="14" rx="2" />
+                          <path d="M8 9h8M8 13h5M17 9v6" />
+                        </>
+                      )}
+                    </svg>
+                  </button>
+                </div>
+                <div className="project-ai-chat-body">
+                  <ChatPanel mode={projectAiMode} />
+                </div>
               </div>
               <TerminalPanel />
             </section>
 
-            <div
-              className="pane-resizer"
-              role="separator"
-              aria-orientation="vertical"
-              onMouseDown={startProjectResize("ai")}
-            />
+            {!projectEditorMinimized && (
+              <div
+                className="pane-resizer"
+                role="separator"
+                aria-orientation="vertical"
+                onMouseDown={startProjectResize("ai")}
+              />
+            )}
 
-            <section className="editor-panel dock-right project-editor-pane">
-              <main className="editor">
-                <EditorTabs />
-                <div className="editor-surface">
-                  <EditorPane />
-                </div>
-              </main>
-            </section>
+            {!projectEditorMinimized && (
+              <section className="editor-panel dock-right project-editor-pane">
+                <main className="editor">
+                  <EditorTabs />
+                  <div className="editor-surface">
+                    <EditorPane />
+                  </div>
+                </main>
+              </section>
+            )}
           </div>
         )}
 
