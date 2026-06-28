@@ -16,52 +16,6 @@ export function Sidebar({ view, onSelectView }: Props) {
 
   return (
     <aside className="app-sidebar">
-      <div className="sb-header">
-        <div className="sb-tabs" aria-label="Primary views">
-          <button
-            className={"sb-tab" + (view === "chat" ? " active" : "")}
-            onClick={() => onSelectView("chat")}
-            title="Chat"
-          >
-            <span className="sb-tab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-              </svg>
-            </span>
-            <span>Chat</span>
-          </button>
-          <button
-            className={"sb-tab" + (view === "code" ? " active" : "")}
-            onClick={() => onSelectView("code")}
-            title="Code"
-          >
-            <span className="sb-tab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="4" y="5" width="16" height="14" rx="2" />
-                <path d="M8 9h8M8 13h5" />
-              </svg>
-            </span>
-            <span>Code</span>
-          </button>
-          <button
-            className={"sb-tab" + (view === "flow" ? " active" : "")}
-            onClick={() => onSelectView("flow")}
-            title="Flow"
-          >
-            <span className="sb-tab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="6" cy="12" r="2" />
-                <circle cx="18" cy="6" r="2" />
-                <circle cx="18" cy="18" r="2" />
-                <path d="M8 12h3a3 3 0 0 0 3-3V8" />
-                <path d="M8 12h3a3 3 0 0 1 3 3v1" />
-              </svg>
-            </span>
-            <span>Flow</span>
-          </button>
-        </div>
-      </div>
-
       <nav className="sb-nav">
         <button
           className="sb-item"

@@ -19,7 +19,6 @@ import { useAppStore, type ConversationMode } from "../core/store";
 import { useProjectStore } from "../core/projectStore";
 import { useFileStore } from "../core/fileStore";
 import { setDesktopProjectRoot } from "../core/projectRoot";
-import appIcon from "../../src-tauri/icons/32x32.png";
 
 type View = "chat" | "code" | "projects" | "library" | "flow";
 type SettingsTab = "general" | "providers" | "proxies" | "tools" | "lsp" | "mcp";
@@ -52,17 +51,11 @@ export function App() {
     s.projects.find((p) => p.id === s.activeProjectId),
   );
   const topbarLabel =
-    view === "chat"
-      ? "Chat"
-      : view === "code"
-        ? "Code Agent"
-        : view === "flow"
-          ? "Flow"
-          : view === "library"
-            ? "Library"
-            : view === "projects"
-              ? "Projects"
-              : "";
+    view === "library"
+      ? "Library"
+      : view === "projects"
+        ? "Projects"
+        : "";
 
   const enterProject = async (id: string) => {
     openProject(id);
@@ -185,10 +178,29 @@ export function App() {
   return (
     <div className="app">
       <header className="titlebar">
-        <div className="brand">
-          <img className="brand-mark" src={appIcon} alt="" aria-hidden="true" />
-          <span className="brand-name">Rush</span>
-        </div>
+        <nav className="top-mode-tabs" aria-label="AI modes">
+          <button
+            className={"top-mode-tab" + (view === "chat" ? " active" : "")}
+            onClick={() => setView("chat")}
+            title="Chat"
+          >
+            Chat
+          </button>
+          <button
+            className={"top-mode-tab" + (view === "code" ? " active" : "")}
+            onClick={() => setView("code")}
+            title="Code"
+          >
+            Code
+          </button>
+          <button
+            className={"top-mode-tab" + (view === "flow" ? " active" : "")}
+            onClick={() => setView("flow")}
+            title="Flow"
+          >
+            Flow
+          </button>
+        </nav>
         {topbarLabel && <div className="titlebar-view-title">{topbarLabel}</div>}
         <div className="titlebar-actions">
           <button

@@ -121,7 +121,8 @@ describe("buildSystemPrompt", () => {
 
     expect(prompt).toContain("Always use the exact tool names and argument shapes");
     expect(prompt).toContain("If the user explicitly corrects the next tool call");
-    expect(prompt).toContain("Filesystem tools take workspace-relative paths");
+    expect(prompt).toContain("Filesystem read/write/edit tools take workspace-relative paths");
+    expect(prompt).toContain("list_dir tool may also inspect an explicit");
     expect(prompt).toContain("## read_file");
     expect(prompt).toContain("Read a file.");
     expect(prompt).toContain('"path"');

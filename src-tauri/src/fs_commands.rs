@@ -86,6 +86,14 @@ fn to_rel_string(root: &Path, full: &Path) -> String {
         .replace('\\', "/")
 }
 
+fn active_root(state: &State<ProjectRoot>) -> Result<PathBuf, String> {
+    let guard = state.0.lock().map_err(|_| "root lock poisoned")?;
+    match guard.as_ref() {
+        Some(root) => Ok(root.clone()),
+        None => std::env::current_dir().map_err(|e| format!("current_dir: {e}")),
+    }
+}
+
 #[tauri::command]
 pub fn set_project_root(state: State<ProjectRoot>, path: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
@@ -128,19 +136,24 @@ pub fn delete_file(state: State<ProjectRoot>, path: String) -> Result<(), String
     }
 }
 
-// List one directory level (non-recursive). `path` is relative; "" lists the root.
+// List one directory level (non-recursive). `path` may be workspace-relative or
+// absolute. Absolute listing is read-only; file reads/writes still use `resolve`.
 #[tauri::command]
 pub fn list_dir(state: State<ProjectRoot>, path: String) -> Result<Vec<DirEntry>, String> {
-    let full = resolve(&state, if path.is_empty() { "." } else { &path })?;
-    let guard = state.0.lock().map_err(|_| "root lock poisoned")?;
-    let root = match guard.as_ref() {
-        Some(root) => root.clone(),
-        None => std::env::current_dir().map_err(|e| format!("current_dir: {e}"))?,
+    let query = if path.trim().is_empty() {
+        "."
+    } else {
+        path.trim()
     };
-    drop(guard);
+    let root = active_root(&state)?;
+    let full = if Path::new(query).is_absolute() {
+        PathBuf::from(query)
+    } else {
+        resolve(&state, query)?
+    };
 
     let mut entries = Vec::new();
-    for entry in fs::read_dir(&full).map_err(|e| format!("list {path}: {e}"))? {
+    for entry in fs::read_dir(&full).map_err(|e| format!("list {query}: {e}"))? {
         let entry = entry.map_err(|e| format!("entry: {e}"))?;
         let meta = entry.metadata().map_err(|e| format!("meta: {e}"))?;
         let p = entry.path();
