@@ -101,6 +101,16 @@ fn shell_command(shell: Option<String>) -> Result<(String, Vec<String>), String>
     }
 }
 
+#[cfg(windows)]
+fn hide_window(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_window(_: &mut Command) {}
+
 #[tauri::command]
 pub fn terminal_start(
     terminal: State<TerminalState>,
@@ -114,12 +124,14 @@ pub fn terminal_start(
 
     let cwd = project_dir(&root)?;
     let (program, args) = shell_command(shell)?;
-    let mut child = Command::new(&program)
-        .args(&args)
+    let mut cmd = Command::new(&program);
+    cmd.args(&args)
         .current_dir(&cwd)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    hide_window(&mut cmd);
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("failed to start {program}: {e}"))?;
 

@@ -440,7 +440,15 @@ pub fn lsp_probe(
         .cloned()
         .collect();
     probe_args.push("--version".to_string());
-    let output = Command::new(&command.bin).args(&probe_args).output();
+    let mut cmd = Command::new(&command.bin);
+    cmd.args(&probe_args);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = cmd.output();
     match output {
         Ok(result) => {
             let stdout = String::from_utf8_lossy(&result.stdout).trim().to_string();

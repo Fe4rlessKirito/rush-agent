@@ -78,6 +78,16 @@ fn project_dir(root: &State<ProjectRoot>) -> Result<std::path::PathBuf, String> 
     std::env::current_dir().map_err(|e| format!("current_dir: {e}"))
 }
 
+#[cfg(windows)]
+fn hide_window(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_window(_: &mut Command) {}
+
 fn append_stderr(output: &Arc<Mutex<String>>, text: &str) {
     let Ok(mut buf) = output.lock() else {
         return;
@@ -223,13 +233,15 @@ fn spawn_mcp(
         return Err("command is required".to_string());
     }
     let cwd = project_dir(&root)?;
-    let mut child = Command::new(command)
-        .args(args.unwrap_or_default())
+    let mut cmd = Command::new(command);
+    cmd.args(args.unwrap_or_default())
         .envs(env.unwrap_or_default())
         .current_dir(cwd)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    hide_window(&mut cmd);
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("failed to start MCP server {command}: {e}"))?;
 

@@ -13,11 +13,22 @@ fn work_dir(state: &State<ProjectRoot>) -> Result<PathBuf, String> {
     std::env::current_dir().map_err(|e| format!("current_dir: {e}"))
 }
 
+#[cfg(windows)]
+fn hide_window(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_window(_: &mut Command) {}
+
 fn run_git(state: State<ProjectRoot>, args: &[&str]) -> Result<String, String> {
     let cwd = work_dir(&state)?;
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(&cwd)
+    let mut cmd = Command::new("git");
+    cmd.args(args).current_dir(&cwd);
+    hide_window(&mut cmd);
+    let output = cmd
         .output()
         .map_err(|e| format!("failed to run git: {e}"))?;
 

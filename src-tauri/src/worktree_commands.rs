@@ -33,10 +33,21 @@ fn set_root(root: &State<ProjectRoot>, path: PathBuf) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(windows)]
+fn hide_window(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_window(_: &mut Command) {}
+
 fn git_output(cwd: &Path, args: &[String]) -> Result<String, String> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(cwd)
+    let mut cmd = Command::new("git");
+    cmd.args(args).current_dir(cwd);
+    hide_window(&mut cmd);
+    let output = cmd
         .output()
         .map_err(|e| format!("failed to run git: {e}"))?;
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();

@@ -104,12 +104,16 @@ fn stop_owned_proxy(state: &LocalProxyState) {
         if let Some(mut child) = child.take() {
             #[cfg(windows)]
             {
-                let _ = Command::new("taskkill")
+                let mut command = Command::new("taskkill");
+                command
                     .args(["/PID", &child.id().to_string(), "/T", "/F"])
                     .stdin(Stdio::null())
                     .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status();
+                    .stderr(Stdio::null());
+                use std::os::windows::process::CommandExt;
+                const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+                command.creation_flags(CREATE_NO_WINDOW);
+                let _ = command.status();
             }
             let _ = child.kill();
             let _ = child.wait();
