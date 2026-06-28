@@ -1,5 +1,17 @@
-import { describe, expect, it } from "vitest";
-import { buildNoSearchResultsReport, DEFAULT_SEARCH_CONFIG, formatSearchResults, searchProviderStatus, searchWeb, type SearchResponse } from "./searchProviders";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  buildNoSearchResultsReport,
+  DEFAULT_SEARCH_CONFIG,
+  formatSearchResults,
+  parseDuckDuckGoHtmlResults,
+  searchProviderStatus,
+  searchWeb,
+  type SearchResponse,
+} from "./searchProviders";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("formatSearchResults", () => {
   it("formats result blocks for model context", () => {
@@ -30,6 +42,61 @@ describe("formatSearchResults", () => {
     expect(report).toContain("- Engine: duckduckgo");
     expect(report).toContain("did not generate a research report");
     expect(report).toContain("SearXNG");
+  });
+});
+
+describe("DuckDuckGo search", () => {
+  it("parses DuckDuckGo HTML result pages", () => {
+    const results = parseDuckDuckGoHtmlResults(`
+      <html><body>
+        <div class="result results_links">
+          <a class="result__a" href="/l/?uddg=https%3A%2F%2Fexample.com%2Fprices&amp;rut=abc">Computer prices 2000-2025</a>
+          <a class="result__snippet">Historical computer goods price index &amp; analysis.</a>
+        </div>
+      </body></html>
+    `);
+
+    expect(results).toEqual([
+      {
+        title: "Computer prices 2000-2025",
+        url: "https://example.com/prices",
+        snippet: "Historical computer goods price index & analysis.",
+        source: "DuckDuckGo",
+      },
+    ]);
+  });
+
+  it("falls back to DuckDuckGo HTML results when instant answers are empty", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ RelatedTopics: [], AbstractText: "" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => `
+          <html><body>
+            <div class="result">
+              <a class="result__a" href="https://example.com/research">Research source</a>
+              <div class="result__snippet">Useful source snippet.</div>
+            </div>
+          </body></html>
+        `,
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(searchWeb("computer goods prices 2000 2025", "duckduckgo", DEFAULT_SEARCH_CONFIG)).resolves.toMatchObject({
+      engine: "duckduckgo",
+      results: [
+        {
+          title: "Research source",
+          url: "https://example.com/research",
+          snippet: "Useful source snippet.",
+          source: "DuckDuckGo",
+        },
+      ],
+      warning: expect.stringContaining("HTML search results"),
+    });
   });
 });
 

@@ -37,6 +37,26 @@ function clean(value: unknown): string {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_match, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
+function htmlText(value: string): string {
+  return clean(decodeHtml(value.replace(/<[^>]+>/g, " ")));
+}
+
+function attrValue(html: string, name: string): string {
+  const match = html.match(new RegExp(`${name}=["']([^"']*)["']`, "i"));
+  return decodeHtml(match?.[1] ?? "");
+}
+
 function normalizeEngine(engine: SearchEngine): SearchEngine {
   return engine === "Default" ? "duckduckgo" : engine;
 }
@@ -48,7 +68,7 @@ export function searchProviderStatus(engine: SearchEngine, config: SearchConfig)
       engine: selected,
       ready: true,
       label: "DuckDuckGo",
-      hint: "Free and keyless. Uses DuckDuckGo instant-answer data, so broad web result coverage can be limited.",
+      hint: "Free and keyless. Uses instant-answer data first, then falls back to DuckDuckGo HTML results for broader research prompts.",
     };
   }
   if (selected === "searxng") {
@@ -140,6 +160,61 @@ function duckTopics(topics: unknown[], acc: SearchResult[]) {
   }
 }
 
+function duckResultUrl(raw: string): string {
+  if (!raw) return "";
+  try {
+    const url = raw.startsWith("//")
+      ? `https:${raw}`
+      : raw.startsWith("/")
+        ? `https://duckduckgo.com${raw}`
+        : raw;
+    const parsed = new URL(url);
+    const uddg = parsed.searchParams.get("uddg");
+    return uddg ? decodeURIComponent(uddg) : url;
+  } catch {
+    return raw;
+  }
+}
+
+export function parseDuckDuckGoHtmlResults(html: string): SearchResult[] {
+  const results: SearchResult[] = [];
+  const blocks = html.match(/<div[^>]*class=["'][^"']*\bresult\b[^"']*["'][\s\S]*?(?=<div[^>]*class=["'][^"']*\bresult\b[^"']*["']|<\/body>)/gi) ?? [];
+
+  for (const block of blocks) {
+    const link = block.match(/<a[^>]*class=["'][^"']*\bresult__a\b[^"']*["'][^>]*>[\s\S]*?<\/a>/i);
+    if (!link) continue;
+    const title = htmlText(link[0]);
+    const url = duckResultUrl(attrValue(link[0], "href"));
+    const snippetMatch = block.match(/<(?:a|div)[^>]*class=["'][^"']*\bresult__snippet\b[^"']*["'][^>]*>[\s\S]*?<\/(?:a|div)>/i);
+    const snippet = snippetMatch ? htmlText(snippetMatch[0]) : "";
+    if (!title && !snippet) continue;
+    results.push({
+      title: title || url,
+      url,
+      snippet,
+      source: "DuckDuckGo",
+    });
+  }
+
+  return uniqueResults(results);
+}
+
+async function searchDuckDuckGoHtml(query: string): Promise<SearchResponse> {
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: "text/html,application/xhtml+xml",
+    },
+  });
+  if (!res.ok) throw new Error(`DuckDuckGo HTML ${res.status}: ${await res.text()}`);
+  const results = parseDuckDuckGoHtmlResults(await res.text()).slice(0, 8);
+  return {
+    engine: "duckduckgo",
+    results,
+    warning: results.length === 0 ? "DuckDuckGo returned no instant-answer or HTML search results." : undefined,
+  };
+}
+
 async function searchDuckDuckGo(query: string): Promise<SearchResponse> {
   const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
   const res = await fetch(url);
@@ -156,10 +231,25 @@ async function searchDuckDuckGo(query: string): Promise<SearchResponse> {
     });
   }
   if (Array.isArray(json.RelatedTopics)) duckTopics(json.RelatedTopics, results);
+  const instantResults = uniqueResults(results).slice(0, 8);
+  if (instantResults.length > 0) {
+    return {
+      engine: "duckduckgo",
+      results: instantResults,
+    };
+  }
+
+  const htmlResponse = await searchDuckDuckGoHtml(query);
+  if (htmlResponse.results.length > 0) {
+    return {
+      ...htmlResponse,
+      warning: "DuckDuckGo returned no instant-answer results, so Rush used DuckDuckGo HTML search results.",
+    };
+  }
   return {
     engine: "duckduckgo",
-    results: uniqueResults(results).slice(0, 8),
-    warning: results.length === 0 ? "DuckDuckGo returned no instant-answer results." : undefined,
+    results: [],
+    warning: htmlResponse.warning ?? "DuckDuckGo returned no instant-answer results.",
   };
 }
 
