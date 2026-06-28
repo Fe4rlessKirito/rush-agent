@@ -9,6 +9,7 @@ mod git_commands;
 mod local_proxy_commands;
 mod lsp_commands;
 mod mcp_commands;
+mod pack_commands;
 mod package_commands;
 mod system_commands;
 mod terminal_commands;
@@ -72,6 +73,7 @@ pub fn run() {
             package_commands::cargo_build_cmd,
             package_commands::pip_install,
             package_commands::winget_search,
+            pack_commands::scan_pack_folder,
             terminal_commands::terminal_start,
             terminal_commands::terminal_write,
             terminal_commands::terminal_send_line,

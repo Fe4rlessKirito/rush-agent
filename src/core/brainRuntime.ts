@@ -1,4 +1,6 @@
 import { useBrainStore, type BrainSkill } from "./brainStore";
+import { usePackStore } from "./packs/packStore";
+import { useProjectStore } from "./projectStore";
 
 type BrainMode = "plain" | "agent" | "flow";
 
@@ -28,9 +30,10 @@ function skillScore(skill: BrainSkill, prompt: string): number {
   return score;
 }
 
-export function buildBrainContext(userText: string, mode: BrainMode): string {
+export function buildBrainContext(userText: string, mode: BrainMode, projectId?: string | null): string {
   const brain = useBrainStore.getState();
   const sections: string[] = [];
+  const activeProjectId = projectId === undefined ? useProjectStore.getState().activeProjectId : projectId;
 
   if (brain.memoriesEnabled && brain.memories.length) {
     sections.push(
@@ -43,7 +46,8 @@ export function buildBrainContext(userText: string, mode: BrainMode): string {
   }
 
   if (brain.skillsEnabled && brain.maxInjectedSkills > 0) {
-    const approved = brain.skills
+    const enabledPackSkills = usePackStore.getState().getEnabledBrainSkills(activeProjectId);
+    const approved = [...brain.skills, ...enabledPackSkills]
       .filter((skill) => skill.approved || skill.confidence >= brain.minimumConfidence)
       .sort((a, b) => skillScore(b, userText) - skillScore(a, userText))
       .slice(0, brain.maxInjectedSkills);

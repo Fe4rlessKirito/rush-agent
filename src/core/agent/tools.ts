@@ -61,6 +61,8 @@ const READ_TOOLS = new Set([
   "ReadMcpResourceTool",
   "Skill",
   "SkillList",
+  "PackList",
+  "PackRead",
   "ToolSearch",
   "TodoWrite",
   "WaitForMcpServers",

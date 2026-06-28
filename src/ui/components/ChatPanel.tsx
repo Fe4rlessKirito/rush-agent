@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { flushSync } from "react-dom";
 import { useAppStore, type ChatLine, type Conversation } from "../../core/store";
@@ -29,6 +29,7 @@ import { createFlowTools } from "../../core/agent/flowTools";
 import { createPlanningTools } from "../../core/agent/planningTools";
 import { createWorktreeTools } from "../../core/agent/worktreeTools";
 import { createSkillTools } from "../../core/agent/skillTools";
+import { createPackTools } from "../../core/agent/packTools";
 import { createMcpTools } from "../../core/agent/mcpTools";
 import { createProjectTools } from "../../core/agent/projectTools";
 import { createReleaseTools } from "../../core/agent/releaseTools";
@@ -38,6 +39,13 @@ import { isToolAvailableInMode } from "../../core/agent/toolModes";
 import { buildFlowRuntimeInstructions } from "../../core/agent/flowPrompt";
 import { runAgent, type AgentEvent } from "../../core/agent/agentLoop";
 import { setDesktopProjectRoot } from "../../core/projectRoot";
+import {
+  buildPackRuntimeContext,
+  resolvePackCommandInvocation,
+  suggestPackCommands,
+  userTextWithPackCommandInvocation,
+} from "../../core/packs/packRuntime";
+import { usePackStore } from "../../core/packs/packStore";
 import type { ChatContentPart, ChatMessage } from "../../core/providers/types";
 import { Markdown } from "./Markdown";
 import "highlight.js/styles/github-dark.css";
@@ -55,6 +63,7 @@ function registerCodeToolset(registry: ToolRegistry, mode: "code" | "flow") {
   registry.registerAll(createPlanningTools());
   registry.registerAll(createWorktreeTools());
   registry.registerAll(createSkillTools());
+  registry.registerAll(createPackTools());
   registry.registerAll(createMcpTools(mcpRuntimeSource));
   registry.registerAll(createMcpConfigTools());
   registry.registerAll(createReleaseTools(fs));
@@ -291,7 +300,16 @@ export function ChatPanel({ mode = "agent" }: Props) {
   const projectInstructions = useProjectStore(
     (s) => s.projects.find((p) => p.id === s.activeProjectId)?.instructions ?? "",
   );
+  const activeProjectId = useProjectStore((s) => s.activeProjectId);
   const [input, setInput] = useState("");
+  const [selectedPackCommandIndex, setSelectedPackCommandIndex] = useState(0);
+  const packSuggestionKey = usePackStore((s) =>
+    s.packs
+      .map((pack) =>
+        `${pack.id}:${pack.enabled}:${pack.scope ?? "global"}:${(pack.projectIds ?? []).join(",")}:${pack.updatedAt}:${pack.commands.length}`,
+      )
+      .join("|"),
+  );
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const [contextItems, setContextItems] = useState<LibraryContextItem[]>([]);
@@ -432,6 +450,14 @@ export function ChatPanel({ mode = "agent" }: Props) {
       : null;
   const modelOptions = Array.from(new Set([...(activeModelAllowed ? [activeModelAllowed] : []), ...models]));
   const modelGroups = groupModels(modelOptions);
+  const packCommandSuggestions = useMemo(
+    () => suggestPackCommands(input, mode, 6, activeProjectId),
+    [input, mode, packSuggestionKey, activeProjectId],
+  );
+
+  useEffect(() => {
+    setSelectedPackCommandIndex(0);
+  }, [input, packSuggestionKey, activeProjectId]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -715,9 +741,14 @@ export function ChatPanel({ mode = "agent" }: Props) {
     const fileAttachments = attached.filter((item) => !item.dataUrl);
     const hasImages = imageAttachments.length > 0;
     const hasFiles = fileAttachments.length > 0;
-    const brainContext = buildBrainContext(userText, mode);
+    const brainContext = buildBrainContext(userText, mode, activeProjectId);
+    const packRuntimeContext = buildPackRuntimeContext(mode, activeProjectId);
+    const packCommandInvocation = resolvePackCommandInvocation(userText, mode, activeProjectId);
     const selectedLibraryContext = libraryContextText();
-    const modelUserText = userTextWithLibraryContext(userText, selectedLibraryContext);
+    const modelUserText = userTextWithPackCommandInvocation(
+      userTextWithLibraryContext(userText, selectedLibraryContext),
+      packCommandInvocation,
+    );
     let flowContext = mode === "flow" ? buildFlowRuntimeInstructions() : "";
     const effortThinking = cfg?.supportsThinking ? thinkingForEffort(effort) : undefined;
     const toolNamesUsed: string[] = [];
@@ -821,7 +852,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
           tools: codeTools,
           plan,
           signal: abortRef.current.signal,
-          projectInstructions: [projectRuntimeContext, projectInstructions].filter(Boolean).join("\n\n"),
+          projectInstructions: [projectRuntimeContext, projectInstructions, packRuntimeContext].filter(Boolean).join("\n\n"),
           shouldRunLane(lane) {
             return canRunPlanLane(lane.id);
           },
@@ -1093,7 +1124,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
         [...history, { role: "user", content: userContent }],
         abortRef.current.signal,
         undefined,
-        [projectRuntimeContext, projectInstructions, brainContext, flowContext].filter(Boolean).join("\n\n"),
+        [projectRuntimeContext, projectInstructions, brainContext, packRuntimeContext, flowContext].filter(Boolean).join("\n\n"),
         effortThinking,
       )) {
         await handleAndPaint(ev);
@@ -1148,6 +1179,12 @@ export function ChatPanel({ mode = "agent" }: Props) {
   function removeAttachment(id: string) {
     setAttachments((items) => items.filter((item) => item.id !== id));
     setPreviewAttachment((item) => (item?.id === id ? null : item));
+  }
+
+  function completePackCommand(name: string) {
+    const args = input.trim().match(/^\/[^\s]+(?:\s+([\s\S]*))?$/)?.[1]?.trim() ?? "";
+    setInput(args ? `/${name} ${args}` : `/${name} `);
+    window.setTimeout(() => textareaRef.current?.focus(), 0);
   }
 
   function attachmentTypeLabel(item: Attachment): string {
@@ -1293,12 +1330,43 @@ export function ChatPanel({ mode = "agent" }: Props) {
           }
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
+            if (packCommandSuggestions.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+              e.preventDefault();
+              setSelectedPackCommandIndex((index) => {
+                const delta = e.key === "ArrowDown" ? 1 : -1;
+                return (index + delta + packCommandSuggestions.length) % packCommandSuggestions.length;
+              });
+              return;
+            }
+            if (packCommandSuggestions.length > 0 && (e.key === "Tab" || e.key === "Enter")) {
+              e.preventDefault();
+              completePackCommand(packCommandSuggestions[selectedPackCommandIndex]?.name ?? packCommandSuggestions[0].name);
+              return;
+            }
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               send();
             }
           }}
         />
+        {isAgentMode && packCommandSuggestions.length > 0 && (
+          <div className="pack-command-suggestions" role="listbox" aria-label="Imported pack commands">
+            {packCommandSuggestions.map((command, index) => (
+              <button
+                type="button"
+                key={command.id}
+                className={index === selectedPackCommandIndex ? "active" : ""}
+                aria-selected={index === selectedPackCommandIndex}
+                onClick={() => completePackCommand(command.name)}
+                title={command.description}
+              >
+                <code>/{command.name}</code>
+                <span>{command.description || "Imported pack command"}</span>
+                {command.argumentHint && <em>{command.argumentHint}</em>}
+              </button>
+            ))}
+          </div>
+        )}
         {contextItems.length > 0 && (
           <div className="context-chip-row">
             {contextItems.map((item) => (

@@ -15,8 +15,9 @@ import { TOOL_CATALOG, type ToolCatalogItem } from "../../core/agent/toolModes";
 import { isTauriRuntime } from "../../core/agent/tauriFs";
 import { checkForUpdates, type UpdateCheckResult } from "../../core/updater";
 import { useDraggable } from "../hooks/useDraggable";
+import { PackManager } from "./PackManager";
 
-type Tab = "general" | "providers" | "proxies" | "tools" | "lsp" | "mcp";
+type Tab = "general" | "providers" | "proxies" | "tools" | "packs" | "lsp" | "mcp";
 
 // Per-proxy model-list state. Models are fetched lazily the first time a proxy
 // is expanded, then cached here so reopening it doesn't re-hit the network.
@@ -588,6 +589,12 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
             Tools
           </button>
           <button
+            className={`settings-tab ${tab === "packs" ? "active" : ""}`}
+            onClick={() => setTab("packs")}
+          >
+            Packs
+          </button>
+          <button
             className={`settings-tab ${tab === "lsp" ? "active" : ""}`}
             onClick={() => setTab("lsp")}
           >
@@ -1030,6 +1037,8 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
               )}
             </div>
           </div>
+        ) : tab === "packs" ? (
+          <PackManager />
         ) : tab === "lsp" ? (
           <div className="settings-body">
             <p className="hint">

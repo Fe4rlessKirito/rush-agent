@@ -17,6 +17,8 @@ vi.hoisted(() => {
 
 import { buildBrainContext, extractBrainFromTurn } from "./brainRuntime";
 import { useBrainStore } from "./brainStore";
+import { importEccPack } from "./packs/eccImport";
+import { usePackStore } from "./packs/packStore";
 
 function resetBrain() {
   useBrainStore.setState({
@@ -30,6 +32,7 @@ function resetBrain() {
     memories: [],
     skills: [],
   });
+  usePackStore.setState({ schemaVersion: 1, packs: [] });
 }
 
 describe("brain runtime", () => {
@@ -50,6 +53,109 @@ describe("brain runtime", () => {
     expect(context).toContain("User prefers concise replies");
     expect(context).toContain("Brain skills");
     expect(context).toContain("/skill fix-typescript-build");
+  });
+
+  it("injects enabled imported pack skills into prompt context", () => {
+    const pack = importEccPack([
+      {
+        path: "skills/search-first/SKILL.md",
+        content: [
+          "---",
+          "name: search-first",
+          "description: Research before coding",
+          "origin: ECC",
+          "tags: [research, workflow]",
+          "---",
+          "# Search First",
+          "",
+          "## When to Use",
+          "Use before building custom integrations.",
+          "",
+          "## Workflow",
+          "Check existing libraries, docs, MCP servers, and local patterns before implementing.",
+        ].join("\n"),
+      },
+    ], {
+      approveImportedSkills: true,
+      defaultConfidence: 90,
+    });
+    usePackStore.getState().installPack(pack, {
+      id: "ecc",
+      name: "ECC",
+      installedAt: 100,
+    });
+
+    const context = buildBrainContext("research this before coding", "agent");
+
+    expect(context).toContain("Brain skills");
+    expect(context).toContain("/skill search-first");
+    expect(context).toContain("Check existing libraries");
+  });
+
+  it("does not inject disabled imported pack skills", () => {
+    const pack = importEccPack([
+      {
+        path: "skills/search-first/SKILL.md",
+        content: [
+          "---",
+          "name: search-first",
+          "description: Research before coding",
+          "origin: ECC",
+          "---",
+          "# Search First",
+          "",
+          "## When to Use",
+          "Use before building custom integrations.",
+          "",
+          "## Workflow",
+          "Check existing libraries, docs, MCP servers, and local patterns before implementing.",
+        ].join("\n"),
+      },
+    ], {
+      approveImportedSkills: true,
+      defaultConfidence: 90,
+    });
+    usePackStore.getState().installPack(pack, {
+      id: "ecc",
+      name: "ECC",
+      enabled: false,
+    });
+
+    expect(buildBrainContext("research this before coding", "agent")).not.toContain("/skill search-first");
+  });
+
+  it("injects project-scoped imported pack skills only for matching projects", () => {
+    const pack = importEccPack([
+      {
+        path: "skills/search-first/SKILL.md",
+        content: [
+          "---",
+          "name: search-first",
+          "description: Research before coding",
+          "origin: ECC",
+          "---",
+          "# Search First",
+          "",
+          "## When to Use",
+          "Use before building custom integrations.",
+          "",
+          "## Workflow",
+          "Check existing libraries, docs, MCP servers, and local patterns before implementing.",
+        ].join("\n"),
+      },
+    ], {
+      approveImportedSkills: true,
+      defaultConfidence: 90,
+    });
+    usePackStore.getState().installPack(pack, {
+      id: "ecc",
+      name: "ECC",
+      scope: "projects",
+      projectIds: ["project-a"],
+    });
+
+    expect(buildBrainContext("research this before coding", "agent")).not.toContain("/skill search-first");
+    expect(buildBrainContext("research this before coding", "agent", "project-a")).toContain("/skill search-first");
   });
 
   it("extracts obvious memory statements from user turns", () => {

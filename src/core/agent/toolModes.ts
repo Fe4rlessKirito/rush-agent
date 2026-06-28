@@ -134,6 +134,13 @@ export const TOOL_CATALOG: ToolCatalogItem[] = [
     tools: ["Skill", "SkillList"],
   },
   {
+    id: "packs",
+    label: "Packs",
+    category: "Extensions",
+    description: "List and read imported Rush pack skills, commands, rules, and manifests.",
+    tools: ["PackList", "PackRead"],
+  },
+  {
     id: "planning",
     label: "Planning helpers",
     category: "Coordination",

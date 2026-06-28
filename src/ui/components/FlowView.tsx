@@ -5,6 +5,7 @@ import { useProjectStore } from "../../core/projectStore";
 import { ProviderRegistry } from "../../core/providers/registry";
 import { runFlowScheduledLane, type FlowScheduledLaneResult } from "../../core/flowScheduler";
 import { cancelFlowLane } from "../../core/flowRuntime";
+import { buildPackRuntimeContext } from "../../core/packs/packRuntime";
 import type { Provider } from "../../core/providers/types";
 import { ChatPanel, codeTools } from "./ChatPanel";
 
@@ -86,6 +87,8 @@ export function FlowView({ embedded = false }: FlowViewProps) {
   const projectInstructions = useProjectStore(
     (s) => s.projects.find((p) => p.id === s.activeProjectId)?.instructions ?? "",
   );
+  const activeProjectId = useProjectStore((s) => s.activeProjectId);
+  const packRuntimeContext = buildPackRuntimeContext("flow", activeProjectId);
   const activeRun = runs.find((run) => run.id === activeRunId) ?? runs[0];
   const selectedLane = activeRun?.lanes.find((lane) => lane.id === selectedLaneId);
   const report = useMemo(() => activeRun ? buildFlowRunReport(activeRun) : "", [activeRun]);
@@ -237,6 +240,7 @@ export function FlowView({ embedded = false }: FlowViewProps) {
               "Use the Flow report as the source of truth. Do not call tools.",
               "Be concise, mention what changed if the retry changed the outcome, and state any remaining limitations.",
               projectInstructions,
+              packRuntimeContext,
             ].filter(Boolean).join("\n\n"),
           },
           {
@@ -309,7 +313,7 @@ export function FlowView({ embedded = false }: FlowViewProps) {
           tools: codeTools,
           plan,
           signal: controller.signal,
-          projectInstructions,
+          projectInstructions: [projectInstructions, packRuntimeContext].filter(Boolean).join("\n\n"),
           onLaneStart() {
             setLaneStatus(runId, lane.id, "running", planLane.task);
           },
@@ -408,7 +412,7 @@ export function FlowView({ embedded = false }: FlowViewProps) {
           tools: codeTools,
           plan,
           signal: resumeController.signal,
-          projectInstructions,
+          projectInstructions: [projectInstructions, packRuntimeContext].filter(Boolean).join("\n\n"),
           onLaneStart() {
             setLaneStatus(runId, runtimeLane.id, "running", planLane.task);
           },

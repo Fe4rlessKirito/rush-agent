@@ -22,7 +22,7 @@ import { setDesktopProjectRoot } from "../core/projectRoot";
 
 type View = "chat" | "code" | "projects" | "library" | "flow";
 type ProjectAiMode = "agent" | "flow";
-type SettingsTab = "general" | "providers" | "proxies" | "tools" | "lsp" | "mcp";
+type SettingsTab = "general" | "providers" | "proxies" | "tools" | "packs" | "lsp" | "mcp";
 type LspToast = {
   language: "rust" | "typescript";
   message: string;
