@@ -227,6 +227,54 @@ interface ParsedToolCall {
   args: Record<string, unknown>;
 }
 
+const JSON_SIMPLE_ESCAPES = new Set(['"', "\\", "/", "b", "f", "n", "r", "t"]);
+
+function hasFourHexDigits(text: string, start: number): boolean {
+  return /^[0-9a-fA-F]{4}$/.test(text.slice(start, start + 4));
+}
+
+function escapeInvalidJsonBackslashes(text: string): string {
+  let out = "";
+  let inString = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') {
+      let backslashes = 0;
+      for (let j = i - 1; j >= 0 && text[j] === "\\"; j--) backslashes += 1;
+      if (backslashes % 2 === 0) inString = !inString;
+      out += ch;
+      continue;
+    }
+
+    if (inString && ch === "\\") {
+      const next = text[i + 1] ?? "";
+      if (JSON_SIMPLE_ESCAPES.has(next) || (next === "u" && hasFourHexDigits(text, i + 2))) {
+        out += ch;
+      } else {
+        out += "\\\\";
+      }
+      continue;
+    }
+
+    out += ch;
+  }
+
+  return out;
+}
+
+function parseToolJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    try {
+      return JSON.parse(escapeInvalidJsonBackslashes(raw));
+    } catch {
+      throw err;
+    }
+  }
+}
+
 function parseNativeToolCalls(calls: NativeToolCall[]): ParsedToolCall[] {
   return calls.map((c) => {
     const args = c.argsJson ? JSON.parse(c.argsJson) : {};
@@ -244,7 +292,7 @@ function parseNativeToolCalls(calls: NativeToolCall[]): ParsedToolCall[] {
 export function parseToolCalls(text: string): ParsedToolCall[] | null {
   const batch = text.match(TOOL_CALLS_RE);
   if (batch) {
-    const parsed = JSON.parse(batch[1]);
+    const parsed = parseToolJson(batch[1]);
     if (!Array.isArray(parsed)) throw new Error("tool_calls JSON must be an array");
     return parsed.map((item) => ({
       name: String(item?.name ?? ""),
@@ -254,7 +302,7 @@ export function parseToolCalls(text: string): ParsedToolCall[] | null {
 
   const single = text.match(TOOL_CALL_RE);
   if (!single) return null;
-  const parsed = JSON.parse(single[1]);
+  const parsed = parseToolJson(single[1]) as { name?: unknown; args?: unknown };
   return [{ name: String(parsed.name ?? ""), args: (parsed.args ?? {}) as Record<string, unknown> }];
 }
 

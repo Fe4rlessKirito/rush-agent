@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ChatPanel } from "./components/ChatPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -56,6 +56,9 @@ export function App() {
       : view === "projects"
         ? "Projects"
         : "";
+  const topModeIndex = view === "code" ? 1 : view === "flow" ? 2 : 0;
+  const topModeIsActive = view === "chat" || view === "code" || view === "flow";
+  const topModeStyle = { "--top-mode-index": topModeIndex } as CSSProperties;
 
   const enterProject = async (id: string) => {
     openProject(id);
@@ -178,7 +181,12 @@ export function App() {
   return (
     <div className="app">
       <header className="titlebar">
-        <nav className="top-mode-tabs" aria-label="AI modes">
+        <nav
+          className={"top-mode-tabs" + (topModeIsActive ? "" : " idle")}
+          style={topModeStyle}
+          aria-label="AI modes"
+        >
+          <span className="top-mode-indicator" aria-hidden="true" />
           <button
             className={"top-mode-tab" + (view === "chat" ? " active" : "")}
             onClick={() => setView("chat")}

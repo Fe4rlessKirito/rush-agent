@@ -34,6 +34,21 @@ describe("parseToolCalls", () => {
     expect(out).toEqual([{ name: "list_dir", args: {} }]);
   });
 
+  it("tolerates unescaped Windows paths in single tool-call JSON", () => {
+    const out = parseToolCalls(String.raw`<tool_call>{"name":"list_dir","args":{"path":"C:\Users\marko\Downloads\mp4_to_mp3"}}</tool_call>`);
+    expect(out).toEqual([
+      { name: "list_dir", args: { path: String.raw`C:\Users\marko\Downloads\mp4_to_mp3` } },
+    ]);
+  });
+
+  it("tolerates unescaped Windows paths in batched tool-call JSON", () => {
+    const out = parseToolCalls(String.raw`<tool_calls>[{"name":"read_file","args":{"path":"C:\Users\marko\Downloads\a.txt"}},{"name":"list_dir","args":{"path":"C:\Users\marko\Downloads"}}]</tool_calls>`);
+    expect(out).toEqual([
+      { name: "read_file", args: { path: String.raw`C:\Users\marko\Downloads\a.txt` } },
+      { name: "list_dir", args: { path: String.raw`C:\Users\marko\Downloads` } },
+    ]);
+  });
+
   it("throws on malformed JSON so the loop can surface it", () => {
     expect(() => parseToolCalls('<tool_call>{name: not valid json}</tool_call>')).toThrow();
   });
