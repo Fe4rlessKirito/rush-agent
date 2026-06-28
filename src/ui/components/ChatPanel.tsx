@@ -4,6 +4,7 @@ import { flushSync } from "react-dom";
 import { useAppStore, type ChatLine, type Conversation } from "../../core/store";
 import { useProjectStore } from "../../core/projectStore";
 import { useFlowStore } from "../../core/flowStore";
+import { useFileStore } from "../../core/fileStore";
 import { buildFlowPlan } from "../../core/flowPlanner";
 import { formatSchedulerResults, runFlowScheduler } from "../../core/flowScheduler";
 import { registerFlowLaneController, unregisterFlowLaneController } from "../../core/flowRuntime";
@@ -33,6 +34,7 @@ import { createDynamicMcpTools, createMcpConfigTools, mcpRuntimeSource } from ".
 import { isToolAvailableInMode } from "../../core/agent/toolModes";
 import { buildFlowRuntimeInstructions } from "../../core/agent/flowPrompt";
 import { runAgent, type AgentEvent } from "../../core/agent/agentLoop";
+import { setDesktopProjectRoot } from "../../core/projectRoot";
 import type { ChatContentPart, ChatMessage } from "../../core/providers/types";
 import { Markdown } from "./Markdown";
 import "highlight.js/styles/github-dark.css";
@@ -232,6 +234,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
     setFlowChat,
     conversations,
     activeConversationId,
+    conversationProjectContext,
     toolPermissions,
   } = useAppStore();
   const researchRuns = useResearchStore((s) => s.runs);
@@ -467,6 +470,24 @@ export function ChatPanel({ mode = "agent" }: Props) {
     ].join("\n\n");
   }
 
+  async function syncConversationProjectRoot(): Promise<string> {
+    if (!isAgentMode || !conversationProjectContext?.projectRoot) return "";
+    const root = conversationProjectContext.projectRoot.trim().replace(/[\\/]+$/, "");
+    if (!root) return "";
+    await setDesktopProjectRoot(root);
+    const fileState = useFileStore.getState();
+    if (fileState.mode !== "disk" || fileState.root.replace(/[\\/]+$/, "") !== root) {
+      await fileState.loadFromDisk(root);
+    }
+    return [
+      "Current project:",
+      `- Name: ${conversationProjectContext.projectName}`,
+      `- Root: ${root}`,
+      "- This conversation is scoped to this project.",
+      "- Use project-relative paths for filesystem, package, terminal, and Git tools.",
+    ].join("\n");
+  }
+
   function addConversationContext(conversation: Conversation) {
     const item: LibraryContextItem = {
       id: conversation.id,
@@ -625,6 +646,13 @@ export function ChatPanel({ mode = "agent" }: Props) {
     }
     const registry = new ProviderRegistry(providers);
     const provider = registry.get(activeProviderId);
+    let projectRuntimeContext = "";
+    try {
+      projectRuntimeContext = await syncConversationProjectRoot();
+    } catch (err) {
+      setChat((l) => [...l, { role: "tool", text: `Project root sync failed: ${String(err)}` }]);
+      return;
+    }
     const userText = input;
     const attached = attachments;
     const imageAttachments = attached.filter((item) => item.dataUrl);
@@ -729,7 +757,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
           tools: codeTools,
           plan,
           signal: abortRef.current.signal,
-          projectInstructions,
+          projectInstructions: [projectRuntimeContext, projectInstructions].filter(Boolean).join("\n\n"),
           shouldRunLane(lane) {
             return canRunPlanLane(lane.id);
           },
@@ -812,6 +840,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
             abortRef.current.signal,
             8,
             [
+              projectRuntimeContext,
               "You are Rush in Chat mode. You may answer, explain, plan, use Brain memories, search saved Library chats, read saved Deep Research, and analyze images attached directly to the current message. You do not have filesystem, terminal, Git, package-manager, MCP, or Flow-agent access in Chat. Do not claim to inspect workspace files, run commands, edit projects, save files, or view the user's screen from Chat. Attached images are visible message content, not filesystem or screen access.",
               brainContext,
               selectedLibraryContext,
@@ -1001,7 +1030,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
         [...history, { role: "user", content: userContent }],
         abortRef.current.signal,
         24,
-        [projectInstructions, brainContext, selectedLibraryContext, flowContext].filter(Boolean).join("\n\n"),
+        [projectRuntimeContext, projectInstructions, brainContext, selectedLibraryContext, flowContext].filter(Boolean).join("\n\n"),
         effortThinking,
       )) {
         await handleAndPaint(ev);

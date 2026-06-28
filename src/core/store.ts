@@ -42,6 +42,15 @@ export interface Conversation {
   title: string;
   lines: ChatLine[];
   createdAt: number;
+  projectId?: string;
+  projectRoot?: string;
+  projectName?: string;
+}
+
+export interface ConversationProjectContext {
+  projectId: string;
+  projectRoot: string;
+  projectName: string;
 }
 
 function newId() {
@@ -72,6 +81,7 @@ export interface AppState {
   conversations: Conversation[];
   activeConversationId: string;
   activeConversationIds: Record<ConversationMode, string>;
+  conversationProjectContext: ConversationProjectContext | null;
   // Mirrors of each mode's active conversation lines. ChatPanel keeps using
   // chat/setChat for agent mode and plainChat/setPlainChat for plain chat.
   chat: ChatLine[];
@@ -92,6 +102,7 @@ export interface AppState {
   clearChat: () => void;
   clearPlainChat: () => void;
   clearFlowChat: () => void;
+  setConversationProjectContext: (context: ConversationProjectContext | null) => void;
   newConversation: (mode?: ConversationMode) => void;
   selectConversation: (id: string) => ConversationMode | undefined;
   deleteConversation: (id: string) => void;
@@ -153,6 +164,9 @@ function normalizeConversations(state: Partial<AppState>): {
         title: c.title || titleFrom(lines, mode),
         lines,
         createdAt: c.createdAt ?? Date.now(),
+        projectId: c.projectId,
+        projectRoot: c.projectRoot,
+        projectName: c.projectName,
       };
     })
     .filter((c) => c.lines.length > 0);
@@ -191,6 +205,7 @@ function upsertConversation(
   id: string,
   mode: ConversationMode,
   lines: ChatLine[],
+  projectContext: ConversationProjectContext | null,
 ): { conversations: Conversation[]; id: string } {
   if (lines.length === 0) {
     return {
@@ -199,7 +214,11 @@ function upsertConversation(
     };
   }
 
-  const nextId = id || newId();
+  const current = id ? conversations.find((c) => c.id === id) : undefined;
+  const sameProject =
+    !projectContext ||
+    (current?.projectId === projectContext.projectId && current?.mode === mode);
+  const nextId = sameProject && id ? id : newId();
   const idx = conversations.findIndex((c) => c.id === nextId);
   const next: Conversation = {
     id: nextId,
@@ -207,6 +226,13 @@ function upsertConversation(
     lines,
     title: titleFrom(lines, mode),
     createdAt: idx === -1 ? Date.now() : conversations[idx].createdAt,
+    ...(projectContext
+      ? {
+          projectId: projectContext.projectId,
+          projectRoot: projectContext.projectRoot,
+          projectName: projectContext.projectName,
+        }
+      : {}),
   };
   if (idx === -1) return { conversations: [next, ...conversations], id: nextId };
   const updated = conversations.slice();
@@ -231,6 +257,7 @@ export const useAppStore = create<AppState>()(
         agent: "",
         flow: "",
       },
+      conversationProjectContext: null,
       chat: [],
       plainChat: [],
       flowChat: [],
@@ -277,6 +304,7 @@ export const useAppStore = create<AppState>()(
             s.activeConversationIds.agent,
             "agent",
             lines,
+            s.conversationProjectContext,
           );
           return {
             chat: lines,
@@ -308,6 +336,7 @@ export const useAppStore = create<AppState>()(
             s.activeConversationIds.plain,
             "plain",
             lines,
+            null,
           );
           return {
             plainChat: lines,
@@ -339,6 +368,7 @@ export const useAppStore = create<AppState>()(
             s.activeConversationIds.flow,
             "flow",
             lines,
+            s.conversationProjectContext,
           );
           return {
             flowChat: lines,
@@ -361,6 +391,42 @@ export const useAppStore = create<AppState>()(
           };
         }),
 
+      setConversationProjectContext: (context) =>
+        set((s) => {
+          if (!context) {
+            const activeAgent = s.conversations.find((c) => c.mode === "agent" && !c.projectId);
+            const activeFlow = s.conversations.find((c) => c.mode === "flow" && !c.projectId);
+            return {
+              conversationProjectContext: null,
+              activeConversationId:
+                s.activeConversationId && s.conversations.find((c) => c.id === s.activeConversationId && !c.projectId)
+                  ? s.activeConversationId
+                  : activeAgent?.id ?? activeFlow?.id ?? s.activeConversationIds.plain,
+              activeConversationIds: {
+                ...s.activeConversationIds,
+                agent: activeAgent?.id ?? "",
+                flow: activeFlow?.id ?? "",
+              },
+              chat: activeAgent?.lines ?? [],
+              flowChat: activeFlow?.lines ?? [],
+            };
+          }
+
+          const activeAgent = s.conversations.find((c) => c.mode === "agent" && c.projectId === context.projectId);
+          const activeFlow = s.conversations.find((c) => c.mode === "flow" && c.projectId === context.projectId);
+          return {
+            conversationProjectContext: context,
+            activeConversationId: activeAgent?.id ?? activeFlow?.id ?? s.activeConversationIds.plain,
+            activeConversationIds: {
+              ...s.activeConversationIds,
+              agent: activeAgent?.id ?? "",
+              flow: activeFlow?.id ?? "",
+            },
+            chat: activeAgent?.lines ?? [],
+            flowChat: activeFlow?.lines ?? [],
+          };
+        }),
+
       newConversation: (mode = "plain") =>
         set((s) => ({
           activeConversationId: "",
@@ -374,6 +440,13 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           activeConversationId: id,
           activeConversationIds: { ...s.activeConversationIds, [convo.mode]: id },
+          conversationProjectContext: convo.projectId
+            ? {
+                projectId: convo.projectId,
+                projectRoot: convo.projectRoot ?? "",
+                projectName: convo.projectName ?? "Project",
+              }
+            : null,
           ...(convo.mode === "agent"
             ? { chat: convo.lines }
             : convo.mode === "flow"
@@ -388,7 +461,12 @@ export const useAppStore = create<AppState>()(
           const deleted = s.conversations.find((c) => c.id === id);
           const deletedMode = deleted?.mode ?? "plain";
           const remaining = s.conversations.filter((c) => c.id !== id);
-          const replacement = remaining.find((c) => c.mode === deletedMode);
+          const replacement = remaining.find((c) =>
+            c.mode === deletedMode &&
+            (deletedMode === "plain"
+              ? !c.projectId
+              : c.projectId === s.conversationProjectContext?.projectId),
+          );
           const activeConversationIds = { ...s.activeConversationIds };
           if (activeConversationIds[deletedMode] === id) {
             activeConversationIds[deletedMode] = replacement?.id ?? "";

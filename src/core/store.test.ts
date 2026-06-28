@@ -25,6 +25,7 @@ function resetStore() {
     conversations: [],
     activeConversationId: "",
     activeConversationIds: { plain: "", agent: "", flow: "" },
+    conversationProjectContext: null,
     chat: [],
     plainChat: [],
     flowChat: [],
@@ -182,6 +183,52 @@ describe("useAppStore conversations", () => {
     expect(useAppStore.getState().conversations.find((c) => c.id === flow)?.mode).toBe("flow");
     expect(useAppStore.getState().chat[0].text).toBe("code task");
     expect(useAppStore.getState().flowChat[0].text).toBe("flow task");
+  });
+
+  it("scopes code and flow conversations to the active project context", () => {
+    useAppStore.getState().setConversationProjectContext({
+      projectId: "project-a",
+      projectRoot: "C:/work/a",
+      projectName: "Project A",
+    });
+    useAppStore.getState().setChat([{ role: "user", text: "project a task" }]);
+    const projectA = useAppStore.getState().activeConversationIds.agent;
+
+    useAppStore.getState().setConversationProjectContext({
+      projectId: "project-b",
+      projectRoot: "C:/work/b",
+      projectName: "Project B",
+    });
+    expect(useAppStore.getState().chat).toEqual([]);
+    useAppStore.getState().setChat([{ role: "user", text: "project b task" }]);
+    const projectB = useAppStore.getState().activeConversationIds.agent;
+
+    expect(projectA).not.toBe(projectB);
+    expect(useAppStore.getState().conversations.find((c) => c.id === projectA)).toMatchObject({
+      projectId: "project-a",
+      projectRoot: "C:/work/a",
+      projectName: "Project A",
+    });
+    expect(useAppStore.getState().conversations.find((c) => c.id === projectB)).toMatchObject({
+      projectId: "project-b",
+      projectRoot: "C:/work/b",
+      projectName: "Project B",
+    });
+  });
+
+  it("restores the latest project conversation when re-entering a project", () => {
+    const context = {
+      projectId: "project-a",
+      projectRoot: "C:/work/a",
+      projectName: "Project A",
+    };
+    useAppStore.getState().setConversationProjectContext(context);
+    useAppStore.getState().setChat([{ role: "user", text: "remember me" }]);
+    useAppStore.getState().setConversationProjectContext(null);
+
+    expect(useAppStore.getState().chat).toEqual([]);
+    useAppStore.getState().setConversationProjectContext(context);
+    expect(useAppStore.getState().chat[0].text).toBe("remember me");
   });
 
   it("clearChat removes the saved active task", () => {

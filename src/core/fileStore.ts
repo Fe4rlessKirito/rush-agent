@@ -5,8 +5,8 @@ import { createTauriFs, isTauriRuntime } from "./agent/tauriFs";
 // Shared file store. The editor, file tree, and agent tools all read and write
 // through this so they stay in sync. In "memory" mode it holds an in-memory map
 // (dev/seeded projects). In "disk" mode it is a write-through cache over the
-// real Tauri FS backend: the tree is loaded eagerly from a folder, file
-// contents are lazy-loaded on open, and edits are written through to disk.
+// real Tauri FS backend: directory contents and file contents are loaded lazily,
+// and edits are written through to disk.
 
 function langFor(path: string): string {
   if (path.endsWith(".ts") || path.endsWith(".tsx")) return "typescript";
@@ -17,9 +17,6 @@ function langFor(path: string): string {
   if (path.endsWith(".md")) return "markdown";
   return "plaintext";
 }
-
-// Directories never walked when loading a real on-disk project tree.
-const IGNORE_DIRS = new Set(["node_modules", ".git", "target", "dist", "releases"]);
 
 // Debounce handles for write-through-to-disk, keyed by path.
 const writeTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -40,7 +37,7 @@ export type FileMode = "memory" | "disk";
 
 export interface FileStore {
   files: Record<string, string>;
-  tree: string[];         // sorted list of workspace-relative paths shown in the tree
+  tree: string[];         // known workspace-relative file paths
   mode: FileMode;
   backend: FsBackend | null;
   root: string;           // absolute disk root when mode === "disk"
@@ -149,9 +146,9 @@ export const useFileStore = create<FileStore>((set, get) => ({
       showPreview: false,
     }),
 
-  // Open a real on-disk folder: eagerly walk the tree (skipping IGNORE_DIRS) to
-  // populate the file list, but lazy-load file *contents* on open. Falls back to
-  // memory mode if not running under Tauri.
+  // Open a real on-disk folder. Directory contents are listed lazily by the
+  // explorer, and file contents are lazy-loaded on open. Falls back to memory
+  // mode if not running under Tauri.
   loadFromDisk: async (root) => {
     if (!isTauriRuntime()) {
       get().loadFiles({});
@@ -159,35 +156,9 @@ export const useFileStore = create<FileStore>((set, get) => ({
     }
     const backend = createTauriFs();
     const rootClean = root.replace(/[\\/]+$/, "");
-    const paths: string[] = [];
-
-    async function walk(rel: string): Promise<void> {
-      let entries: string[];
-      try {
-        entries = await backend.listDir(rel || ".");
-      } catch {
-        return;
-      }
-      for (const entry of entries) {
-        const isDir = entry.startsWith("dir ");
-        const isFile = entry.startsWith("file ");
-        if (!isDir && !isFile) continue;
-        const entryPath = entry.slice(isDir ? 4 : 5);
-        const name = entryPath.split(/[\\/]/).pop() ?? "";
-        if (!name) continue;
-        if (isDir) {
-          if (IGNORE_DIRS.has(name)) continue;
-          await walk(entryPath);
-        } else {
-          paths.push(entryPath);
-        }
-      }
-    }
-
-    await walk("");
     set({
       files: {},
-      tree: paths.sort(),
+      tree: [],
       mode: "disk",
       backend,
       root: rootClean,

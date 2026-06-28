@@ -1,18 +1,27 @@
 import { useAppStore } from "../../core/store";
+import type { ConversationProjectContext } from "../../core/store";
 
 type View = "chat" | "code" | "projects" | "library" | "flow";
 
 interface Props {
   view: View;
   onSelectView: (v: View) => void;
+  projectContext?: ConversationProjectContext | null;
 }
 
-export function Sidebar({ view, onSelectView }: Props) {
+export function Sidebar({ view, onSelectView, projectContext = null }: Props) {
   const conversations = useAppStore((s) => s.conversations);
   const activeId = useAppStore((s) => s.activeConversationId);
   const newConversation = useAppStore((s) => s.newConversation);
   const selectConversation = useAppStore((s) => s.selectConversation);
   const deleteConversation = useAppStore((s) => s.deleteConversation);
+  const visibleConversations = conversations.filter((conversation) =>
+    projectContext
+      ? conversation.projectId === projectContext.projectId
+      : !conversation.projectId,
+  );
+  const newMode = projectContext ? "agent" : view === "code" ? "agent" : view === "flow" ? "flow" : "plain";
+  const newLabel = newMode === "agent" ? "New task" : newMode === "flow" ? "New flow" : "New chat";
 
   return (
     <aside className="app-sidebar">
@@ -20,11 +29,10 @@ export function Sidebar({ view, onSelectView }: Props) {
         <button
           className="sb-item"
           onClick={() => {
-            const mode = view === "code" ? "agent" : view === "flow" ? "flow" : "plain";
-            newConversation(mode);
-            onSelectView(mode === "agent" ? "code" : mode === "flow" ? "flow" : "chat");
+            newConversation(newMode);
+            onSelectView(projectContext ? "projects" : newMode === "agent" ? "code" : newMode === "flow" ? "flow" : "chat");
           }}
-          title={view === "code" ? "New task" : view === "flow" ? "New flow" : "New chat"}
+          title={newLabel}
         >
           <span className="sb-ico sb-ico-new">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -32,7 +40,7 @@ export function Sidebar({ view, onSelectView }: Props) {
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </span>
-          <span className="sb-label">{view === "code" ? "New task" : view === "flow" ? "New flow" : "New chat"}</span>
+          <span className="sb-label">{newLabel}</span>
         </button>
 
         <button
@@ -81,10 +89,10 @@ export function Sidebar({ view, onSelectView }: Props) {
       <div className="sb-recents">
         <div className="sb-recents-head">Recents</div>
         <div className="sb-history">
-          {conversations.length === 0 ? (
+          {visibleConversations.length === 0 ? (
             <div className="sb-empty-recents">Start a new chat</div>
           ) : (
-            conversations.map((c) => (
+            visibleConversations.map((c) => (
               <div
                 key={c.id}
                 className={"sb-chat-row" + (c.id === activeId ? " active" : "")}

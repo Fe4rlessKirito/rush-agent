@@ -49,6 +49,7 @@ export function App() {
   const [dismissedLspToasts, setDismissedLspToasts] = useState<Set<string>>(() => new Set());
   const autoUpdateEnabled = useAppStore((s) => s.autoUpdateEnabled);
   const selectConversation = useAppStore((s) => s.selectConversation);
+  const setConversationProjectContext = useAppStore((s) => s.setConversationProjectContext);
   const openProject = useProjectStore((s) => s.openProject);
   const saveActiveFiles = useProjectStore((s) => s.saveActiveFiles);
   const activeProject = useProjectStore((s) =>
@@ -64,6 +65,13 @@ export function App() {
   const enterProject = async (id: string) => {
     openProject(id);
     const project = useProjectStore.getState().projects.find((p) => p.id === id);
+    if (project) {
+      setConversationProjectContext({
+        projectId: project.id,
+        projectRoot: normalizeProjectRoot(project.path),
+        projectName: project.name,
+      });
+    }
     if (project?.path) {
       try {
         await setDesktopProjectRoot(project.path);
@@ -77,6 +85,7 @@ export function App() {
 
   const leaveProject = () => {
     saveActiveFiles();
+    setConversationProjectContext(null);
     setInProject(false);
   };
 
@@ -286,7 +295,15 @@ export function App() {
       </header>
 
       <div className="app-body">
-        <Sidebar view={view} onSelectView={setView} />
+        <Sidebar
+          view={view}
+          onSelectView={setView}
+          projectContext={inProject && activeProject ? {
+            projectId: activeProject.id,
+            projectRoot: normalizeProjectRoot(activeProject.path),
+            projectName: activeProject.name,
+          } : null}
+        />
 
         {view === "chat" && (
           <main className="chat-view">

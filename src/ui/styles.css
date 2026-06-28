@@ -1543,7 +1543,7 @@ body {
 .editor-empty-icon { font-size: 34px; opacity: 0.4; }
 
 /* File tree */
-.file-tree { padding: 10px 8px; }
+.file-tree { padding: 10px 8px; overflow: auto; }
 .tree-header {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
   color: var(--text-faint); margin: 4px 6px 8px;
@@ -1555,6 +1555,34 @@ body {
 }
 .tree-item:hover { background: var(--panel-2); color: var(--text); }
 .tree-item.active { background: var(--panel-2); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
+.tree-row {
+  display: grid;
+  grid-template-columns: 12px 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+}
+.tree-caret {
+  color: var(--text-faint);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 11px;
+}
+.tree-icon {
+  color: var(--text-faint);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 10px;
+}
+.tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-status {
+  padding: 6px 8px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+.tree-status.error { color: #f05d7a; }
 
 /* Editor tabs */
 .tabs {
