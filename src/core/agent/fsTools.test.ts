@@ -15,6 +15,19 @@ describe("Claude-compatible filesystem tools", () => {
     }
   });
 
+  it("documents list_dir as workspace-relative", () => {
+    const tools = toolMap({});
+    const listDir = tools.get("list_dir")!.definition;
+
+    expect(listDir.description).toContain("relative to the active workspace");
+    expect(listDir.description).toContain("use '.'");
+    expect(listDir.inputSchema.properties.path).toEqual(
+      expect.objectContaining({
+        description: expect.stringContaining("active workspace root"),
+      }),
+    );
+  });
+
   it("requires Read before Edit", async () => {
     const tools = toolMap({ "src/a.ts": "const value = 1;\n" });
 

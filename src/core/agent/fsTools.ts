@@ -235,11 +235,16 @@ export function createFsTools(fs: FsBackend): Tool[] {
         description:
           "List the files and folders at a workspace path. Use this to discover the " +
           "project structure or find a file when you don't yet know its exact path. " +
+          "Paths must be relative to the active workspace; use '.' for the workspace " +
+          "root. Do not pass Windows absolute paths like C:/Users/name/project here. " +
           "If you already know the path, read_file directly instead.",
         inputSchema: {
           type: "object",
           properties: {
-            path: { type: "string", description: "Workspace-relative directory path. Use '.' for the root." },
+            path: {
+              type: "string",
+              description: "Workspace-relative directory path. Use '.' for the active workspace root.",
+            },
           },
           required: ["path"],
         },
