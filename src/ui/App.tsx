@@ -13,6 +13,7 @@ import { ProjectSettings } from "./components/ProjectSettings";
 import { EditorTabs } from "./components/EditorTabs";
 import { EditorPane } from "./components/EditorPane";
 import { TerminalPanel } from "./components/TerminalPanel";
+import { ToastHost } from "./components/ToastHost";
 import { checkForUpdates } from "../core/updater";
 import { useAppStore, type ConversationMode } from "../core/store";
 import { useProjectStore } from "../core/projectStore";
@@ -339,8 +340,8 @@ export function App() {
             <section
               className="project-ai-pane"
               style={{
-                flexBasis: projectAiMode === "flow" || projectEditorMinimized ? "auto" : projectPaneWidths.ai,
-                flexGrow: projectAiMode === "flow" || projectEditorMinimized ? 1 : 0,
+                flexBasis: projectEditorMinimized ? "auto" : projectPaneWidths.ai,
+                flexGrow: projectEditorMinimized ? 1 : 0,
               }}
             >
               <div className="project-ai-chat">
@@ -416,7 +417,7 @@ export function App() {
               <TerminalPanel />
             </section>
 
-            {projectAiMode !== "flow" && !projectEditorMinimized && (
+            {!projectEditorMinimized && (
               <div
                 className="pane-resizer"
                 role="separator"
@@ -425,7 +426,7 @@ export function App() {
               />
             )}
 
-            {projectAiMode !== "flow" && !projectEditorMinimized && (
+            {!projectEditorMinimized && (
               <section className="editor-panel dock-right project-editor-pane">
                 <main className="editor">
                   <EditorTabs />
@@ -466,6 +467,7 @@ export function App() {
       {showProjectSettings && (
         <ProjectSettings onClose={() => setShowProjectSettings(false)} />
       )}
+      <ToastHost />
     </div>
   );
 }

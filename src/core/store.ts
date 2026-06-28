@@ -225,7 +225,7 @@ function upsertConversation(
     mode,
     lines,
     title: titleFrom(lines, mode),
-    createdAt: idx === -1 ? Date.now() : conversations[idx].createdAt,
+    createdAt: Date.now(),
     ...(projectContext
       ? {
           projectId: projectContext.projectId,
@@ -234,10 +234,10 @@ function upsertConversation(
         }
       : {}),
   };
-  if (idx === -1) return { conversations: [next, ...conversations], id: nextId };
-  const updated = conversations.slice();
-  updated[idx] = next;
-  return { conversations: updated, id: nextId };
+  const rest = idx === -1
+    ? conversations
+    : conversations.filter((c) => c.id !== nextId);
+  return { conversations: [next, ...rest], id: nextId };
 }
 
 export const useAppStore = create<AppState>()(

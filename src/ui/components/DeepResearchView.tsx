@@ -3,8 +3,9 @@ import { useDraggable } from "../hooks/useDraggable";
 import { thinkingForEffort } from "../../core/effort";
 import { createProvider } from "../../core/providers/registry";
 import { useAppStore } from "../../core/store";
+import { useNotificationStore } from "../../core/notificationStore";
 import { useResearchStore } from "../../core/researchStore";
-import { formatSearchResults, searchProviderStatus, searchWeb, type SearchEngine } from "../../core/searchProviders";
+import { buildNoSearchResultsReport, formatSearchResults, searchProviderStatus, searchWeb, type SearchEngine } from "../../core/searchProviders";
 
 type SelectId = "rounds" | "format" | "engine" | "endpoint" | "model";
 
@@ -85,6 +86,7 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
   const activeModel = useAppStore((s) => s.activeModel);
   const createRun = useResearchStore((s) => s.createRun);
   const updateRun = useResearchStore((s) => s.updateRun);
+  const notify = useNotificationStore((s) => s.notify);
   const searchConfig = useResearchStore((s) => s.searchConfig);
   const setSearchConfig = useResearchStore((s) => s.setSearchConfig);
   const { onMouseDown, style } = useDraggable(".research-shell");
@@ -127,6 +129,11 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
     }
 
     const id = createRun({ prompt: prompt.trim(), settings: values, status: "running" });
+    notify({
+      title: "Deep Research started",
+      message: "The run is saved to Library and will update as results stream in.",
+      tone: "info",
+    });
     setRunning(true);
     try {
       const provider = createProvider(selectedProvider);
@@ -136,6 +143,13 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
         searchWarning: searchResponse.warning,
         content: searchResponse.warning ? `Search warning: ${searchResponse.warning}\n\n` : "",
       });
+      if (searchResponse.results.length === 0) {
+        updateRun(id, {
+          status: "completed",
+          content: buildNoSearchResultsReport(prompt.trim(), searchResponse),
+        });
+        return;
+      }
       let content = searchResponse.warning ? `Search warning: ${searchResponse.warning}\n\n` : "";
 
       const settingsText = [
@@ -152,7 +166,7 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
           {
             role: "system",
             content:
-              "You are Rush Deep Research. Produce a careful, structured research report from the user's prompt using the provided search results as source context. If the search results are missing or weak, be explicit about uncertainty. Include: summary, key findings, source notes, uncertainties, and next steps.",
+              "You are Rush Deep Research. Produce a careful, structured Markdown research report from the user's prompt using only the provided search results as source context. Do not fill gaps from memory. If the search results are weak, be explicit about uncertainty and avoid unsupported claims. Include: summary, key findings, source notes, uncertainties, and next steps.",
           },
           {
             role: "user",

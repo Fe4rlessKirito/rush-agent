@@ -1,5 +1,5 @@
 import { useAppStore } from "../../core/store";
-import type { ConversationProjectContext } from "../../core/store";
+import type { Conversation, ConversationProjectContext } from "../../core/store";
 
 type View = "chat" | "code" | "projects" | "library" | "flow";
 
@@ -15,11 +15,7 @@ export function Sidebar({ view, onSelectView, projectContext = null }: Props) {
   const newConversation = useAppStore((s) => s.newConversation);
   const selectConversation = useAppStore((s) => s.selectConversation);
   const deleteConversation = useAppStore((s) => s.deleteConversation);
-  const visibleConversations = conversations.filter((conversation) =>
-    projectContext
-      ? conversation.projectId === projectContext.projectId
-      : !conversation.projectId,
-  );
+  const visibleConversations = getVisibleSidebarConversations(conversations, projectContext);
   const newMode = projectContext ? "agent" : view === "code" ? "agent" : view === "flow" ? "flow" : "plain";
   const newLabel = newMode === "agent" ? "New task" : newMode === "flow" ? "New flow" : "New chat";
 
@@ -125,4 +121,18 @@ export function Sidebar({ view, onSelectView, projectContext = null }: Props) {
       <div className="sb-version">v{__APP_VERSION__}</div>
     </aside>
   );
+}
+
+export function getVisibleSidebarConversations(
+  conversations: Conversation[],
+  projectContext: ConversationProjectContext | null,
+): Conversation[] {
+  return conversations
+    .filter((conversation) =>
+      projectContext
+        ? conversation.projectId === projectContext.projectId
+        : true,
+    )
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt);
 }

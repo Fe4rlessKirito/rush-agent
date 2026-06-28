@@ -561,16 +561,6 @@ export function FlowView({ embedded = false }: FlowViewProps) {
                   </div>
                 ))}
               </div>
-
-              {runs.length > 1 && (
-                <div className="flow-run-strip" aria-label="Recent Flow runs">
-                  {runs.slice(0, 5).map((run) => (
-                    <span className={run.id === activeRun?.id ? "active" : ""} key={run.id}>
-                      {run.title}
-                    </span>
-                  ))}
-                </div>
-              )}
             </section>
           ) : (
             <div className="flow-chat">

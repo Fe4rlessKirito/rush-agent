@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useAppStore, type Conversation, type ConversationMode } from "../../core/store";
 import { useResearchStore, type ResearchRun } from "../../core/researchStore";
+import { Markdown } from "./Markdown";
 
 interface Props {
   onOpenConversation: (id: string, mode: ConversationMode) => void;
@@ -263,7 +264,9 @@ export function LibraryView({ onOpenConversation, filter, onFilterChange }: Prop
                 {selectedRun.error ? (
                   <p className="library-preview-error">{selectedRun.error}</p>
                 ) : (
-                  <pre>{selectedRun.content || selectedRun.prompt}</pre>
+                  <div className="library-preview-markdown">
+                    <Markdown>{selectedRun.content || selectedRun.prompt}</Markdown>
+                  </div>
                 )}
               </div>
             </div>

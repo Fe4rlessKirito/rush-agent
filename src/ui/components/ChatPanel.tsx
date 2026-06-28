@@ -470,6 +470,17 @@ export function ChatPanel({ mode = "agent" }: Props) {
     ].join("\n\n");
   }
 
+  function userTextWithLibraryContext(userText: string, selectedLibraryContext: string): string {
+    const trimmed = userText.trim();
+    if (!selectedLibraryContext) return userText;
+    return [
+      selectedLibraryContext,
+      "",
+      "User message:",
+      trimmed || "Use the selected Library context to answer.",
+    ].join("\n");
+  }
+
   async function syncConversationProjectRoot(): Promise<string> {
     if (!isAgentMode || !conversationProjectContext?.projectRoot) return "";
     const root = conversationProjectContext.projectRoot.trim().replace(/[\\/]+$/, "");
@@ -634,7 +645,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
   }
 
   async function send() {
-    if ((!input.trim() && attachments.length === 0) || busy) return;
+    if ((!input.trim() && attachments.length === 0 && contextItems.length === 0) || busy) return;
     if (!activeProviderId || !activeModel) {
       setChat((l) => [...l, { role: "tool", text: "Pick a provider + model in Settings first." }]);
       return;
@@ -661,11 +672,17 @@ export function ChatPanel({ mode = "agent" }: Props) {
     const hasFiles = fileAttachments.length > 0;
     const brainContext = buildBrainContext(userText, mode);
     const selectedLibraryContext = libraryContextText();
+    const modelUserText = userTextWithLibraryContext(userText, selectedLibraryContext);
     let flowContext = mode === "flow" ? buildFlowRuntimeInstructions() : "";
     const effortThinking = cfg?.supportsThinking ? thinkingForEffort(effort) : undefined;
     const toolNamesUsed: string[] = [];
     let assistantText = "";
-    const flowRun = mode === "flow" && attached.length === 0 ? useFlowStore.getState().startRun(userText) : null;
+    const flowPrompt = userText.trim() || (
+      selectedLibraryContext
+        ? `Use selected Library context: ${contextItems.map((item) => item.title).join(", ")}`
+        : userText
+    );
+    const flowRun = mode === "flow" && attached.length === 0 ? useFlowStore.getState().startRun(flowPrompt) : null;
     let flowSawTool = false;
     const flowResultLanes: string[] = [];
     if (flowRun) {
@@ -673,7 +690,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
     }
     const imagePrompt = hasImages
       ? [
-          userText.trim() ||
+          modelUserText.trim() ||
             `What do you see in the attached ${imageAttachments.length === 1 ? "image" : "images"} ${imageAttachments.map((item) => item.name).join(", ")}?`,
           "",
           `Attached ${imageAttachments.length === 1 ? "image" : "images"}: ${imageAttachments.map((item) => item.name).join(", ")}.`,
@@ -690,7 +707,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
             name: item.name,
           })),
         ]
-      : userText;
+      : modelUserText;
     const history: ChatMessage[] = chat
       .filter((line) => line.role === "user" || line.role === "agent")
       .filter((line) => line.text.trim())
@@ -722,9 +739,11 @@ export function ChatPanel({ mode = "agent" }: Props) {
       hasFiles
         ? `[attached ${fileAttachments.length === 1 ? "file" : "files"}: ${fileAttachments.map((item) => item.name).join(", ")}]`
         : "",
+      selectedLibraryContext ? `[attached Library context: ${contextItems.map((item) => `${item.kind === "chat" ? "Chat" : "Research"}: ${item.title}`).join(", ")}]` : "",
     ].filter(Boolean).join("\n");
+    const fallbackUserText = selectedLibraryContext ? "Use selected Library context." : "Analyze the attachment(s)";
     const visibleUserText = attachmentSummary
-      ? `${userText || "Analyze the attachment(s)"}\n${attachmentSummary}`
+      ? `${userText || fallbackUserText}\n${attachmentSummary}`
       : userText;
     setChat((l) => [...l, { role: "user", text: visibleUserText }, { role: "agent", text: "" }]);
     setBusy(true);
@@ -822,14 +841,14 @@ export function ChatPanel({ mode = "agent" }: Props) {
     if (!isAgentMode) {
       try {
         if (hasImages && cfg?.supportsImageChatEndpoint) {
-          const text = await streamImageEndpointAttachments(cfg, imageAttachments, userText);
+          const text = await streamImageEndpointAttachments(cfg, imageAttachments, modelUserText);
           assistantText += text;
           if (hasFiles && cfg?.supportsFileChatEndpoint) {
-            const fileText = await uploadFileEndpointAttachments(cfg, fileAttachments, userText);
+            const fileText = await uploadFileEndpointAttachments(cfg, fileAttachments, modelUserText);
             assistantText += fileText;
           }
         } else if (hasFiles && cfg?.supportsFileChatEndpoint) {
-          const text = await uploadFileEndpointAttachments(cfg, fileAttachments, userText);
+          const text = await uploadFileEndpointAttachments(cfg, fileAttachments, modelUserText);
           assistantText += text;
         } else {
           for await (const ev of runAgent(
@@ -843,7 +862,6 @@ export function ChatPanel({ mode = "agent" }: Props) {
               projectRuntimeContext,
               "You are Rush in Chat mode. You may answer, explain, plan, use Brain memories, search saved Library chats, read saved Deep Research, and analyze images attached directly to the current message. You do not have filesystem, terminal, Git, package-manager, MCP, or Flow-agent access in Chat. Do not claim to inspect workspace files, run commands, edit projects, save files, or view the user's screen from Chat. Attached images are visible message content, not filesystem or screen access.",
               brainContext,
-              selectedLibraryContext,
             ].filter(Boolean).join("\n\n"),
             effortThinking,
           )) {
@@ -884,10 +902,10 @@ export function ChatPanel({ mode = "agent" }: Props) {
 
     if (hasImages && cfg?.supportsImageChatEndpoint) {
       try {
-        const text = await streamImageEndpointAttachments(cfg, imageAttachments, userText);
+        const text = await streamImageEndpointAttachments(cfg, imageAttachments, modelUserText);
         assistantText += text;
         if (hasFiles && cfg?.supportsFileChatEndpoint) {
-          const fileText = await uploadFileEndpointAttachments(cfg, fileAttachments, userText);
+          const fileText = await uploadFileEndpointAttachments(cfg, fileAttachments, modelUserText);
           assistantText += fileText;
         }
       } catch (err) {
@@ -910,7 +928,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
 
     if (hasFiles && cfg?.supportsFileChatEndpoint) {
       try {
-        const text = await uploadFileEndpointAttachments(cfg, fileAttachments, userText);
+        const text = await uploadFileEndpointAttachments(cfg, fileAttachments, modelUserText);
         assistantText += text;
       } catch (err) {
         setChat((l) => {
@@ -1030,7 +1048,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
         [...history, { role: "user", content: userContent }],
         abortRef.current.signal,
         undefined,
-        [projectRuntimeContext, projectInstructions, brainContext, selectedLibraryContext, flowContext].filter(Boolean).join("\n\n"),
+        [projectRuntimeContext, projectInstructions, brainContext, flowContext].filter(Boolean).join("\n\n"),
         effortThinking,
       )) {
         await handleAndPaint(ev);

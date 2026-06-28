@@ -251,3 +251,28 @@ export function formatSearchResults(response: SearchResponse): string {
     ].filter(Boolean).join("\n"))
     .join("\n\n");
 }
+
+export function buildNoSearchResultsReport(query: string, response: SearchResponse): string {
+  const warning = response.warning ?? "No search results returned.";
+  return [
+    "# Deep Research could not start",
+    "",
+    "Rush did not generate a research report because the selected search provider returned no usable source results.",
+    "",
+    "## Query",
+    "",
+    query.trim() || "Untitled research",
+    "",
+    "## Search Provider",
+    "",
+    `- Engine: ${response.engine}`,
+    `- Result count: ${response.results.length}`,
+    `- Warning: ${warning}`,
+    "",
+    "## What to do next",
+    "",
+    "- Try a more specific query.",
+    "- Use SearXNG, Tavily, or Brave Search for broader web results.",
+    "- Add a configured search provider in Deep Research settings, then run the research again.",
+  ].join("\n");
+}
