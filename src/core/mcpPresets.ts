@@ -133,30 +133,6 @@ export const MCP_PRESETS: McpPreset[] = [
       };
     },
   },
-  {
-    id: "filesystem",
-    label: "Filesystem",
-    category: "Local files",
-    description: "Expose one local folder through the standard filesystem MCP server.",
-    risk: "write",
-    requirements: [
-      "Node.js is installed.",
-      "Use the narrowest folder path possible.",
-    ],
-    fields: [
-      { key: "rootPath", label: "Root folder", kind: "path", placeholder: "C:\\Users\\marko\\Documents\\Project", required: true },
-    ],
-    buildConfig(values) {
-      return {
-        id: "filesystem",
-        label: "Filesystem",
-        transport: "stdio",
-        enabled: true,
-        command: "npx",
-        args: ["-y", "@modelcontextprotocol/server-filesystem", clean(values.rootPath)],
-      };
-    },
-  },
 ];
 
 export function getMcpPreset(id: string): McpPreset | undefined {

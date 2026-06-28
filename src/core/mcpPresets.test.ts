@@ -17,10 +17,10 @@ describe("mcp presets", () => {
 
   it("requires user-provided values for sensitive/path presets", () => {
     const obsidian = getMcpPreset("obsidian-rest")!;
-    const filesystem = getMcpPreset("filesystem")!;
+    const vault = getMcpPreset("obsidian-vault")!;
 
     expect(missingPresetFields(obsidian, {}).map((field) => field.key)).toEqual(["apiKey"]);
-    expect(missingPresetFields(filesystem, {}).map((field) => field.key)).toEqual(["rootPath"]);
+    expect(missingPresetFields(vault, {}).map((field) => field.key)).toEqual(["vaultPath"]);
   });
 
   it("builds Obsidian REST env config with defaults", () => {

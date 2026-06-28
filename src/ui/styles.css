@@ -1085,9 +1085,11 @@ body {
     display: flex; flex-direction: column; gap: 12px; min-height: 0;
   }
 .flow-view.embedded .flow-shell {
+  width: 100%;
   max-width: none;
   gap: 8px;
   min-width: 0;
+  overflow: hidden;
 }
 .flow-body {
   flex: 1;
@@ -1108,8 +1110,12 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 .flow-view.embedded .flow-dashboard {
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   overflow: auto;
 }
@@ -1295,7 +1301,10 @@ body {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
 }
 .flow-view.embedded .flow-agents {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 .flow-agent {
@@ -1306,6 +1315,8 @@ body {
     transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
   }
 .flow-view.embedded .flow-agent {
+  width: 100%;
+  max-width: 100%;
   min-height: 0;
   padding: 10px;
 }
