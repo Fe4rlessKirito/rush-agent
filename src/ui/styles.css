@@ -1039,6 +1039,7 @@ body {
 .flow-view.embedded {
   justify-content: stretch;
   padding: 8px;
+  overflow: hidden;
 }
 .flow-shell {
     width: 100%; max-width: 980px; align-self: stretch;
@@ -1047,6 +1048,29 @@ body {
 .flow-view.embedded .flow-shell {
   max-width: none;
   gap: 8px;
+}
+.flow-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.flow-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.flow-view.embedded .flow-body {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(360px, 460px);
+  gap: 10px;
+  overflow: hidden;
+}
+.flow-view.embedded .flow-dashboard {
+  overflow: auto;
+  padding-right: 2px;
 }
 .flow-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -1197,7 +1221,7 @@ body {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
 }
 .flow-view.embedded .flow-agents {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .flow-agent {
@@ -1505,7 +1529,8 @@ body {
   }
 .flow-chat .chat-panel { min-height: 0; }
 .flow-view.embedded .flow-chat {
-  min-height: 280px;
+  min-width: 0;
+  min-height: 0;
 }
 
   @media (max-width: 760px) {
@@ -1513,6 +1538,23 @@ body {
   .flow-agents { grid-template-columns: 1fr; }
   .flow-lane-detail-grid { grid-template-columns: 1fr; }
   }
+
+@media (max-width: 1100px) {
+  .flow-view.embedded .flow-body {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+  .flow-view.embedded .flow-dashboard {
+    overflow: visible;
+  }
+  .flow-view.embedded .flow-agents {
+    grid-template-columns: 1fr;
+  }
+  .flow-view.embedded .flow-chat {
+    min-height: 340px;
+  }
+}
 
 /* Workspace view: project explorer on the left, editor and terminal on the right. */
 .workspace { position: relative; display: flex; flex: 1; min-height: 0; }

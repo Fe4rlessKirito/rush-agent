@@ -339,8 +339,8 @@ export function App() {
             <section
               className="project-ai-pane"
               style={{
-                flexBasis: projectEditorMinimized ? "auto" : projectPaneWidths.ai,
-                flexGrow: projectEditorMinimized ? 1 : 0,
+                flexBasis: projectAiMode === "flow" || projectEditorMinimized ? "auto" : projectPaneWidths.ai,
+                flexGrow: projectAiMode === "flow" || projectEditorMinimized ? 1 : 0,
               }}
             >
               <div className="project-ai-chat">
@@ -416,7 +416,7 @@ export function App() {
               <TerminalPanel />
             </section>
 
-            {!projectEditorMinimized && (
+            {projectAiMode !== "flow" && !projectEditorMinimized && (
               <div
                 className="pane-resizer"
                 role="separator"
@@ -425,7 +425,7 @@ export function App() {
               />
             )}
 
-            {!projectEditorMinimized && (
+            {projectAiMode !== "flow" && !projectEditorMinimized && (
               <section className="editor-panel dock-right project-editor-pane">
                 <main className="editor">
                   <EditorTabs />
