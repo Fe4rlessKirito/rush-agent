@@ -15,7 +15,7 @@ export interface AgentEvent {
   toolResult?: string;
 }
 
-const TOOL_CALL_RE = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/;
+const TOOL_CALL_RE_G = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
 const TOOL_CALLS_RE = /<tool_calls>\s*([\s\S]*?)\s*<\/tool_calls>/;
 const THINKING_RE = /<thinking>\s*([\s\S]*?)\s*<\/thinking>/g;
 
@@ -233,6 +233,71 @@ function hasFourHexDigits(text: string, start: number): boolean {
   return /^[0-9a-fA-F]{4}$/.test(text.slice(start, start + 4));
 }
 
+function isWindowsPathString(rawStringContent: string): boolean {
+  return /^[A-Za-z]:\\/.test(rawStringContent) || rawStringContent.startsWith("\\\\");
+}
+
+function preserveWindowsPathBackslashes(rawStringContent: string): string {
+  let out = "";
+  for (let i = 0; i < rawStringContent.length; i++) {
+    if (rawStringContent[i] !== "\\") {
+      out += rawStringContent[i];
+      continue;
+    }
+
+    let end = i + 1;
+    while (rawStringContent[end] === "\\") end += 1;
+    const run = rawStringContent.slice(i, end);
+    out += run.length % 2 === 0 ? run : `${run}\\`;
+    i = end - 1;
+  }
+  return out;
+}
+
+function rewriteJsonStringLiterals(
+  text: string,
+  transform: (rawStringContent: string) => string,
+): string {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch !== '"') {
+      out += ch;
+      continue;
+    }
+
+    let rawStringContent = "";
+    let end = i + 1;
+    while (end < text.length) {
+      const cur = text[end];
+      if (cur === '"') {
+        let backslashes = 0;
+        for (let j = end - 1; j > i && text[j] === "\\"; j--) backslashes += 1;
+        if (backslashes % 2 === 0) break;
+      }
+      rawStringContent += cur;
+      end += 1;
+    }
+
+    if (end >= text.length) {
+      out += text.slice(i);
+      break;
+    }
+
+    out += `"${transform(rawStringContent)}"`;
+    i = end;
+  }
+  return out;
+}
+
+function preserveWindowsPaths(text: string): string {
+  return rewriteJsonStringLiterals(text, (rawStringContent) =>
+    isWindowsPathString(rawStringContent)
+      ? preserveWindowsPathBackslashes(rawStringContent)
+      : rawStringContent,
+  );
+}
+
 function escapeInvalidJsonBackslashes(text: string): string {
   let out = "";
   let inString = false;
@@ -264,20 +329,40 @@ function escapeInvalidJsonBackslashes(text: string): string {
 }
 
 function parseToolJson(raw: string): unknown {
+  const windowsPathSafe = preserveWindowsPaths(raw);
   try {
-    return JSON.parse(raw);
+    return JSON.parse(windowsPathSafe);
   } catch (err) {
     try {
-      return JSON.parse(escapeInvalidJsonBackslashes(raw));
+      return JSON.parse(escapeInvalidJsonBackslashes(windowsPathSafe));
     } catch {
       throw err;
     }
   }
 }
 
+function toolArgs(value: unknown): Record<string, unknown> {
+  if (value === undefined) return {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("tool call args must be a JSON object");
+  }
+  return value as Record<string, unknown>;
+}
+
+function parsedToolCallFrom(value: unknown): ParsedToolCall {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("tool call JSON must be an object");
+  }
+  const item = value as { name?: unknown; args?: unknown };
+  return {
+    name: String(item.name ?? ""),
+    args: toolArgs(item.args),
+  };
+}
+
 function parseNativeToolCalls(calls: NativeToolCall[]): ParsedToolCall[] {
   return calls.map((c) => {
-    const args = c.argsJson ? JSON.parse(c.argsJson) : {};
+    const args = c.argsJson ? parseToolJson(c.argsJson) : {};
     if (!args || typeof args !== "object" || Array.isArray(args)) {
       throw new Error(`arguments for ${c.name || "(missing tool name)"} must be a JSON object`);
     }
@@ -294,16 +379,12 @@ export function parseToolCalls(text: string): ParsedToolCall[] | null {
   if (batch) {
     const parsed = parseToolJson(batch[1]);
     if (!Array.isArray(parsed)) throw new Error("tool_calls JSON must be an array");
-    return parsed.map((item) => ({
-      name: String(item?.name ?? ""),
-      args: (item?.args ?? {}) as Record<string, unknown>,
-    }));
+    return parsed.map(parsedToolCallFrom);
   }
 
-  const single = text.match(TOOL_CALL_RE);
-  if (!single) return null;
-  const parsed = parseToolJson(single[1]) as { name?: unknown; args?: unknown };
-  return [{ name: String(parsed.name ?? ""), args: (parsed.args ?? {}) as Record<string, unknown> }];
+  const singles = [...text.matchAll(TOOL_CALL_RE_G)];
+  if (singles.length === 0) return null;
+  return singles.map((single) => parsedToolCallFrom(parseToolJson(single[1])));
 }
 
 export async function* runAgent(

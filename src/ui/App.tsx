@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ChatPanel } from "./components/ChatPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -56,9 +56,6 @@ export function App() {
       : view === "projects"
         ? "Projects"
         : "";
-  const topModeIndex = view === "code" ? 1 : view === "flow" ? 2 : 0;
-  const topModeIsActive = view === "chat" || view === "code" || view === "flow";
-  const topModeStyle = { "--top-mode-index": topModeIndex } as CSSProperties;
 
   const enterProject = async (id: string) => {
     openProject(id);
@@ -181,32 +178,40 @@ export function App() {
   return (
     <div className="app">
       <header className="titlebar">
-        <nav
-          className={"top-mode-tabs" + (topModeIsActive ? "" : " idle")}
-          style={topModeStyle}
-          aria-label="AI modes"
-        >
-          <span className="top-mode-indicator" aria-hidden="true" />
+        <nav className="top-mode-tabs" aria-label="AI modes">
           <button
             className={"top-mode-tab" + (view === "chat" ? " active" : "")}
             onClick={() => setView("chat")}
             title="Chat"
           >
-            Chat
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 6.5h14v9H9l-4 3.5z" />
+            </svg>
+            <span>Chat</span>
           </button>
           <button
             className={"top-mode-tab" + (view === "code" ? " active" : "")}
             onClick={() => setView("code")}
             title="Code"
           >
-            Code
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="5" y="7" width="14" height="10" rx="1.5" />
+              <path d="M9.5 10.5 7.5 12l2 1.5M14.5 10.5l2 1.5-2 1.5" />
+            </svg>
+            <span>Code</span>
           </button>
           <button
             className={"top-mode-tab" + (view === "flow" ? " active" : "")}
             onClick={() => setView("flow")}
             title="Flow"
           >
-            Flow
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="7" cy="12" r="2.2" />
+              <circle cx="17" cy="7" r="2.2" />
+              <circle cx="17" cy="17" r="2.2" />
+              <path d="M9 11.2 15 8M9 12.8 15 16" />
+            </svg>
+            <span>Flow</span>
           </button>
         </nav>
         {topbarLabel && <div className="titlebar-view-title">{topbarLabel}</div>}

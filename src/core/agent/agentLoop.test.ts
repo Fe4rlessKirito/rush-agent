@@ -49,6 +49,41 @@ describe("parseToolCalls", () => {
     ]);
   });
 
+  it("preserves valid JSON escape letters inside raw Windows paths", () => {
+    const out = parseToolCalls(String.raw`<tool_call>{"name":"read_file","args":{"path":"C:\new\test\file.txt"}}</tool_call>`);
+    expect(out).toEqual([
+      { name: "read_file", args: { path: String.raw`C:\new\test\file.txt` } },
+    ]);
+  });
+
+  it("does not rewrite normal non-path JSON escapes", () => {
+    const out = parseToolCalls(String.raw`<tool_call>{"name":"ToolSearch","args":{"query":"first\nsecond\tthird"}}</tool_call>`);
+    expect(out).toEqual([
+      { name: "ToolSearch", args: { query: "first\nsecond\tthird" } },
+    ]);
+  });
+
+  it("preserves already-escaped Windows paths", () => {
+    const out = parseToolCalls(String.raw`<tool_call>{"name":"list_dir","args":{"path":"C:\\Users\\marko\\Downloads"}}</tool_call>`);
+    expect(out).toEqual([
+      { name: "list_dir", args: { path: String.raw`C:\Users\marko\Downloads` } },
+    ]);
+  });
+
+  it("parses multiple single tool_call blocks in one response", () => {
+    const out = parseToolCalls(String.raw`<tool_call>{"name":"read_file","args":{"path":"a.ts"}}</tool_call><tool_call>{"name":"list_dir","args":{"path":"."}}</tool_call>`);
+    expect(out).toEqual([
+      { name: "read_file", args: { path: "a.ts" } },
+      { name: "list_dir", args: { path: "." } },
+    ]);
+  });
+
+  it("throws when a fallback tool call has non-object args", () => {
+    expect(() => parseToolCalls('<tool_call>{"name":"read_file","args":"package.json"}</tool_call>')).toThrow(
+      "tool call args must be a JSON object",
+    );
+  });
+
   it("throws on malformed JSON so the loop can surface it", () => {
     expect(() => parseToolCalls('<tool_call>{name: not valid json}</tool_call>')).toThrow();
   });
@@ -263,6 +298,70 @@ describe("runAgent system prompt", () => {
     expect(provider.request?.messages[0].content).toContain("## list_dir");
   });
 
+  it("executes XML fallback tool calls with raw Windows paths end to end", async () => {
+    class WindowsPathProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "custom",
+        label: "Custom",
+        kind: "custom",
+        baseUrl: "https://proxy.example/v1",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      requests = 0;
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(_req: ChatRequest): AsyncGenerator<ChatChunk> {
+        this.requests += 1;
+        if (this.requests === 1) {
+          yield {
+            delta: String.raw`<tool_call>{"name":"list_dir","args":{"path":"C:\new\test"}}</tool_call>`,
+            done: false,
+          };
+        } else {
+          yield { delta: "Saw the folder.", done: false };
+        }
+        yield { delta: "", done: true };
+      }
+    }
+
+    const seenPaths: unknown[] = [];
+    const tools = new ToolRegistry();
+    tools.register({
+      definition: {
+        name: "list_dir",
+        description: "List files.",
+        inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      },
+      execute: async (args) => {
+        seenPaths.push(args.path);
+        return { ok: true, content: "file C:/new/test/a.ts" };
+      },
+    });
+
+    const events = [];
+    for await (const event of runAgent(
+      new WindowsPathProvider(),
+      "test-model",
+      tools,
+      [{ role: "user", content: "List C:\\new\\test" }],
+    )) {
+      events.push(event);
+    }
+
+    expect(seenPaths).toEqual([String.raw`C:\new\test`]);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "tool_call", toolName: "list_dir", toolArgs: { path: String.raw`C:\new\test` } }),
+        expect.objectContaining({ type: "tool_result", toolName: "list_dir" }),
+        expect.objectContaining({ type: "text", text: "Saw the folder." }),
+      ]),
+    );
+  });
+
   it("advertises native tools to official OpenAI-compatible providers", async () => {
     class CapturingProvider implements Provider {
       readonly config: ProviderConfig = {
@@ -391,6 +490,27 @@ describe("runAgent native tool calls", () => {
           name: "read_file",
           toolCallId: "call_123",
         }),
+      ]),
+    );
+  });
+
+  it("executes native tool calls with raw Windows path arguments", async () => {
+    const provider = new NativeProvider(String.raw`{"path":"C:\new\test"}`);
+    const events = [];
+
+    for await (const event of runAgent(
+      provider,
+      "native-model",
+      registryWithReadFile(),
+      [{ role: "user", content: "Read C:\\new\\test" }],
+    )) {
+      events.push(event);
+    }
+
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "tool_call", toolName: "read_file", toolArgs: { path: String.raw`C:\new\test` } }),
+        expect.objectContaining({ type: "tool_result", toolName: "read_file" }),
       ]),
     );
   });
