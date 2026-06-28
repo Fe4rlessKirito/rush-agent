@@ -124,6 +124,62 @@ interface LocalProxyStatus {
   enabled: boolean;
 }
 
+function displayValue(value: unknown): string {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function toolTarget(args: Record<string, unknown> | undefined, keys: string[]): string {
+  if (!args) return "";
+  for (const key of keys) {
+    const value = displayValue(args[key]);
+    if (value) return value;
+  }
+  return "";
+}
+
+function friendlyToolName(name: string | undefined): string {
+  switch (name) {
+    case "list_dir": return "list folder";
+    case "read_file":
+    case "Read": return "read file";
+    case "write_file":
+    case "Write": return "write file";
+    case "edit_file":
+    case "Edit": return "edit file";
+    case "glob_files":
+    case "Glob": return "find files";
+    case "grep_search":
+    case "Grep": return "search files";
+    case "git_status": return "check Git status";
+    case "git_diff": return "inspect Git diff";
+    case "npm_scripts": return "inspect package scripts";
+    case "PowerShell":
+    case "Bash":
+    case "terminal_start": return "run command";
+    case "WebSearch": return "search the web";
+    case "WebFetch": return "read web page";
+    case "Agent": return "run subagent";
+    default: return name ? name.replace(/_/g, " ") : "tool";
+  }
+}
+
+function describeToolCall(name: string | undefined, args: Record<string, unknown> | undefined): string {
+  const target =
+    toolTarget(args, ["path", "file_path", "pattern", "query", "command", "url", "task", "description"]) ||
+    toolTarget(args, ["src", "from", "dst", "to"]);
+  const action = friendlyToolName(name);
+  return target ? `Using ${action}: ${target}` : `Using ${action}`;
+}
+
+function describeToolResult(name: string | undefined, result: string | undefined): string {
+  const action = friendlyToolName(name);
+  const text = result ?? "";
+  if (/^(Tool .* failed:|Unknown tool:|Tool unavailable|Blocked:|Blocked by permission rule|User denied)/.test(text)) {
+    return `${action} did not complete`;
+  }
+  return `Finished ${action}`;
+}
+
 function supportsNativeImageContent(cfg: { kind?: string; baseUrl?: string } | undefined): boolean {
   const baseUrl = cfg?.baseUrl?.toLowerCase() ?? "";
   return (
@@ -771,9 +827,9 @@ export function ChatPanel({ mode = "agent" }: Props) {
               await nextPaint();
             } else if (ev.type === "tool_call") {
               if (ev.toolName) toolNamesUsed.push(ev.toolName);
-              setChat((l) => [...l, { role: "tool", text: `-> ${ev.toolName}(${JSON.stringify(ev.toolArgs)})` }, { role: "agent", text: "" }]);
+              setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs) }, { role: "agent", text: "" }]);
             } else if (ev.type === "tool_result") {
-              setChat((l) => [...l, { role: "tool", text: `<- ${ev.toolResult?.slice(0, 400)}` }, { role: "agent", text: "" }]);
+              setChat((l) => [...l, { role: "tool", text: describeToolResult(ev.toolName, ev.toolResult) }, { role: "agent", text: "" }]);
             } else if (ev.type === "error") {
               setChat((l) => [...l, { role: "tool", text: `Error: ${ev.text}` }]);
             }
@@ -893,23 +949,23 @@ export function ChatPanel({ mode = "agent" }: Props) {
           useFlowStore.getState().appendLaneOutput(
             flowRun.id,
             laneId,
-            `\n-> ${e.toolName}(${JSON.stringify(e.toolArgs ?? {})})`,
+            `\n${describeToolCall(e.toolName, e.toolArgs)}`,
           );
         }
-        setChat((l) => [...l, { role: "tool", text: `\u2192 ${e.toolName}(${JSON.stringify(e.toolArgs)})` }, { role: "agent", text: "" }]);
+        setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs) }, { role: "agent", text: "" }]);
       } else if (e.type === "tool_result") {
         if (flowRun) {
           const laneId = flowResultLanes.shift() ?? "worker";
           useFlowStore.getState().appendLaneOutput(
             flowRun.id,
             laneId,
-            `\n<- ${(e.toolResult ?? "").slice(0, 500)}`,
+            `\n${describeToolResult(e.toolName, e.toolResult)}`,
           );
           if (laneId !== "worker") {
             useFlowStore.getState().setLaneStatus(flowRun.id, laneId, "completed", "Subagent returned a result.");
           }
         }
-        setChat((l) => [...l, { role: "tool", text: `\u2190 ${e.toolResult?.slice(0, 400)}` }, { role: "agent", text: "" }]);
+        setChat((l) => [...l, { role: "tool", text: describeToolResult(e.toolName, e.toolResult) }, { role: "agent", text: "" }]);
       } else if (e.type === "error") {
         if (flowRun) {
           useFlowStore.getState().setLaneStatus(flowRun.id, flowSawTool ? "worker" : "planner", "blocked", e.text ?? "Flow blocked.");
