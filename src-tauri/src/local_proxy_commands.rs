@@ -1,3 +1,4 @@
+use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
@@ -5,8 +6,9 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
+use std::{env, fmt::Write as _};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 const PROXY_URL: &str = "http://localhost:8000";
@@ -23,6 +25,7 @@ impl Default for LocalProxyState {
             status: Mutex::new(LocalProxyStatus {
                 running: false,
                 ready: false,
+                enabled: true,
                 url: PROXY_URL.to_string(),
                 path: None,
                 error: None,
@@ -46,14 +49,71 @@ impl Drop for LocalProxyState {
 pub struct LocalProxyStatus {
     running: bool,
     ready: bool,
+    enabled: bool,
     url: String,
     path: Option<String>,
     error: Option<String>,
 }
 
+#[derive(Deserialize, Serialize)]
+struct LocalProxyConfig {
+    enabled: bool,
+}
+
+impl Default for LocalProxyConfig {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
 fn set_status(state: &LocalProxyState, patch: impl FnOnce(&mut LocalProxyStatus)) {
     if let Ok(mut status) = state.status.lock() {
         patch(&mut status);
+    }
+}
+
+fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("local-proxy.json"))
+}
+
+fn read_config(app: &AppHandle) -> LocalProxyConfig {
+    let Ok(path) = config_path(app) else {
+        return LocalProxyConfig::default();
+    };
+    let Ok(raw) = fs::read_to_string(path) else {
+        return LocalProxyConfig::default();
+    };
+    serde_json::from_str(&raw).unwrap_or_default()
+}
+
+fn write_config(app: &AppHandle, config: &LocalProxyConfig) -> Result<(), String> {
+    let path = config_path(app)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let raw = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    fs::write(path, raw).map_err(|e| e.to_string())
+}
+
+fn stop_owned_proxy(state: &LocalProxyState) {
+    if let Ok(mut child) = state.child.lock() {
+        if let Some(mut child) = child.take() {
+            #[cfg(windows)]
+            {
+                let _ = Command::new("taskkill")
+                    .args(["/PID", &child.id().to_string(), "/T", "/F"])
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+            }
+            let _ = child.kill();
+            let _ = child.wait();
+        }
     }
 }
 
@@ -66,20 +126,35 @@ fn proxy_dir(app: &AppHandle) -> Result<PathBuf, String> {
         return Ok(path);
     }
 
-    let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
-    let candidates = [
-        resource_dir.join("local-proxy"),
-        resource_dir.join("_up_").join("local-proxy"),
-    ];
-    for bundled in candidates {
-        if bundled.exists() {
-            return Ok(bundled);
+    let mut bases = Vec::new();
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        bases.push(resource_dir.clone());
+        if let Some(parent) = resource_dir.parent() {
+            bases.push(parent.to_path_buf());
+        }
+    }
+    if let Ok(exe_path) = env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            bases.push(exe_dir.to_path_buf());
+        }
+    }
+
+    let mut searched = String::new();
+    for base in bases {
+        for bundled in [
+            base.join("local-proxy"),
+            base.join("_up_").join("local-proxy"),
+        ] {
+            let _ = writeln!(&mut searched, "- {}", bundled.display());
+            if bundled.join("start-rush.bat").exists() {
+                return Ok(bundled);
+            }
         }
     }
 
     Err(format!(
-        "bundled local proxy not found under {}",
-        resource_dir.display()
+        "bundled local proxy not found. Searched:\n{}",
+        searched.trim_end()
     ))
 }
 
@@ -105,7 +180,10 @@ fn health_ready() -> bool {
 fn spawn_proxy(proxy_dir: PathBuf) -> Result<Child, String> {
     let start_bat = proxy_dir.join("start-rush.bat");
     if !start_bat.exists() {
-        return Err(format!("start-rush.bat not found at {}", start_bat.display()));
+        return Err(format!(
+            "start-rush.bat not found at {}",
+            start_bat.display()
+        ));
     }
 
     let mut command = Command::new("cmd");
@@ -130,8 +208,20 @@ fn spawn_proxy(proxy_dir: PathBuf) -> Result<Child, String> {
 
 pub fn start_local_proxy(app: AppHandle) {
     let state = app.state::<LocalProxyState>();
+    if !read_config(&app).enabled {
+        stop_owned_proxy(&state);
+        set_status(&state, |status| {
+            status.enabled = false;
+            status.running = false;
+            status.ready = false;
+            status.error = None;
+        });
+        return;
+    }
+
     if health_ready() {
         set_status(&state, |status| {
+            status.enabled = true;
             status.running = true;
             status.ready = true;
             status.error = None;
@@ -143,6 +233,7 @@ pub fn start_local_proxy(app: AppHandle) {
         Ok(path) => path,
         Err(err) => {
             set_status(&state, |status| {
+                status.enabled = true;
                 status.running = false;
                 status.ready = false;
                 status.error = Some(err);
@@ -155,6 +246,7 @@ pub fn start_local_proxy(app: AppHandle) {
         Ok(child) => child,
         Err(err) => {
             set_status(&state, |status| {
+                status.enabled = true;
                 status.running = false;
                 status.ready = false;
                 status.path = Some(proxy_dir.display().to_string());
@@ -168,6 +260,7 @@ pub fn start_local_proxy(app: AppHandle) {
         *slot = Some(child);
     }
     set_status(&state, |status| {
+        status.enabled = true;
         status.running = true;
         status.ready = false;
         status.path = Some(proxy_dir.display().to_string());
@@ -180,6 +273,7 @@ pub fn start_local_proxy(app: AppHandle) {
             if health_ready() {
                 let state = app.state::<LocalProxyState>();
                 set_status(&state, |status| {
+                    status.enabled = true;
                     status.running = true;
                     status.ready = true;
                     status.error = None;
@@ -191,32 +285,61 @@ pub fn start_local_proxy(app: AppHandle) {
         let state = app.state::<LocalProxyState>();
         set_status(&state, |status| {
             status.ready = false;
-            status.error = Some("local proxy did not become ready on http://localhost:8000/health".to_string());
+            status.error = Some(
+                "local proxy did not become ready on http://localhost:8000/health".to_string(),
+            );
         });
     });
 }
 
 #[tauri::command]
-pub fn local_proxy_status(state: tauri::State<LocalProxyState>) -> Result<LocalProxyStatus, String> {
-    if health_ready() {
+pub fn local_proxy_status(app: AppHandle) -> Result<LocalProxyStatus, String> {
+    let state = app.state::<LocalProxyState>();
+    let enabled = read_config(&app).enabled;
+    if enabled && health_ready() {
         set_status(&state, |status| {
+            status.enabled = true;
             status.running = true;
             status.ready = true;
             status.error = None;
         });
+    } else if !enabled {
+        set_status(&state, |status| {
+            status.enabled = false;
+            status.running = false;
+            status.ready = false;
+            status.error = None;
+        });
     }
-    state.status.lock().map(|s| s.clone()).map_err(|e| e.to_string())
+    state
+        .status
+        .lock()
+        .map(|s| s.clone())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn local_proxy_restart(app: AppHandle) -> Result<LocalProxyStatus, String> {
     let state = app.state::<LocalProxyState>();
-    if let Ok(mut child) = state.child.lock() {
-        if let Some(mut child) = child.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-    }
+    stop_owned_proxy(&state);
     start_local_proxy(app.clone());
-    local_proxy_status(app.state::<LocalProxyState>())
+    local_proxy_status(app)
+}
+
+#[tauri::command]
+pub fn local_proxy_set_enabled(app: AppHandle, enabled: bool) -> Result<LocalProxyStatus, String> {
+    write_config(&app, &LocalProxyConfig { enabled })?;
+    let state = app.state::<LocalProxyState>();
+    if enabled {
+        start_local_proxy(app.clone());
+    } else {
+        stop_owned_proxy(&state);
+        set_status(&state, |status| {
+            status.enabled = false;
+            status.running = false;
+            status.ready = false;
+            status.error = None;
+        });
+    }
+    local_proxy_status(app)
 }

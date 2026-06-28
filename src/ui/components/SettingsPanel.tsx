@@ -12,6 +12,7 @@ import { createProvider } from "../../core/providers/registry";
 import { filterProviderModels, groupModels, modelDisplayName } from "../../core/providers/modelGroups";
 import { createMcpConfigTools } from "../../core/agent/mcpRuntime";
 import { TOOL_CATALOG, type ToolCatalogItem } from "../../core/agent/toolModes";
+import { isTauriRuntime } from "../../core/agent/tauriFs";
 import { checkForUpdates, type UpdateCheckResult } from "../../core/updater";
 import { useDraggable } from "../hooks/useDraggable";
 
@@ -43,6 +44,19 @@ interface LspProbeState {
   source?: string;
   version?: string;
   error?: string;
+}
+
+interface LocalProxyStatus {
+  enabled: boolean;
+  running: boolean;
+  ready: boolean;
+  error?: string;
+}
+
+interface ProxyRuntimeConfig {
+  pool_size: number;
+  signup_delay_ms: number;
+  account_ttl_sec: number;
 }
 
 const PROVIDER_ORDER = [
@@ -159,6 +173,16 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
   const [toolSearch, setToolSearch] = useState("");
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
   const [toolFeedback, setToolFeedback] = useState("");
+  const [localProxyEnabled, setLocalProxyEnabled] = useState(true);
+  const [localProxyStatus, setLocalProxyStatus] = useState<LocalProxyStatus | null>(null);
+  const [localProxyBusy, setLocalProxyBusy] = useState(false);
+  const [proxyConfig, setProxyConfig] = useState<ProxyRuntimeConfig>({
+    pool_size: 30,
+    signup_delay_ms: 0,
+    account_ttl_sec: 1800,
+  });
+  const [proxyConfigBusy, setProxyConfigBusy] = useState(false);
+  const [proxyConfigMessage, setProxyConfigMessage] = useState("");
   const [lspProbe, setLspProbe] = useState<Record<LanguageServerKey, LspProbeState>>({
     rust: { status: "idle" },
     typescript: { status: "idle" },
@@ -208,6 +232,37 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
     return () => clearTimeout(timer);
   }, [toolFeedback]);
 
+  useEffect(() => {
+    if (!proxyConfigMessage || proxyConfigMessage.startsWith("Unable")) return;
+    const timer = setTimeout(() => setProxyConfigMessage(""), 1800);
+    return () => clearTimeout(timer);
+  }, [proxyConfigMessage]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let cancelled = false;
+    invoke<LocalProxyStatus>("local_proxy_status")
+      .then((status) => {
+        if (cancelled) return;
+        setLocalProxyStatus(status);
+        setLocalProxyEnabled(status.enabled);
+        if (status.enabled) void refreshProxyConfig();
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLocalProxyStatus({
+            enabled: true,
+            running: false,
+            ready: false,
+            error: String(err),
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const visibleToolCatalog = useMemo(() => {
     const q = toolSearch.trim().toLowerCase();
     if (!q) return TOOL_CATALOG;
@@ -256,6 +311,70 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
   function applyToolPermissions(next: typeof toolPermissions, message: string) {
     setToolPermissions(next);
     setToolFeedback(message);
+  }
+
+  async function refreshProxyConfig() {
+    setProxyConfigBusy(true);
+    try {
+      const res = await fetch("http://localhost:8000/config", { cache: "no-store" });
+      if (!res.ok) throw new Error(`config ${res.status}`);
+      const config = (await res.json()) as ProxyRuntimeConfig;
+      setProxyConfig(config);
+      setProxyConfigMessage("Loaded proxy config");
+    } catch (err) {
+      setProxyConfigMessage(`Unable to load proxy config: ${String(err)}`);
+    } finally {
+      setProxyConfigBusy(false);
+    }
+  }
+
+  async function saveProxyConfig() {
+    setProxyConfigBusy(true);
+    try {
+      const body: ProxyRuntimeConfig = {
+        pool_size: Math.min(20000, Math.max(1, Math.round(proxyConfig.pool_size))),
+        signup_delay_ms: Math.max(0, Math.round(proxyConfig.signup_delay_ms)),
+        account_ttl_sec: Math.max(60, Math.round(proxyConfig.account_ttl_sec)),
+      };
+      const res = await fetch("http://localhost:8000/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`config ${res.status}`);
+      setProxyConfig(body);
+      setProxyConfigMessage("Saved proxy config");
+    } catch (err) {
+      setProxyConfigMessage(`Unable to save proxy config: ${String(err)}`);
+    } finally {
+      setProxyConfigBusy(false);
+    }
+  }
+
+  function editProxyConfig(key: keyof ProxyRuntimeConfig, value: number) {
+    setProxyConfig((config) => ({ ...config, [key]: value }));
+  }
+
+  async function toggleLocalProxy(enabled: boolean) {
+    setLocalProxyEnabled(enabled);
+    if (!isTauriRuntime()) return;
+    setLocalProxyBusy(true);
+    try {
+      const status = await invoke<LocalProxyStatus>("local_proxy_set_enabled", { enabled });
+      setLocalProxyStatus(status);
+      setLocalProxyEnabled(status.enabled);
+      if (status.enabled) void refreshProxyConfig();
+    } catch (err) {
+      setLocalProxyEnabled((current) => !current);
+      setLocalProxyStatus({
+        enabled: !enabled,
+        running: false,
+        ready: false,
+        error: String(err),
+      });
+    } finally {
+      setLocalProxyBusy(false);
+    }
   }
 
   function setToolEffect(item: ToolCatalogItem, effect: "allow" | "ask" | "deny", enabled: boolean) {
@@ -509,6 +628,141 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
                     {updateState.message}
                   </span>
                 )}
+              </div>
+            </div>
+            <div className="settings-section">
+              <div>
+                <h3>Local proxy</h3>
+                <p className="hint">Launch and monitor the bundled Rush proxy.</p>
+              </div>
+              <label className="toggle-row">
+                <span>
+                  <strong>Auto launch proxy</strong>
+                  <small>
+                    {localProxyBusy
+                      ? "Updating..."
+                      : localProxyEnabled
+                        ? localProxyStatus?.ready
+                          ? "On, ready"
+                          : localProxyStatus?.running
+                            ? "On, starting"
+                            : "On"
+                        : "Off"}
+                  </small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={localProxyEnabled}
+                  disabled={localProxyBusy}
+                  onChange={(e) => toggleLocalProxy(e.target.checked)}
+                />
+              </label>
+              {localProxyStatus?.error && (
+                <p className="hint error">{localProxyStatus.error}</p>
+              )}
+              <div className="proxy-config-panel">
+                <div className="proxy-config-head">
+                  <div>
+                    <strong>Account bank</strong>
+                    <span>Live proxy config from <code>/config</code></span>
+                  </div>
+                  <button
+                    className="ghost small"
+                    onClick={refreshProxyConfig}
+                    disabled={!localProxyEnabled || proxyConfigBusy}
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                <label className="proxy-config-row">
+                  <span>
+                    <strong>Pool size</strong>
+                    <small>Warm accounts kept ready. Higher values use more RAM.</small>
+                  </span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="20000"
+                    step="1"
+                    value={proxyConfig.pool_size}
+                    disabled={!localProxyEnabled || proxyConfigBusy}
+                    onChange={(e) => editProxyConfig("pool_size", Number(e.target.value))}
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    max="20000"
+                    value={proxyConfig.pool_size}
+                    disabled={!localProxyEnabled || proxyConfigBusy}
+                    onChange={(e) => editProxyConfig("pool_size", Number(e.target.value))}
+                  />
+                </label>
+                <p className="proxy-config-warning">
+                  Large pools can consume a lot of memory because every warm account has runtime state.
+                </p>
+
+                <label className="proxy-config-row">
+                  <span>
+                    <strong>Signup delay</strong>
+                    <small>Milliseconds between account creation</small>
+                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10000"
+                    step="100"
+                    value={proxyConfig.signup_delay_ms}
+                    disabled={!localProxyEnabled || proxyConfigBusy}
+                    onChange={(e) => editProxyConfig("signup_delay_ms", Number(e.target.value))}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="100"
+                    value={proxyConfig.signup_delay_ms}
+                    disabled={!localProxyEnabled || proxyConfigBusy}
+                    onChange={(e) => editProxyConfig("signup_delay_ms", Number(e.target.value))}
+                  />
+                </label>
+
+                <label className="proxy-config-row">
+                  <span>
+                    <strong>Account lifetime</strong>
+                    <small>Seconds before rotating bank accounts</small>
+                  </span>
+                  <input
+                    type="range"
+                    min="60"
+                    max="7200"
+                    step="60"
+                    value={proxyConfig.account_ttl_sec}
+                    disabled={!localProxyEnabled || proxyConfigBusy}
+                    onChange={(e) => editProxyConfig("account_ttl_sec", Number(e.target.value))}
+                  />
+                  <input
+                    type="number"
+                    min="60"
+                    step="60"
+                    value={proxyConfig.account_ttl_sec}
+                    disabled={!localProxyEnabled || proxyConfigBusy}
+                    onChange={(e) => editProxyConfig("account_ttl_sec", Number(e.target.value))}
+                  />
+                </label>
+
+                <div className="row">
+                  <button
+                    onClick={saveProxyConfig}
+                    disabled={!localProxyEnabled || proxyConfigBusy}
+                  >
+                    {proxyConfigBusy ? "Saving..." : "Save bank settings"}
+                  </button>
+                  {proxyConfigMessage && (
+                    <span className={`proxy-config-message ${proxyConfigMessage.startsWith("Unable") ? "error" : ""}`}>
+                      {proxyConfigMessage}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>

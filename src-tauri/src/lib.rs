@@ -6,8 +6,8 @@ mod background_commands;
 mod code_commands;
 mod fs_commands;
 mod git_commands;
-mod lsp_commands;
 mod local_proxy_commands;
+mod lsp_commands;
 mod mcp_commands;
 mod package_commands;
 mod terminal_commands;
@@ -82,6 +82,7 @@ pub fn run() {
             mcp_commands::mcp_stop_session,
             local_proxy_commands::local_proxy_status,
             local_proxy_commands::local_proxy_restart,
+            local_proxy_commands::local_proxy_set_enabled,
             lsp_commands::lsp_probe,
             lsp_commands::lsp_start,
             lsp_commands::lsp_definition,

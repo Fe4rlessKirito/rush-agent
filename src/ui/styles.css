@@ -1877,10 +1877,69 @@ body {
 .library-context-actions button:active {
   transform: scale(0.97);
 }
+.proxy-pool-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  min-width: 112px;
+  margin-left: auto;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    box-shadow 0.14s ease,
+    color 0.14s ease,
+    transform 0.14s ease;
+}
+.proxy-pool-badge.online {
+  border-color: color-mix(in srgb, #46c28f 44%, var(--border));
+  background: color-mix(in srgb, var(--panel-2) 86%, #46c28f);
+  color: var(--text);
+}
+.proxy-pool-badge.offline {
+  border-color: color-mix(in srgb, #f05d7a 36%, var(--border));
+  background: color-mix(in srgb, var(--panel-2) 90%, #f05d7a);
+}
+.proxy-pool-badge.disabled {
+  border-color: color-mix(in srgb, var(--text-faint) 34%, var(--border));
+  background: color-mix(in srgb, var(--panel-2) 92%, var(--text-faint));
+}
+.proxy-pool-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+}
+.proxy-pool-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #f05d7a;
+  box-shadow: 0 0 0 3px rgba(240, 93, 122, 0.14);
+}
+.proxy-pool-badge.online .proxy-pool-dot {
+  background: #46c28f;
+  box-shadow: 0 0 0 3px rgba(70, 194, 143, 0.14);
+}
+.proxy-pool-badge.disabled .proxy-pool-dot {
+  background: var(--text-faint);
+  box-shadow: 0 0 0 3px rgba(160, 166, 179, 0.12);
+}
+.proxy-pool-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .send-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; padding: 0; border-radius: 9px; flex: 0 0 auto;
-  margin-left: auto;
+  margin-left: 0;
   background: var(--panel-2); color: var(--accent); border: 1px solid var(--border);
 }
 .send-btn:hover:not(:disabled) {
@@ -2000,6 +2059,92 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .update-status.available,
 .update-status.installed { color: #7ad79f; }
 .update-status.error { color: #f0768b; }
+.proxy-config-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 12px;
+}
+.proxy-config-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.proxy-config-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.proxy-config-head strong {
+  color: var(--text);
+  font-size: 13px;
+}
+.proxy-config-head span,
+.proxy-config-row small,
+.proxy-config-message {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+.proxy-config-head code {
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.proxy-config-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1.2fr) 86px;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 10px;
+}
+.proxy-config-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.proxy-config-row strong {
+  color: var(--text);
+  font-size: 13px;
+}
+.proxy-config-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.proxy-config-row input[type="number"] {
+  width: 86px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 8px;
+  outline: none;
+}
+.proxy-config-row input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.proxy-config-row input[type="number"]:focus {
+  border-color: var(--accent);
+}
+.proxy-config-warning {
+  margin: -2px 0 2px;
+  color: #f0a23a;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.proxy-config-message.error {
+  color: #f0768b;
+}
 
 /* Provider cards in a responsive grid so the panel uses its width */
 .provider-grid {

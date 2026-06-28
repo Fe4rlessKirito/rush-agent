@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { flushSync } from "react-dom";
 import { useAppStore, type ChatLine, type Conversation } from "../../core/store";
 import { useProjectStore } from "../../core/projectStore";
@@ -112,6 +113,16 @@ interface Attachment {
   dataUrl?: string;
 }
 
+interface ProxyBankStatus {
+  warm_accounts?: number;
+  pool_target?: number;
+  status?: string;
+}
+
+interface LocalProxyStatus {
+  enabled: boolean;
+}
+
 export function ChatPanel({ mode = "agent" }: Props) {
   const {
     providers,
@@ -142,6 +153,9 @@ export function ChatPanel({ mode = "agent" }: Props) {
   const [contextItems, setContextItems] = useState<LibraryContextItem[]>([]);
   const [contextPicker, setContextPicker] = useState<LibraryContextKind | null>(null);
   const [contextQuery, setContextQuery] = useState("");
+  const [proxyBank, setProxyBank] = useState<ProxyBankStatus | null>(null);
+  const [proxyBankOnline, setProxyBankOnline] = useState(false);
+  const [proxyBankDisabled, setProxyBankDisabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [effort, setEffort] = useState(1);
   // Models offered by the active provider, for the composer's model selector.
@@ -182,6 +196,47 @@ export function ChatPanel({ mode = "agent" }: Props) {
     chatTools.setPermissionRules(toolPermissions);
     flowTools.setPermissionRules(toolPermissions);
   }, [toolPermissions]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshProxyBank() {
+      try {
+        if (isTauriRuntime()) {
+          const status = await invoke<LocalProxyStatus>("local_proxy_status");
+          if (!status.enabled) {
+            if (!cancelled) {
+              setProxyBank(null);
+              setProxyBankOnline(false);
+              setProxyBankDisabled(true);
+            }
+            return;
+          }
+        }
+        const res = await fetch("http://localhost:8000/bank", { cache: "no-store" });
+        if (!res.ok) throw new Error(`bank ${res.status}`);
+        const data = (await res.json()) as ProxyBankStatus;
+        if (!cancelled) {
+          setProxyBank(data);
+          setProxyBankOnline(true);
+          setProxyBankDisabled(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setProxyBank(null);
+          setProxyBankOnline(false);
+          setProxyBankDisabled(false);
+        }
+      }
+    }
+
+    void refreshProxyBank();
+    const timer = window.setInterval(refreshProxyBank, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const resolveConfirm = (ok: boolean) => {
     setConfirm((c) => {
@@ -939,6 +994,33 @@ export function ChatPanel({ mode = "agent" }: Props) {
               </svg>
               <span>Research</span>
             </button>
+          </div>
+
+          <div
+            className={`proxy-pool-badge ${proxyBankDisabled ? "disabled" : proxyBankOnline ? "online" : "offline"}`}
+            title={
+              proxyBankDisabled
+                ? "Proxy pool disabled in Settings"
+                : proxyBankOnline
+                ? `Proxy pool: ${proxyBank?.warm_accounts ?? 0} of ${proxyBank?.pool_target ?? "?"} accounts ready`
+                : "Proxy pool unavailable"
+            }
+            aria-label={
+              proxyBankDisabled
+                ? "Proxy pool disabled"
+                : proxyBankOnline
+                ? `Proxy pool ${proxyBank?.warm_accounts ?? 0} of ${proxyBank?.pool_target ?? "unknown"} accounts ready`
+                : "Proxy pool unavailable"
+            }
+          >
+            <span className="proxy-pool-dot" aria-hidden="true" />
+            <span className="proxy-pool-text">
+              {proxyBankDisabled
+                ? "Pool disabled"
+                : proxyBankOnline
+                ? `${proxyBank?.warm_accounts ?? 0}/${proxyBank?.pool_target ?? "?"} accounts`
+                : "Pool offline"}
+            </span>
           </div>
 
           <button className="send-btn" onClick={send} disabled={busy} aria-label="Send">
