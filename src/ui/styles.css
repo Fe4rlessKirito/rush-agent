@@ -3797,6 +3797,109 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 
 /* MCP tab */
+.mcp-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.mcp-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 10px;
+}
+.mcp-preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 12px;
+}
+.mcp-preset-card.control {
+  border-color: color-mix(in srgb, #f0b76f 36%, var(--border));
+}
+.mcp-preset-card.write {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+.mcp-preset-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mcp-preset-head > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.mcp-preset-head strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-preset-head span,
+.mcp-preset-card p,
+.mcp-preset-card li {
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.mcp-preset-card p {
+  margin: 0;
+}
+.mcp-risk {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--panel-2);
+  padding: 3px 8px;
+  font-size: 11px;
+  text-transform: capitalize;
+}
+.mcp-risk.read { color: #7ad79f; }
+.mcp-risk.write { color: var(--accent-2); }
+.mcp-risk.control { color: #f0b76f; }
+.mcp-preset-fields {
+  display: grid;
+  gap: 7px;
+}
+.mcp-preset-fields label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.mcp-preset-fields input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 7px 8px;
+}
+.mcp-preset-card details {
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.mcp-preset-card summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  padding: 7px 8px;
+  font-size: 12px;
+}
+.mcp-preset-card ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 8px 8px 8px 24px;
+  border-top: 1px solid var(--border-soft);
+}
 .mcp-layout {
   display: flex;
   flex-direction: column;

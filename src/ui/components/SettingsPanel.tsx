@@ -7,6 +7,7 @@ import {
   type LanguageServerMode,
 } from "../../core/store";
 import { useMcpStore, type McpServerConfig, type McpTransport } from "../../core/mcpStore";
+import { MCP_PRESETS, missingPresetFields, type McpPreset } from "../../core/mcpPresets";
 import type { ProviderConfig } from "../../core/providers/types";
 import { createProvider } from "../../core/providers/registry";
 import { filterProviderModels, groupModels, modelDisplayName } from "../../core/providers/modelGroups";
@@ -103,7 +104,7 @@ function mcpDraftFromServer(server: McpServerConfig): McpDraft {
     label: server.label,
     transport: server.transport,
     command: server.command ?? "",
-    args: server.args?.join(" ") ?? "",
+    args: server.args?.map(quoteArg).join(" ") ?? "",
     url: server.url ?? "",
     env: Object.entries(server.env ?? {}).map(([key, value]) => `${key}=${value}`).join("\n"),
     enabled: server.enabled,
@@ -111,7 +112,28 @@ function mcpDraftFromServer(server: McpServerConfig): McpDraft {
 }
 
 function splitCommandArgs(value: string): string[] {
-  return value.split(/\s+/).map((item) => item.trim()).filter(Boolean);
+  const args: string[] = [];
+  let current = "";
+  let quote: "\"" | "'" | null = null;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if ((char === "\"" || char === "'") && (!quote || quote === char)) {
+      quote = quote ? null : char;
+      continue;
+    }
+    if (/\s/.test(char) && !quote) {
+      if (current) args.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  if (current) args.push(current);
+  return args;
+}
+
+function quoteArg(value: string): string {
+  return /\s/.test(value) ? `"${value.replace(/"/g, "\\\"")}"` : value;
 }
 
 function parseEnv(value: string): Record<string, string> {
@@ -171,6 +193,7 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
   const [mcpDraft, setMcpDraft] = useState<McpDraft>(() => emptyMcpDraft());
   const [mcpBusyId, setMcpBusyId] = useState<string | null>(null);
   const [mcpMessage, setMcpMessage] = useState<string | null>(null);
+  const [mcpPresetValues, setMcpPresetValues] = useState<Record<string, Record<string, string>>>({});
   const [toolSearch, setToolSearch] = useState("");
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
   const [toolFeedback, setToolFeedback] = useState("");
@@ -534,6 +557,35 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
     const config = mcpConfigFromDraft(mcpDraft);
     await runMcpTool("McpServerConfigure", config, "save");
     setMcpDraft(mcpDraftFromServer(config));
+  }
+
+  function presetValues(id: string): Record<string, string> {
+    return mcpPresetValues[id] ?? {};
+  }
+
+  function setPresetValue(presetId: string, key: string, value: string) {
+    setMcpPresetValues((state) => ({
+      ...state,
+      [presetId]: {
+        ...(state[presetId] ?? {}),
+        [key]: value,
+      },
+    }));
+  }
+
+  async function applyMcpPreset(preset: McpPreset, connect: boolean) {
+    const values = presetValues(preset.id);
+    const missing = missingPresetFields(preset, values);
+    if (missing.length > 0) {
+      setMcpMessage(`Missing required preset field${missing.length === 1 ? "" : "s"}: ${missing.map((field) => field.label).join(", ")}`);
+      return;
+    }
+    const config = preset.buildConfig(values);
+    await runMcpTool("McpServerConfigure", config, `preset:${preset.id}`);
+    setMcpDraft(mcpDraftFromServer(config));
+    if (connect && config.transport === "stdio") {
+      await runMcpTool("McpServerConnect", { id: config.id }, `connect:${config.id}`);
+    }
   }
 
   async function connectMcpServer(id: string) {
@@ -1146,6 +1198,71 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
               you disconnect them, and discovered tools become available to the agent
               through MCP tool calls.
             </p>
+
+            <section className="mcp-presets">
+              <div className="mcp-list-head">
+                <strong>Quick connections</strong>
+                <span>{MCP_PRESETS.length} presets</span>
+              </div>
+              <div className="mcp-preset-grid">
+                {MCP_PRESETS.map((preset) => {
+                  const values = presetValues(preset.id);
+                  const hasRequiredValues = missingPresetFields(preset, values).length === 0;
+                  const isBusy = mcpBusyId === `preset:${preset.id}` || mcpBusyId === `connect:${preset.id}`;
+                  return (
+                    <article className={`mcp-preset-card ${preset.risk}`} key={preset.id}>
+                      <div className="mcp-preset-head">
+                        <div>
+                          <strong>{preset.label}</strong>
+                          <span>{preset.category}</span>
+                        </div>
+                        <span className={`mcp-risk ${preset.risk}`}>{preset.risk}</span>
+                      </div>
+                      <p>{preset.description}</p>
+                      {preset.fields.length > 0 && (
+                        <div className="mcp-preset-fields">
+                          {preset.fields.map((field) => (
+                            <label key={field.key}>
+                              <span>{field.label}</span>
+                              <input
+                                type={field.kind === "password" ? "password" : "text"}
+                                value={values[field.key] ?? ""}
+                                placeholder={field.placeholder}
+                                onChange={(event) => setPresetValue(preset.id, field.key, event.target.value)}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      <details>
+                        <summary>Requirements</summary>
+                        <ul>
+                          {preset.requirements.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </details>
+                      <div className="row">
+                        <button
+                          className="ghost small"
+                          onClick={() => void applyMcpPreset(preset, false)}
+                          disabled={isBusy || !hasRequiredValues}
+                        >
+                          {isBusy ? "Working..." : "Add preset"}
+                        </button>
+                        <button
+                          className="ghost small"
+                          onClick={() => void applyMcpPreset(preset, true)}
+                          disabled={isBusy || !hasRequiredValues}
+                        >
+                          Add & connect
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
 
             <div className="mcp-layout">
               <section className="mcp-editor provider-card">
