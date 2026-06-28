@@ -204,6 +204,93 @@ describe("runAgent system prompt", () => {
       expect(request.messages[0].content).toContain('"path"');
     }
   });
+
+  it("uses XML tool-call fallback for custom proxies by default", async () => {
+    class CapturingProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "custom",
+        label: "Custom",
+        kind: "custom",
+        baseUrl: "https://proxy.example/v1",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      request: ChatRequest | null = null;
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
+        this.request = req;
+        yield { delta: "Done.", done: false };
+        yield { delta: "", done: true };
+      }
+    }
+
+    const provider = new CapturingProvider();
+    const tools = new ToolRegistry();
+    tools.register({
+      definition: {
+        name: "list_dir",
+        description: "List files.",
+        inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      },
+      execute: async () => ({ ok: true, content: "" }),
+    });
+
+    for await (const _event of runAgent(provider, "test-model", tools, [{ role: "user", content: "List files" }])) {
+      // Drain the generator.
+    }
+
+    expect(provider.request?.tools).toBeUndefined();
+    expect(provider.request?.messages[0].content).toContain("<tool_call>");
+    expect(provider.request?.messages[0].content).toContain("## list_dir");
+  });
+
+  it("advertises native tools to official OpenAI-compatible providers", async () => {
+    class CapturingProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "openai",
+        label: "OpenAI",
+        kind: "openai",
+        baseUrl: "https://api.openai.com/v1",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      request: ChatRequest | null = null;
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
+        this.request = req;
+        yield { delta: "Done.", done: false };
+        yield { delta: "", done: true };
+      }
+    }
+
+    const provider = new CapturingProvider();
+    const tools = new ToolRegistry();
+    tools.register({
+      definition: {
+        name: "list_dir",
+        description: "List files.",
+        inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      },
+      execute: async () => ({ ok: true, content: "" }),
+    });
+
+    for await (const _event of runAgent(provider, "test-model", tools, [{ role: "user", content: "List files" }])) {
+      // Drain the generator.
+    }
+
+    expect(provider.request?.tools?.[0]).toMatchObject({
+      name: "list_dir",
+      parameters: { type: "object" },
+    });
+  });
 });
 
 describe("runAgent native tool calls", () => {

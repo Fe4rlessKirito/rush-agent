@@ -126,6 +126,21 @@ function formatToolList(definitions: ToolDefinition[]): string {
     .join("\n\n");
 }
 
+function providerSupportsNativeTools(provider: Provider): boolean {
+  const config = provider.config;
+  if (typeof config.supportsNativeTools === "boolean") return config.supportsNativeTools;
+
+  const baseUrl = config.baseUrl.toLowerCase();
+  if (config.kind === "custom") return false;
+  if (config.kind === "openai") {
+    return baseUrl.includes("api.openai.com") || baseUrl.includes("api.deepseek.com");
+  }
+  if (config.kind === "anthropic") {
+    return baseUrl.includes("api.anthropic.com");
+  }
+  return false;
+}
+
 export function buildSystemPrompt(definitions: ToolDefinition[], projectInstructions?: string): string {
   const toolList = formatToolList(definitions);
   const projectBlock =
@@ -258,11 +273,13 @@ export async function* runAgent(
   // Advertise tools to providers that support native tool-calling. Providers
   // that ignore the `tools` field fall back to the XML-tag convention, which is
   // why the system prompt still documents that path.
-  const toolSchemas: ToolSchema[] = definitions.map((t) => ({
-    name: t.name,
-    description: t.description,
-    parameters: t.inputSchema,
-  }));
+  const toolSchemas: ToolSchema[] | undefined = providerSupportsNativeTools(provider)
+    ? definitions.map((t) => ({
+        name: t.name,
+        description: t.description,
+        parameters: t.inputSchema,
+      }))
+    : undefined;
 
   const messages: ChatMessage[] = [
     { role: "system", content: buildSystemPrompt(definitions, projectInstructions) },

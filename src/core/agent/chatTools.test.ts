@@ -118,6 +118,7 @@ describe("chat app tools", () => {
         kind: "custom",
         baseUrl: "http://localhost",
         defaultModel: "chat-model",
+        supportsNativeTools: true,
         enabled: true,
       };
       readonly requests: ChatRequest[] = [];

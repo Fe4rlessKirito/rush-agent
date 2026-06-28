@@ -11,6 +11,7 @@ export interface ProviderConfig {
   apiKey?: string;       // optional for keyless local proxies
   defaultModel: string;
   supportsThinking?: boolean;
+  supportsNativeTools?: boolean;
   supportsImageChatEndpoint?: boolean;
   supportsFileChatEndpoint?: boolean;
   // Arbitrary extra headers a proxy may require (auth tokens, org ids, etc.)
