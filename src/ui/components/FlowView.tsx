@@ -61,6 +61,7 @@ interface FlowViewProps {
 }
 
 export function FlowView({ embedded = false }: FlowViewProps) {
+  const [flowPanel, setFlowPanel] = useState<"chat" | "agents">("chat");
   const [showReport, setShowReport] = useState(false);
   const [reportSaved, setReportSaved] = useState(false);
   const [selectedLaneId, setSelectedLaneId] = useState<string | null>(null);
@@ -468,93 +469,114 @@ export function FlowView({ embedded = false }: FlowViewProps) {
           </div>
         </div>
 
-        <div className="flow-body">
-          <section className="flow-dashboard" aria-label="Flow dashboard">
-            {activeRun?.plan && (
-              <div className="flow-plan-panel">
-                <div>
-                  <strong>Plan</strong>
-                  <span>{activeRun.plan.summary}</span>
+        <div className="flow-subtabs" role="tablist" aria-label="Flow workspace">
+          <button
+            className={flowPanel === "chat" ? "active" : ""}
+            onClick={() => setFlowPanel("chat")}
+            role="tab"
+            aria-selected={flowPanel === "chat"}
+          >
+            Chat interface
+          </button>
+          <button
+            className={flowPanel === "agents" ? "active" : ""}
+            onClick={() => setFlowPanel("agents")}
+            role="tab"
+            aria-selected={flowPanel === "agents"}
+          >
+            Active agents
+          </button>
+        </div>
+
+        <div className={`flow-body ${flowPanel}`}>
+          {flowPanel === "agents" ? (
+            <section className="flow-dashboard" aria-label="Flow dashboard">
+              {activeRun?.plan && (
+                <div className="flow-plan-panel">
+                  <div>
+                    <strong>Plan</strong>
+                    <span>{activeRun.plan.summary}</span>
+                  </div>
+                  <div className="flow-plan-lanes">
+                    {activeRun.plan.lanes.map((lane) => (
+                      <code key={lane.id}>{lane.title}</code>
+                    ))}
+                  </div>
                 </div>
-                <div className="flow-plan-lanes">
-                  {activeRun.plan.lanes.map((lane) => (
-                    <code key={lane.id}>{lane.title}</code>
+              )}
+
+              {activeRun && (
+                <div className="flow-summary" aria-label="Flow execution summary">
+                  {([
+                    ["queued", "Queued"],
+                    ["running", "Running"],
+                    ["completed", "Done"],
+                    ["blocked", "Needs review"],
+                    ["skipped", "Skipped"],
+                  ] as Array<[FlowCountKey, string]>).map(([key, label]) => (
+                    <div className={`flow-summary-chip ${key}`} key={key}>
+                      <strong>{counts[key]}</strong>
+                      <span>{label}</span>
+                    </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
 
-            {activeRun && (
-              <div className="flow-summary" aria-label="Flow execution summary">
-                {([
-                  ["queued", "Queued"],
-                  ["running", "Running"],
-                  ["completed", "Done"],
-                  ["blocked", "Needs review"],
-                  ["skipped", "Skipped"],
-                ] as Array<[FlowCountKey, string]>).map(([key, label]) => (
-                  <div className={`flow-summary-chip ${key}`} key={key}>
-                    <strong>{counts[key]}</strong>
-                    <span>{label}</span>
+              <div className="flow-agents" aria-label="Flow agents">
+                {(activeRun?.lanes ?? [
+                  { id: "planner", role: "planner", title: "Planner", status: "pending", summary: "Breaks the request into work lanes.", output: "" },
+                  { id: "worker", role: "worker", title: "Workers", status: "pending", summary: "Runs code-capable delegated work.", output: "" },
+                  { id: "verifier", role: "verifier", title: "Verifier", status: "pending", summary: "Checks the result before handoff.", output: "" },
+                ]).map((lane) => (
+                  <div className={`flow-agent ${lane.status}`} key={lane.id}>
+                    <div className="flow-agent-top">
+                      <span className="flow-agent-dot" />
+                      <span className={`flow-lane-status ${lane.status}`}>{statusText(lane.status)}</span>
+                    </div>
+                    <strong>{lane.title}</strong>
+                    <span className="flow-agent-preview">
+                      {dependencyWaitText(activeRun, lane) || laneStateHint(lane) || lanePreview(lane)}
+                    </span>
+                    {activeRun && lane.role === "worker" && (
+                      <div className="flow-lane-actions" aria-label={`${lane.title} lane controls`}>
+                        <button onClick={() => setSelectedLaneId(lane.id)}>Details</button>
+                        {(lane.status === "pending" || lane.status === "running") && (
+                          <button onClick={() => cancelWorkerLane(activeRun.id, lane.id)}>Cancel</button>
+                        )}
+                        {(lane.status === "blocked" || lane.status === "cancelled" || lane.status === "ignored") && (
+                          <button onClick={() => retryWorkerLane(activeRun.id, lane)} disabled={retryingLaneIds.has(lane.id)}>
+                            {retryingLaneIds.has(lane.id) ? "Retrying" : "Retry"}
+                          </button>
+                        )}
+                        {lane.status !== "ignored" && (
+                          <button className="ghost" onClick={() => ignoreLane(activeRun.id, lane.id)}>Ignore</button>
+                        )}
+                      </div>
+                    )}
+                    {activeRun && lane.role !== "worker" && (
+                      <div className="flow-lane-actions" aria-label={`${lane.title} lane controls`}>
+                        <button onClick={() => setSelectedLaneId(lane.id)}>Details</button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-            )}
 
-            <div className="flow-agents" aria-label="Flow agents">
-              {(activeRun?.lanes ?? [
-                { id: "planner", role: "planner", title: "Planner", status: "pending", summary: "Breaks the request into work lanes.", output: "" },
-                { id: "worker", role: "worker", title: "Workers", status: "pending", summary: "Runs code-capable delegated work.", output: "" },
-                { id: "verifier", role: "verifier", title: "Verifier", status: "pending", summary: "Checks the result before handoff.", output: "" },
-              ]).map((lane) => (
-                <div className={`flow-agent ${lane.status}`} key={lane.id}>
-                  <div className="flow-agent-top">
-                    <span className="flow-agent-dot" />
-                    <span className={`flow-lane-status ${lane.status}`}>{statusText(lane.status)}</span>
-                  </div>
-                  <strong>{lane.title}</strong>
-                  <span className="flow-agent-preview">
-                    {dependencyWaitText(activeRun, lane) || laneStateHint(lane) || lanePreview(lane)}
-                  </span>
-                  {activeRun && lane.role === "worker" && (
-                    <div className="flow-lane-actions" aria-label={`${lane.title} lane controls`}>
-                      <button onClick={() => setSelectedLaneId(lane.id)}>Details</button>
-                      {(lane.status === "pending" || lane.status === "running") && (
-                        <button onClick={() => cancelWorkerLane(activeRun.id, lane.id)}>Cancel</button>
-                      )}
-                      {(lane.status === "blocked" || lane.status === "cancelled" || lane.status === "ignored") && (
-                        <button onClick={() => retryWorkerLane(activeRun.id, lane)} disabled={retryingLaneIds.has(lane.id)}>
-                          {retryingLaneIds.has(lane.id) ? "Retrying" : "Retry"}
-                        </button>
-                      )}
-                      {lane.status !== "ignored" && (
-                        <button className="ghost" onClick={() => ignoreLane(activeRun.id, lane.id)}>Ignore</button>
-                      )}
-                    </div>
-                  )}
-                  {activeRun && lane.role !== "worker" && (
-                    <div className="flow-lane-actions" aria-label={`${lane.title} lane controls`}>
-                      <button onClick={() => setSelectedLaneId(lane.id)}>Details</button>
-                    </div>
-                  )}
+              {runs.length > 1 && (
+                <div className="flow-run-strip" aria-label="Recent Flow runs">
+                  {runs.slice(0, 5).map((run) => (
+                    <span className={run.id === activeRun?.id ? "active" : ""} key={run.id}>
+                      {run.title}
+                    </span>
+                  ))}
                 </div>
-              ))}
+              )}
+            </section>
+          ) : (
+            <div className="flow-chat">
+              <ChatPanel mode="flow" />
             </div>
-
-            {runs.length > 1 && (
-              <div className="flow-run-strip" aria-label="Recent Flow runs">
-                {runs.slice(0, 5).map((run) => (
-                  <span className={run.id === activeRun?.id ? "active" : ""} key={run.id}>
-                    {run.title}
-                  </span>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <div className="flow-chat">
-            <ChatPanel mode="flow" />
-          </div>
+          )}
         </div>
 
         {showReport && activeRun && (

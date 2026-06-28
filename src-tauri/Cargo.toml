@@ -1,6 +1,6 @@
 [package]
 name = "rush-agent"
-version = "1.3.2"
+version = "1.4.0"
 description = "Rush — a local AI coding agent"
 edition = "2021"
 

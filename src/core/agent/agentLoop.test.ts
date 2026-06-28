@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildSystemPrompt,
   parseToolCalls,
-  runAgent,
+  runAgent as runAgentUnbounded,
   segment,
   stripThinking,
   sanitizeToolOutput,
@@ -10,6 +10,20 @@ import {
 import { ToolRegistry } from "./tools";
 import { isToolAvailableInMode } from "./toolModes";
 import type { ChatChunk, ChatRequest, Provider, ProviderConfig } from "../providers/types";
+
+function runAgent(...args: Parameters<typeof runAgentUnbounded>) {
+  const [provider, model, tools, userMessages, signal, maxSteps, projectInstructions, providerThinking] = args;
+  return runAgentUnbounded(
+    provider,
+    model,
+    tools,
+    userMessages,
+    signal,
+    maxSteps ?? 12,
+    projectInstructions,
+    providerThinking,
+  );
+}
 
 describe("parseToolCalls", () => {
   it("parses a single tool_call block", () => {

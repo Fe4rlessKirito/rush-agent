@@ -68,7 +68,7 @@ export async function runFlowScheduledLane(
       options.tools,
       [{ role: "user", content: lane.task }],
       signal,
-      4,
+      undefined,
       [
         options.projectInstructions ?? "",
         "You are a scheduled Rush Flow worker lane.",

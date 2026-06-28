@@ -516,7 +516,7 @@ export async function* runAgent(
   tools: ToolRegistry,
   userMessages: ChatMessage[],
   signal?: AbortSignal,
-  maxSteps = 12,
+  maxSteps?: number,
   projectInstructions?: string,
   providerThinking?: ChatRequest["thinking"],
 ): AsyncGenerator<AgentEvent> {
@@ -538,7 +538,9 @@ export async function* runAgent(
     ...userMessages,
   ];
 
-  for (let step = 0; step < maxSteps; step++) {
+  let step = 0;
+  while (!signal?.aborted && (maxSteps === undefined || step < maxSteps)) {
+    step += 1;
     let full = "";
     let emittedText = 0;
     let emittedThinking = 0;
@@ -652,5 +654,8 @@ export async function* runAgent(
     }
   }
 
-  yield { type: "error", text: `Stopped after ${maxSteps} steps (loop guard).` };
+  yield {
+    type: "error",
+    text: signal?.aborted ? "Agent run was cancelled." : `Stopped after ${maxSteps} steps.`,
+  };
 }

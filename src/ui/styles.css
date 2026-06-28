@@ -1066,20 +1066,13 @@ body {
   min-width: 0;
 }
 .flow-view.embedded .flow-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
-  grid-template-areas: "chat dashboard";
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 .flow-view.embedded .flow-dashboard {
-  grid-area: dashboard;
   min-width: 0;
   overflow: auto;
-  padding-right: 2px;
-}
-.flow-view.embedded .flow-chat {
-  grid-area: chat;
 }
 .flow-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -1088,6 +1081,39 @@ body {
 .flow-view.embedded .flow-head {
   align-items: flex-start;
   gap: 8px;
+}
+.flow-subtabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(132px, 1fr));
+  gap: 4px;
+  align-self: flex-start;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.flow-subtabs button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 750;
+  transition: background 0.14s ease, color 0.14s ease, transform 0.14s ease;
+}
+.flow-subtabs button:hover {
+  filter: none;
+  color: var(--text);
+  background: var(--panel-2);
+}
+.flow-subtabs button.active {
+  color: var(--text);
+  background: var(--border);
+}
+.flow-subtabs button:active {
+  transform: scale(0.98);
 }
 .flow-head > div:first-child {
   display: grid;
@@ -1188,7 +1214,7 @@ body {
   gap: 8px;
 }
 .flow-view.embedded .flow-summary {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .flow-summary-chip {
   min-width: 0;
@@ -1230,7 +1256,7 @@ body {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
 }
 .flow-view.embedded .flow-agents {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .flow-agent {
@@ -1541,6 +1567,12 @@ body {
 .flow-view.embedded .flow-chat {
   min-width: 0;
   min-height: 0;
+}
+.flow-body.chat .flow-chat {
+  flex: 1;
+}
+.flow-body.agents .flow-dashboard {
+  flex: 1;
 }
 
   @media (max-width: 760px) {
