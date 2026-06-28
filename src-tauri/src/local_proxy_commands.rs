@@ -67,12 +67,20 @@ fn proxy_dir(app: &AppHandle) -> Result<PathBuf, String> {
     }
 
     let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
-    let bundled = resource_dir.join("local-proxy");
-    if bundled.exists() {
-        Ok(bundled)
-    } else {
-        Err(format!("bundled local proxy not found at {}", bundled.display()))
+    let candidates = [
+        resource_dir.join("local-proxy"),
+        resource_dir.join("_up_").join("local-proxy"),
+    ];
+    for bundled in candidates {
+        if bundled.exists() {
+            return Ok(bundled);
+        }
     }
+
+    Err(format!(
+        "bundled local proxy not found under {}",
+        resource_dir.display()
+    ))
 }
 
 fn health_ready() -> bool {
