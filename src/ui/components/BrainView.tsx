@@ -108,6 +108,7 @@ export function BrainView({ onClose }: { onClose: () => void }) {
     addSkill,
     importMemories,
     importSkills,
+    deleteSkill,
     setBrainSetting,
     tidyMemories,
     auditSkills,
@@ -271,7 +272,7 @@ export function BrainView({ onClose }: { onClose: () => void }) {
             </div>
             <label className="brain-search"><Icon name="search" /><input value={skillSearch} onChange={(e) => setSkillSearch(e.target.value)} placeholder="Search skills..." /></label>
             <div className="brain-list">
-              {shownSkills.length ? shownSkills.map((skill) => <SkillRow key={skill.id} skill={skill} />) : (
+              {shownSkills.length ? shownSkills.map((skill) => <SkillRow key={skill.id} skill={skill} onDelete={deleteSkill} />) : (
                 <div className="brain-empty"><span>No skills yet, use agent for it to auto extract them.</span></div>
               )}
             </div>
@@ -381,14 +382,24 @@ function MemoryRow({ memory }: { memory: BrainMemory }) {
   );
 }
 
-function SkillRow({ skill }: { skill: BrainSkill }) {
+function SkillRow({ skill, onDelete }: { skill: BrainSkill; onDelete: (id: string) => void }) {
   return (
     <article className="brain-row skill-row">
       <div>
         <strong>{skill.title}</strong>
         <span>{skill.when}</span>
       </div>
-      <em>{skill.confidence}%</em>
+      <div className="brain-row-actions">
+        <em>{skill.confidence}%</em>
+        <button
+          type="button"
+          onClick={() => onDelete(skill.id)}
+          aria-label={`Delete ${skill.title}`}
+          title="Delete skill"
+        >
+          x
+        </button>
+      </div>
     </article>
   );
 }

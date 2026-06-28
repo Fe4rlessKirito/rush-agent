@@ -6,6 +6,9 @@ import { useAppStore } from "../../core/store";
 import { useNotificationStore } from "../../core/notificationStore";
 import { useResearchStore } from "../../core/researchStore";
 import { buildNoSearchResultsReport, formatSearchResults, searchProviderStatus, searchWeb, type SearchEngine } from "../../core/searchProviders";
+import { runAgent } from "../../core/agent/agentLoop";
+import { ToolRegistry } from "../../core/agent/tools";
+import { createWebTools } from "../../core/agent/webTools";
 
 type SelectId = "rounds" | "format" | "engine" | "endpoint" | "model";
 
@@ -80,6 +83,27 @@ function ResearchSelect({
   );
 }
 
+function maxResearchSteps(rounds: string): number {
+  const explicit = Number(rounds.match(/\d+/)?.[0] ?? 0);
+  if (explicit > 0) return Math.max(4, Math.min(14, explicit * 3 + 2));
+  return 8;
+}
+
+function mergeSources<T extends { url: string; title: string; snippet: string; source: string }>(
+  current: T[],
+  incoming: T[],
+): T[] {
+  const seen = new Set(current.map((source) => source.url || `${source.title}:${source.snippet}`));
+  const next = current.slice();
+  for (const source of incoming) {
+    const key = source.url || `${source.title}:${source.snippet}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    next.push(source);
+  }
+  return next.slice(0, 30);
+}
+
 export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => void; onOpenLibrary: () => void }) {
   const providers = useAppStore((s) => s.providers);
   const activeProviderId = useAppStore((s) => s.activeProviderId);
@@ -138,18 +162,12 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
     try {
       const provider = createProvider(selectedProvider);
       const searchResponse = await searchWeb(prompt.trim(), values.engine as SearchEngine, searchConfig);
+      let gatheredSources = searchResponse.results;
       updateRun(id, {
-        sources: searchResponse.results,
+        sources: gatheredSources,
         searchWarning: searchResponse.warning,
         content: searchResponse.warning ? `Search warning: ${searchResponse.warning}\n\n` : "",
       });
-      if (searchResponse.results.length === 0) {
-        updateRun(id, {
-          status: "completed",
-          content: buildNoSearchResultsReport(prompt.trim(), searchResponse),
-        });
-        return;
-      }
       let content = searchResponse.warning ? `Search warning: ${searchResponse.warning}\n\n` : "";
 
       const settingsText = [
@@ -160,26 +178,68 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
         `Model: ${selectedModel}`,
       ].join("\n");
 
-      for await (const chunk of provider.streamChat({
-        model: selectedModel,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are Rush Deep Research. Produce a careful, structured Markdown research report from the user's prompt using only the provided search results as source context. Do not fill gaps from memory. If the search results are weak, be explicit about uncertainty and avoid unsupported claims. Include: summary, key findings, source notes, uncertainties, and next steps.",
-          },
+      const researchTools = new ToolRegistry();
+      researchTools.registerAll(createWebTools({
+        engine: values.engine as SearchEngine,
+        getSearchConfig: () => useResearchStore.getState().searchConfig,
+        search: async (query, engine, config) => {
+          const response = await searchWeb(query, engine, config);
+          gatheredSources = mergeSources(gatheredSources, response.results);
+          updateRun(id, {
+            sources: gatheredSources,
+            searchWarning: response.warning ?? searchResponse.warning,
+          });
+          return response;
+        },
+      }));
+
+      for await (const event of runAgent(
+        provider,
+        selectedModel,
+        researchTools,
+        [
           {
             role: "user",
-            content: `Research prompt:\n${prompt.trim()}\n\nSettings:\n${settingsText}\n\nSearch results:\n${formatSearchResults(searchResponse)}`,
+            content: [
+              `Research prompt:\n${prompt.trim()}`,
+              "",
+              `Settings:\n${settingsText}`,
+              "",
+              "Initial search results:",
+              formatSearchResults(searchResponse),
+            ].join("\n"),
           },
         ],
-        maxTokens: 4096,
-        thinking: selectedProvider.supportsThinking ? thinkingForEffort(2) : undefined,
-      })) {
-        if (chunk.delta) {
-          content += chunk.delta;
+        undefined,
+        maxResearchSteps(values.rounds),
+        [
+          "You are Rush Deep Research.",
+          "Build a careful, structured Markdown research report.",
+          "Use WebSearch to run follow-up searches when the initial results are missing, weak, too broad, or too narrow.",
+          "Use WebFetch on relevant URLs when snippets are not enough.",
+          "Use only gathered search/fetch source context for factual claims. Do not fill gaps from memory.",
+          "If no usable sources can be found after trying alternate queries, say that clearly and do not produce a guessed report.",
+          "Include: summary, key findings, source notes with URLs, uncertainties, and next steps.",
+        ].join("\n"),
+        selectedProvider.supportsThinking ? thinkingForEffort(2) : undefined,
+      )) {
+        if (event.type === "text" && event.text) {
+          content += event.text;
           updateRun(id, { content });
+        } else if (event.type === "tool_call") {
+          updateRun(id, {
+            content: content || `Searching with ${event.toolName ?? "web tool"}...\n\n`,
+          });
+        } else if (event.type === "error") {
+          updateRun(id, { content, error: event.text ?? "Deep Research tool run failed." });
         }
+      }
+      if (gatheredSources.length === 0) {
+        content = buildNoSearchResultsReport(prompt.trim(), {
+          ...searchResponse,
+          results: [],
+          warning: searchResponse.warning ?? "No search results returned after follow-up searches.",
+        });
       }
       updateRun(id, { status: "completed", content });
     } catch (err) {

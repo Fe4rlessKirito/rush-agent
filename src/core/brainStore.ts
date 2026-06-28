@@ -37,6 +37,7 @@ export interface BrainState extends BrainSettings {
   addMemory: (text: string, kind: MemoryKind) => void;
   addSkill: (skill: Omit<BrainSkill, "id" | "createdAt" | "confidence" | "approved">) => void;
   addExtractedSkill: (skill: Omit<BrainSkill, "id" | "createdAt" | "approved">) => void;
+  deleteSkill: (id: string) => void;
   importMemories: (items: Array<{ text: string; kind?: MemoryKind }>) => void;
   importSkills: (items: Array<Partial<BrainSkill>>) => void;
   extractFromTurn: (input: { userText: string; assistantText: string; mode: "plain" | "agent" | "flow"; toolNames?: string[] }) => void;
@@ -68,20 +69,71 @@ function hasMemory(memories: BrainMemory[], text: string): boolean {
   return memories.some((memory) => normalizedText(memory.text) === key);
 }
 
+const LOW_VALUE_MEMORY_PATTERNS = [
+  /\btool[- ]?call/i,
+  /\btool_calls?\b/i,
+  /<\/?tool_calls?>/i,
+  /\bstress\s+test\b/i,
+  /\bparser\b/i,
+];
+
+function cleanMemoryText(value: string): string {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/[.!?]+$/, "");
+}
+
+function validMemoryText(value: string): boolean {
+  const text = cleanMemoryText(value);
+  if (text.length < 4 || text.length > 240) return false;
+  if (LOW_VALUE_MEMORY_PATTERNS.some((pattern) => pattern.test(text))) return false;
+  return true;
+}
+
+function pushMemory(
+  matches: Array<{ text: string; kind: MemoryKind }>,
+  text: string,
+  kind: MemoryKind,
+) {
+  const cleaned = cleanMemoryText(text);
+  if (!validMemoryText(cleaned)) return;
+  if (matches.some((memory) => normalizedText(memory.text) === normalizedText(cleaned))) return;
+  matches.push({ text: cleaned, kind });
+}
+
+function pushRememberedMemory(matches: Array<{ text: string; kind: MemoryKind }>, value: string) {
+  const remembered = cleanMemoryText(value);
+  const preference = remembered.match(/^(?:i prefer|i like|my preference is)\s+(.{4,})/i)?.[1];
+  if (preference) {
+    pushMemory(matches, `User prefers ${preference}`, "preference");
+    return;
+  }
+
+  const instruction = remembered.match(/^(?:to\s+|please\s+)?(?:always\s+)?(.{4,})/i)?.[1];
+  if (/^(?:to\s+|please\s+|always\s+)/i.test(remembered) && instruction) {
+    pushMemory(matches, instruction, "instruction");
+    return;
+  }
+
+  pushMemory(matches, remembered, "fact");
+}
+
 function extractMemories(userText: string): Array<{ text: string; kind: MemoryKind }> {
   const text = userText.trim();
   const matches: Array<{ text: string; kind: MemoryKind }> = [];
   const remember = text.match(/\bremember(?:\s+that|:)?\s+(.{4,})/i)?.[1];
-  if (remember) matches.push({ text: remember.trim(), kind: "fact" });
+  if (remember) pushRememberedMemory(matches, remember);
 
   const preference = text.match(/\b(?:i prefer|i like|my preference is)\s+(.{4,})/i)?.[1];
-  if (preference) matches.push({ text: `User prefers ${preference.trim()}`, kind: "preference" });
+  if (preference) pushMemory(matches, `User prefers ${preference}`, "preference");
 
   const name = text.match(/\b(?:my name is|call me)\s+([A-Za-z][\w -]{1,40})/i)?.[1];
-  if (name) matches.push({ text: `User wants to be called ${name.trim()}`, kind: "fact" });
+  if (name) pushMemory(matches, `User wants to be called ${name}`, "fact");
 
   const instruction = text.match(/\b(?:always|please always)\s+(.{4,})/i)?.[1];
-  if (instruction) matches.push({ text: instruction.trim(), kind: "instruction" });
+  if (instruction) pushMemory(matches, instruction, "instruction");
   return matches;
 }
 
@@ -91,6 +143,55 @@ function titleFromTask(userText: string): string {
     .replace(/\s+/g, " ")
     .replace(/[?.!]+$/, "")
     .slice(0, 48) || "Workflow";
+}
+
+const TASK_VERBS = [
+  "add",
+  "build",
+  "debug",
+  "fix",
+  "implement",
+  "investigate",
+  "refactor",
+  "release",
+  "repair",
+  "ship",
+  "test",
+  "update",
+  "verify",
+];
+
+const LOW_VALUE_SKILL_PATTERNS = [
+  /\b(?:yeah|yup|ok(?:ay)?|sure)\b.*\bcontinue\b/i,
+  /\bcontinue\b/i,
+  /\bstress\s+test\b/i,
+  /\btool[- ]?call/i,
+  /\btool_calls?\b/i,
+  /<\/?tool_calls?>/i,
+  /\bparser\b/i,
+  /\bforgot\b.*<\/?tool_calls?>/i,
+  /\bstarting\s+<\/?tool_calls?>/i,
+  /\blist\s+(?:everything|all files)\b/i,
+];
+
+function hasTaskSignal(text: string): boolean {
+  const lower = text.toLowerCase();
+  return TASK_VERBS.some((verb) => new RegExp(`\\b${verb}\\b`).test(lower));
+}
+
+function shouldExtractSkill(userText: string, assistantText: string, toolNames: string[]): boolean {
+  const text = userText.trim();
+  if (text.length < 12 || text.length > 220) return false;
+  if (LOW_VALUE_SKILL_PATTERNS.some((pattern) => pattern.test(text))) return false;
+  if (!hasTaskSignal(text)) return false;
+
+  const distinctTools = new Set(toolNames);
+  if (distinctTools.size < 3) return false;
+
+  const outcome = assistantText.trim().toLowerCase();
+  if (!outcome || /^(done|ok|okay|sure|yes|no)\.?$/.test(outcome)) return false;
+
+  return true;
 }
 
 export const useBrainStore = create<BrainState>()(
@@ -155,6 +256,8 @@ export const useBrainStore = create<BrainState>()(
           ].filter((sk) => sk.title && sk.when && sk.how),
         })),
 
+      deleteSkill: (id) => set((s) => ({ skills: s.skills.filter((skill) => skill.id !== id) })),
+
       importMemories: (items) =>
         set((s) => ({
           memories: [
@@ -206,7 +309,7 @@ export const useBrainStore = create<BrainState>()(
             : s.memories;
 
           let skills = s.skills;
-          if (s.autoExtractSkills && mode !== "plain" && toolNames.length >= 2 && userText.trim()) {
+          if (s.autoExtractSkills && mode !== "plain" && shouldExtractSkill(userText, assistantText, toolNames)) {
             const title = titleFromTask(userText);
             const exists = s.skills.some((skill) => normalizedText(skill.title) === normalizedText(title));
             if (!exists) {
