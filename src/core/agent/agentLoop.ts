@@ -110,11 +110,36 @@ function findRecoverableToolSyntax(text: string, from = 0): { start: number; end
   return best;
 }
 
+function findPendingBareToolSyntaxStart(text: string): number {
+  if (text.endsWith("\u0000")) return -1;
+
+  const candidates = [
+    ...text.matchAll(/(?:^|[\s([{])(\[\s*\{\s*"name"\s*:)/g),
+    ...text.matchAll(/(?:^|[\s([{])(\{\s*"name"\s*:)/g),
+    ...text.matchAll(/(?:^|[\s([{])(\[\s*(?:\{\s*)?(?:"(?:n(?:a(?:m(?:e)?)?)?)?)?)$/g),
+    ...text.matchAll(/(?:^|[\s([{])(\{\s*(?:"(?:n(?:a(?:m(?:e)?)?)?)?)?)$/g),
+  ];
+
+  let best = -1;
+  for (const match of candidates) {
+    const matched = match[1];
+    if (!matched || match.index === undefined) continue;
+    const start = match.index + match[0].length - matched.length;
+    const end = findJsonValueEnd(text, start);
+    if (end !== -1 && text.slice(end).trim()) continue;
+    best = best === -1 ? start : Math.min(best, start);
+  }
+
+  return best;
+}
+
 // Split the accumulated buffer into the visible answer text and the thinking
 // text, suppressing tool_call blocks entirely. Returns only content that is
 // *safe to emit* — any trailing partial tag is held back for the next chunk.
 export function segment(buf: string): { text: string; thinking: string } {
-  const safe = buf.slice(0, buf.length - pendingTagTail(buf));
+  let safe = buf.slice(0, buf.length - pendingTagTail(buf));
+  const pendingBareTool = findPendingBareToolSyntaxStart(safe);
+  if (pendingBareTool !== -1) safe = safe.slice(0, pendingBareTool);
   let text = "";
   let thinking = "";
   let i = 0;

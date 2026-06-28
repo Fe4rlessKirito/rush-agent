@@ -130,6 +130,16 @@ describe("segment", () => {
     expect(text).toBe("Before  after");
   });
 
+  it("holds back an in-progress missing-open batched tool payload", () => {
+    const { text } = segment(String.raw`Before [{"name":"list_dir","args":{"path":"."}}`);
+    expect(text).toBe("Before ");
+  });
+
+  it("holds back an early partial missing-open batched tool payload", () => {
+    const { text } = segment(String.raw`Before [{"na`);
+    expect(text).toBe("Before ");
+  });
+
   it("suppresses stray closing tool tags from visible text", () => {
     const { text } = segment("Before </tool_calls> after </tool_call>");
     expect(text).toBe("Before  after ");
@@ -383,6 +393,71 @@ describe("runAgent system prompt", () => {
         expect.objectContaining({ type: "tool_call", toolName: "list_dir", toolArgs: { path: String.raw`C:\new\test` } }),
         expect.objectContaining({ type: "tool_result", toolName: "list_dir" }),
         expect.objectContaining({ type: "text", text: "Saw the folder." }),
+      ]),
+    );
+  });
+
+  it("does not stream missing-open batched tool JSON before the closing tag arrives", async () => {
+    class SplitMalformedToolProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "custom",
+        label: "Custom",
+        kind: "custom",
+        baseUrl: "https://proxy.example/v1",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      requests = 0;
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(_req: ChatRequest): AsyncGenerator<ChatChunk> {
+        this.requests += 1;
+        if (this.requests === 1) {
+          yield { delta: "Starting the stress test.\n", done: false };
+          yield { delta: String.raw`[{"name":"list_dir","args":{"path":"."}}`, done: false };
+          yield { delta: String.raw`]</tool_calls>`, done: false };
+        } else {
+          yield { delta: "Done.", done: false };
+        }
+        yield { delta: "", done: true };
+      }
+    }
+
+    const tools = new ToolRegistry();
+    tools.register({
+      definition: {
+        name: "list_dir",
+        description: "List files.",
+        inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      },
+      execute: async () => ({ ok: true, content: "package.json" }),
+    });
+
+    const events = [];
+    for await (const event of runAgent(
+      new SplitMalformedToolProvider(),
+      "test-model",
+      tools,
+      [{ role: "user", content: "List files" }],
+    )) {
+      events.push(event);
+    }
+
+    const streamedText = events
+      .filter((event) => event.type === "text")
+      .map((event) => event.text ?? "")
+      .join("");
+    expect(streamedText).toContain("Starting the stress test.");
+    expect(streamedText).toContain("Done.");
+    expect(streamedText).not.toContain("list_dir");
+    expect(streamedText).not.toContain("</tool_calls>");
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "tool_call", toolName: "list_dir", toolArgs: { path: "." } }),
+        expect.objectContaining({ type: "tool_result", toolName: "list_dir" }),
       ]),
     );
   });
