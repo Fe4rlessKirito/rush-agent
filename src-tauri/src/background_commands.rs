@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -11,6 +12,7 @@ use tauri::State;
 use crate::fs_commands::ProjectRoot;
 
 const MAX_BUFFER_BYTES: usize = 300_000;
+static NEXT_JOB_SEQ: AtomicU64 = AtomicU64::new(1);
 
 pub struct BackgroundState(pub Mutex<HashMap<String, BackgroundJob>>);
 
@@ -61,7 +63,8 @@ fn timestamp() -> u128 {
 }
 
 fn job_id() -> String {
-    format!("job_{}", timestamp())
+    let seq = NEXT_JOB_SEQ.fetch_add(1, Ordering::Relaxed);
+    format!("job_{}_{}", timestamp(), seq)
 }
 
 fn project_dir(root: &State<ProjectRoot>) -> Result<std::path::PathBuf, String> {

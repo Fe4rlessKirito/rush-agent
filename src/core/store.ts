@@ -111,6 +111,20 @@ function mergeDefaultProviders(providers: ProviderConfig[] | undefined): Provide
   ];
 }
 
+function activeFromProviders(
+  providers: ProviderConfig[],
+  activeProviderId: string | null,
+  activeModel: string | null,
+): Pick<AppState, "activeProviderId" | "activeModel"> {
+  if (!activeProviderId) return { activeProviderId: null, activeModel: null };
+  const active = providers.find((p) => p.id === activeProviderId);
+  if (!active) return { activeProviderId: null, activeModel: null };
+  return {
+    activeProviderId,
+    activeModel: activeModel || active.defaultModel || null,
+  };
+}
+
 function normalizeLanguageServerSettings(
   settings: Partial<LanguageServerSettings> | undefined,
 ): LanguageServerSettings {
@@ -221,7 +235,11 @@ export const useAppStore = create<AppState>()(
       plainChat: [],
       flowChat: [],
 
-      setProviders: (providers) => set({ providers }),
+      setProviders: (providers) =>
+        set((s) => ({
+          providers,
+          ...activeFromProviders(providers, s.activeProviderId, s.activeModel),
+        })),
       upsertProvider: (p) =>
         set((s) => {
           const idx = s.providers.findIndex((x) => x.id === p.id);
@@ -231,7 +249,13 @@ export const useAppStore = create<AppState>()(
           return { providers: next };
         }),
       removeProvider: (id) =>
-        set((s) => ({ providers: s.providers.filter((p) => p.id !== id) })),
+        set((s) => {
+          const providers = s.providers.filter((p) => p.id !== id);
+          return {
+            providers,
+            ...activeFromProviders(providers, s.activeProviderId, s.activeModel),
+          };
+        }),
       setActive: (activeProviderId, activeModel) =>
         set({ activeProviderId, activeModel }),
       setAutoUpdateEnabled: (autoUpdateEnabled) => set({ autoUpdateEnabled }),
@@ -388,6 +412,7 @@ export const useAppStore = create<AppState>()(
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         state.providers = mergeDefaultProviders(state.providers);
+        Object.assign(state, activeFromProviders(state.providers, state.activeProviderId, state.activeModel));
         state.languageServerSettings = normalizeLanguageServerSettings(state.languageServerSettings);
         Object.assign(state, normalizeConversations(state));
       },

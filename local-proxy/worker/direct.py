@@ -61,41 +61,36 @@ def _model_slug(model: str) -> str:
 
 async def _upload_image_to_files(image_data: str, filename: str = "image.png") -> str:
     """
-    Upload an image to use.ai's file service and return the URL.
+    Upload a file to use.ai's file service and return the URL.
     
     Args:
-        image_data: Base64 encoded image data OR a URL
+        image_data: Base64 encoded data, data URI, or URL
         filename: The filename to use for the upload
         
     Returns:
-        The URL of the uploaded image on files.use.ai
+        The URL of the uploaded file on files.use.ai
     """
     # If it's already a URL, return it as-is
     if image_data.startswith(('http://', 'https://')):
         return image_data
     
-    # If it's a data URI, extract the base64 data
-    if image_data.startswith('data:image'):
-        # Extract the base64 part
-        base64_data = image_data.split(',', 1)[1]
+    media_type = _mediatype_from_filename(filename)
+
+    # If it's a data URI, extract the media type and base64 payload.
+    if image_data.startswith('data:') and ',' in image_data:
+        header, base64_data = image_data.split(',', 1)
+        match = re.match(r"data:([^;,]+)(?:;base64)?$", header, re.IGNORECASE)
+        if match:
+            media_type = match.group(1)
     else:
         base64_data = image_data
     
-    # Decode base64 to bytes
+    # Decode base64 to validate the payload before upload.
     try:
-        image_bytes = base64.b64decode(base64_data)
+        base64.b64decode(base64_data, validate=True)
     except Exception as e:
-        log.warning(f"Failed to decode base64 image: {e}")
-        raise RuntimeError(f"Invalid base64 image data: {e}")
-    
-    # Determine media type from filename or default to PNG
-    media_type = "image/png"
-    if filename.lower().endswith(('.jpg', '.jpeg')):
-        media_type = "image/jpeg"
-    elif filename.lower().endswith('.webp'):
-        media_type = "image/webp"
-    elif filename.lower().endswith('.gif'):
-        media_type = "image/gif"
+        log.warning(f"Failed to decode base64 file payload: {e}")
+        raise RuntimeError(f"Invalid base64 file data: {e}")
     
     # Upload to use.ai
     upload_url = "https://files.use.ai/upload"
@@ -105,53 +100,31 @@ async def _upload_image_to_files(image_data: str, filename: str = "image.png") -
         "Referer": "https://use.ai/",
     }
     
-    # Create multipart form data
-    boundary = f"----WebKitFormBoundary{uuid.uuid4().hex[:16]}"
-    body_parts = []
-    
-    # Add name field
-    body_parts.append(f"--{boundary}")
-    body_parts.append('Content-Disposition: form-data; name="name"')
-    body_parts.append("")
-    body_parts.append(filename)
-    
-    # Add type field
-    body_parts.append(f"--{boundary}")
-    body_parts.append('Content-Disposition: form-data; name="type"')
-    body_parts.append("")
-    body_parts.append(media_type)
-    
-    # Add file field
-    body_parts.append(f"--{boundary}")
-    body_parts.append(f'Content-Disposition: form-data; name="file"; filename="{filename}"')
-    body_parts.append(f"Content-Type: {media_type}")
-    body_parts.append("")
-    body_parts.append(base64_data)  # Send base64 directly - use.ai accepts it
-    
-    body_parts.append(f"--{boundary}--")
-    
-    body = "\r\n".join(body_parts)
-    
-    headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
-    
     async with httpx.AsyncClient(timeout=30) as client:
         try:
-            response = await client.post(upload_url, headers=headers, content=body.encode('utf-8'))
+            response = await client.post(
+                upload_url,
+                headers=headers,
+                data={"name": filename, "type": media_type},
+                files={"file": (filename, base64_data.encode("utf-8"), media_type)},
+            )
             response.raise_for_status()
             data = response.json()
             
             if data.get("success"):
                 # Construct the full URL
                 file_url = data.get("url")
+                if not isinstance(file_url, str) or not file_url:
+                    raise RuntimeError(f"Upload succeeded without a URL: {data}")
                 if file_url.startswith("/"):
                     file_url = f"https://files.use.ai{file_url}"
-                log.info(f"Uploaded image: {file_url}")
+                log.info(f"Uploaded file: {file_url}")
                 return file_url
             else:
                 raise RuntimeError(f"Upload failed: {data}")
         except Exception as e:
-            log.warning(f"Image upload failed: {e}")
-            raise RuntimeError(f"Failed to upload image: {e}")
+            log.warning(f"File upload failed: {e}")
+            raise RuntimeError(f"Failed to upload file: {e}")
 
 
 def _build_image_parts(image_data: str, text: str = "", filename: str = "image.png") -> list:
@@ -165,23 +138,32 @@ def _build_image_parts(image_data: str, text: str = "", filename: str = "image.p
     if text:
         parts.append({"type": "text", "text": text})
     
-    # The image_data should be a URL at this point
-    # But we'll handle both URL and base64 gracefully
+    media_type = _mediatype_from_filename(filename)
+
+    # The image_data should be a URL at this point, but handle both URL and
+    # base64/data URI gracefully.
     if image_data.startswith(('http://', 'https://')):
         # It's a URL - use it directly
         parts.append({
             "type": "file",
-            "mediaType": "image/png",
+            "mediaType": media_type if media_type.startswith("image/") else "image/png",
             "url": image_data,
             "filename": filename
         })
     else:
         # It's base64 data - use as a data URI
-        if not image_data.startswith('data:image'):
-            image_data = f"data:image/png;base64,{image_data}"
+        if image_data.startswith('data:') and ',' in image_data:
+            header = image_data.split(',', 1)[0]
+            match = re.match(r"data:([^;,]+)(?:;base64)?$", header, re.IGNORECASE)
+            if match:
+                media_type = match.group(1)
+        elif not image_data.startswith('data:image'):
+            if not media_type.startswith("image/"):
+                media_type = "image/png"
+            image_data = f"data:{media_type};base64,{image_data}"
         parts.append({
             "type": "file",
-            "mediaType": "image/png",
+            "mediaType": media_type if media_type.startswith("image/") else "image/png",
             "url": image_data,
             "filename": filename
         })

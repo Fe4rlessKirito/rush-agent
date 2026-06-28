@@ -11,7 +11,7 @@ function contentText(content: ChatMessage["content"]): string {
 
 function splitDataUrl(dataUrl: string): { mediaType: string; data: string } {
   const match = /^data:([^;,]+);base64,(.*)$/s.exec(dataUrl);
-  if (!match) return { mediaType: "image/png", data: dataUrl };
+  if (!match) return { mediaType: "", data: dataUrl };
   return { mediaType: match[1], data: match[2] };
 }
 
@@ -24,11 +24,58 @@ function anthropicContent(content: ChatMessage["content"]): unknown {
       type: "image",
       source: {
         type: "base64",
-        media_type: part.mediaType || image.mediaType,
+        media_type: image.mediaType || part.mediaType || "image/png",
         data: image.data,
       },
     };
   });
+}
+
+function parseToolInput(argsJson: string): Record<string, unknown> {
+  try {
+    const parsed = argsJson ? JSON.parse(argsJson) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function anthropicMessage(msg: ChatMessage): { role: "user" | "assistant"; content: unknown } | null {
+  if (msg.role === "tool") {
+    return {
+      role: "user",
+      content: [{
+        type: "tool_result",
+        tool_use_id: msg.toolCallId ?? "",
+        content: contentText(msg.content),
+      }],
+    };
+  }
+  if (msg.role !== "user" && msg.role !== "assistant") return null;
+
+  const content = anthropicContent(msg.content);
+  if (msg.role === "assistant" && msg.toolCalls?.length) {
+    const blocks = Array.isArray(content)
+      ? content
+      : content
+        ? [{ type: "text", text: String(content) }]
+        : [];
+    return {
+      role: "assistant",
+      content: [
+        ...blocks,
+        ...msg.toolCalls.map((call) => ({
+          type: "tool_use",
+          id: call.id,
+          name: call.name,
+          input: parseToolInput(call.argsJson),
+        })),
+      ],
+    };
+  }
+  return { role: msg.role, content };
 }
 
 // Speaks Anthropic's Messages API. Differs from OpenAI in three ways we handle:
@@ -61,8 +108,8 @@ export class AnthropicProvider implements Provider {
   async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
     const system = req.messages.filter((m) => m.role === "system").map((m) => contentText(m.content)).join("\n");
     const turns = req.messages
-      .filter((m): m is ChatMessage => m.role === "user" || m.role === "assistant")
-      .map((m) => ({ role: m.role, content: anthropicContent(m.content) }));
+      .map(anthropicMessage)
+      .filter((m): m is { role: "user" | "assistant"; content: unknown } => m !== null);
 
     const res = await fetch(this.url("/messages"), {
       method: "POST",

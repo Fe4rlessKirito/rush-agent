@@ -21,6 +21,7 @@ import { DEFAULT_PROVIDERS } from "./providers/defaults";
 
 function resetStore() {
   useAppStore.setState({
+    providers: DEFAULT_PROVIDERS,
     conversations: [],
     activeConversationId: "",
     activeConversationIds: { plain: "", agent: "", flow: "" },
@@ -71,6 +72,30 @@ describe("useAppStore providers", () => {
     const id = useAppStore.getState().providers[0].id;
     useAppStore.getState().removeProvider(id);
     expect(useAppStore.getState().providers.find((p) => p.id === id)).toBeUndefined();
+  });
+
+  it("clears the active model when the active provider is removed", () => {
+    const id = useAppStore.getState().providers[0].id;
+    useAppStore.getState().setActive(id, "model-a");
+    useAppStore.getState().removeProvider(id);
+    expect(useAppStore.getState().activeProviderId).toBeNull();
+    expect(useAppStore.getState().activeModel).toBeNull();
+  });
+
+  it("clears a stale active provider when the provider list is replaced", () => {
+    useAppStore.getState().setActive("missing-provider", "model-a");
+    useAppStore.getState().setProviders([
+      {
+        id: "replacement",
+        label: "Replacement",
+        kind: "custom",
+        baseUrl: "http://localhost:9999/v1",
+        defaultModel: "model-b",
+        enabled: true,
+      },
+    ]);
+    expect(useAppStore.getState().activeProviderId).toBeNull();
+    expect(useAppStore.getState().activeModel).toBeNull();
   });
 
   it("setActive records the active provider and model", () => {

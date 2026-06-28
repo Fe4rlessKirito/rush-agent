@@ -208,6 +208,7 @@ describe("mcp config tools", () => {
     }]);
 
     const registry = new ToolRegistry();
+    registry.setConfirmer(async () => true);
     registry.registerDynamic(() => createDynamicMcpTools(backend));
 
     const listed = registry.list().find((tool) => tool.name === "mcp__docs__search");

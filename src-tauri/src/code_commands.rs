@@ -67,8 +67,18 @@ fn should_skip_dir(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn stays_under_root(root: &Path, path: &Path) -> bool {
+    let Ok(canon_root) = root.canonicalize() else {
+        return false;
+    };
+    let Ok(canon_path) = path.canonicalize() else {
+        return false;
+    };
+    canon_path.starts_with(canon_root)
+}
+
 fn collect_code_files(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
-    if should_skip_dir(dir) {
+    if should_skip_dir(dir) || !stays_under_root(root, dir) {
         return Ok(());
     }
 
@@ -78,7 +88,7 @@ fn collect_code_files(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) -> Result
         let meta = entry.metadata().map_err(|e| format!("meta: {e}"))?;
         if meta.is_dir() {
             collect_code_files(root, &path, out)?;
-        } else if meta.is_file() && is_code_file(&path) {
+        } else if meta.is_file() && is_code_file(&path) && stays_under_root(root, &path) {
             out.push(path);
         }
     }

@@ -28,6 +28,7 @@ export interface ChatMessage {
   // Tool-call plumbing, filled in once MCP/tools land.
   name?: string;
   toolCallId?: string;
+  toolCalls?: NativeToolCall[];
 }
 
 // JSON-schema description of a tool the model may call natively. Normalized

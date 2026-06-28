@@ -55,16 +55,9 @@ const READ_TOOLS = new Set([
   "TaskUpdate",
   "AskUserQuestion",
   "EnterPlanMode",
-  "EnterWorktree",
   "ExitPlanMode",
-  "ExitWorktree",
   "ListMcpResourcesTool",
-  "McpServerConfigure",
-  "McpServerConnect",
-  "McpServerDisconnect",
   "McpServerList",
-  "McpServerRemove",
-  "McpToolCall",
   "ReadMcpResourceTool",
   "Skill",
   "SkillList",
@@ -107,13 +100,19 @@ const DESTRUCTIVE_TOOLS = new Set([
   "npm_install",
   "npm_ci",
   "pip_install",
+  "McpServerConfigure",
+  "McpServerConnect",
+  "McpServerDisconnect",
+  "McpServerRemove",
+  "McpToolCall",
 ]);
 
 // Classify a tool call into a risk tier. A few tools are arg-sensitive:
 // git_reset is only destructive on a hard reset; running a terminal command or
 // committing/installing mutates real state and warrants confirmation.
 export function riskOf(name: string, args: Record<string, unknown>): ToolRisk {
-  if (name.startsWith("mcp__")) return "read";
+  if (name.startsWith("mcp__")) return "destructive";
+  if (name === "ExitWorktree") return args.remove === true ? "destructive" : "write";
   if (READ_TOOLS.has(name)) return "read";
   if (DESTRUCTIVE_TOOLS.has(name)) return "destructive";
   if (name === "git_reset") {

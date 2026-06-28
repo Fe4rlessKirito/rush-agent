@@ -17,10 +17,27 @@ function pickEntry(files: Record<string, string>): string | null {
 // Resolve a possibly-relative href/src against the entry file's folder so
 // "style.css" or "./js/app.js" map back to a key in the flat file map.
 function resolve(entry: string, ref: string): string {
-  const clean = ref.replace(/^\.\//, "");
-  if (clean.startsWith("/")) return clean.slice(1);
-  const dir = entry.includes("/") ? entry.slice(0, entry.lastIndexOf("/") + 1) : "";
-  return dir + clean;
+  const clean = ref.split(/[?#]/, 1)[0].replace(/\\/g, "/");
+  if (!clean || /^[a-z][a-z0-9+.-]*:/i.test(clean) || clean.startsWith("//")) return clean;
+  const parts = (clean.startsWith("/")
+    ? clean.slice(1)
+    : `${entry.includes("/") ? entry.slice(0, entry.lastIndexOf("/") + 1) : ""}${clean}`
+  ).split("/");
+  const resolved: string[] = [];
+  for (const part of parts) {
+    if (!part || part === ".") continue;
+    if (part === "..") resolved.pop();
+    else resolved.push(part);
+  }
+  return resolved.join("/");
+}
+
+function inlineStyle(css: string): string {
+  return css.replace(/<\/style/gi, "<\\/style");
+}
+
+function inlineScript(js: string): string {
+  return js.replace(/<\/script/gi, "<\\/script");
 }
 
 function buildDoc(files: Record<string, string>, entry: string): string {
@@ -31,7 +48,7 @@ function buildDoc(files: Record<string, string>, entry: string): string {
     /<link\b[^>]*href=["']([^"']+)["'][^>]*>/gi,
     (tag, href) => {
       const css = files[resolve(entry, href)];
-      return css !== undefined ? `<style>${css}</style>` : tag;
+      return css !== undefined ? `<style>${inlineStyle(css)}</style>` : tag;
     },
   );
 
@@ -40,7 +57,7 @@ function buildDoc(files: Record<string, string>, entry: string): string {
     /<script\b[^>]*src=["']([^"']+)["'][^>]*>\s*<\/script>/gi,
     (tag, src) => {
       const js = files[resolve(entry, src)];
-      return js !== undefined ? `<script>${js}<\/script>` : tag;
+      return js !== undefined ? `<script>${inlineScript(js)}<\/script>` : tag;
     },
   );
 

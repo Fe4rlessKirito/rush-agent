@@ -122,7 +122,7 @@ export const useMcpStore = create<McpState>()(
           ],
         })),
 
-      resetRuntime: () => ({ statuses: {}, errors: {}, resources: [], deferredTools: [] }),
+      resetRuntime: () => set({ statuses: {}, errors: {}, resources: [], deferredTools: [] }),
     }),
     { name: "rush-mcp" },
   ),

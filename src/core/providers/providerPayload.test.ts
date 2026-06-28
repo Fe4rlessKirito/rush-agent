@@ -214,6 +214,47 @@ describe("provider payloads", () => {
     });
   });
 
+  it("sends OpenAI assistant native tool calls before tool results", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(sseResponse());
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = new OpenAIProvider({
+      id: "openai",
+      label: "OpenAI",
+      kind: "openai",
+      baseUrl: "https://api.openai.com/v1",
+      defaultModel: "test-model",
+      enabled: true,
+    });
+
+    for await (const _chunk of provider.streamChat({
+      model: "test-model",
+      messages: [
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "call_1", name: "read_file", argsJson: "{\"path\":\"package.json\"}" }],
+        },
+        { role: "tool", name: "read_file", toolCallId: "call_1", content: "file contents" },
+      ],
+    })) {
+      // drain stream
+    }
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.messages[0]).toMatchObject({
+      role: "assistant",
+      content: null,
+      tool_calls: [{
+        id: "call_1",
+        type: "function",
+        function: {
+          name: "read_file",
+          arguments: "{\"path\":\"package.json\"}",
+        },
+      }],
+    });
+  });
+
   it("assembles OpenAI native tool-call fragments by index", async () => {
     const data = [
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_a","function":{"name":"read_file","arguments":"{\\"pa"}}]},"finish_reason":null}]}',
@@ -356,6 +397,54 @@ describe("provider payloads", () => {
       description: "Read a file.",
       input_schema: { type: "object" },
     });
+  });
+
+  it("sends Anthropic tool_use and tool_result blocks for native tool follow-ups", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(sseResponse());
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = new AnthropicProvider({
+      id: "anthropic",
+      label: "Anthropic",
+      kind: "anthropic",
+      baseUrl: "https://api.anthropic.com/v1",
+      defaultModel: "test-model",
+      enabled: true,
+    });
+
+    for await (const _chunk of provider.streamChat({
+      model: "test-model",
+      messages: [
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "toolu_1", name: "read_file", argsJson: "{\"path\":\"package.json\"}" }],
+        },
+        { role: "tool", name: "read_file", toolCallId: "toolu_1", content: "file contents" },
+      ],
+    })) {
+      // drain stream
+    }
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.messages).toEqual([
+      {
+        role: "assistant",
+        content: [{
+          type: "tool_use",
+          id: "toolu_1",
+          name: "read_file",
+          input: { path: "package.json" },
+        }],
+      },
+      {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "toolu_1",
+          content: "file contents",
+        }],
+      },
+    ]);
   });
 
   it("assembles Anthropic native tool-use blocks", async () => {

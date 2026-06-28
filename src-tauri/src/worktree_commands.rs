@@ -101,6 +101,33 @@ fn safe_relative_path(base: &Path, rel: &str) -> Result<PathBuf, String> {
     Ok(base.join(clean))
 }
 
+fn ensure_existing_ancestor_under(base: &Path, target: &Path) -> Result<(), String> {
+    let canon_base = base
+        .canonicalize()
+        .map_err(|e| format!("canonicalize worktree base: {e}"))?;
+    let mut check = target;
+    while !check.exists() {
+        let Some(parent) = check.parent() else {
+            break;
+        };
+        if parent == check {
+            break;
+        }
+        check = parent;
+    }
+    let canon_check = check
+        .canonicalize()
+        .map_err(|e| format!("canonicalize worktree target: {e}"))?;
+    if !canon_check.starts_with(canon_base) {
+        return Err(format!(
+            "worktree path escapes {}: {}",
+            base.display(),
+            target.display()
+        ));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn enter_worktree(
     state: State<WorktreeState>,
@@ -120,6 +147,7 @@ pub fn enter_worktree(
     } else {
         worktree_base.join(safe_name(name.as_deref().unwrap_or("flow"))?)
     };
+    ensure_existing_ancestor_under(&worktree_base, &target)?;
     let branch_name = branch
         .as_deref()
         .map(str::trim)

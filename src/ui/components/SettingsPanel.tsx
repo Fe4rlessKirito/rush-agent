@@ -792,6 +792,41 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
                     <label>Model
                       <input value={d.defaultModel} onChange={(e) => edit(p.id, { defaultModel: e.target.value })} />
                     </label>
+                    <div className="provider-capabilities">
+                      <label className="toggle-row">
+                        <span>
+                          <strong>Thinking</strong>
+                          <small>Send WMan-style thinking options to this provider.</small>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(d.supportsThinking)}
+                          onChange={(e) => edit(p.id, { supportsThinking: e.target.checked })}
+                        />
+                      </label>
+                      <label className="toggle-row">
+                        <span>
+                          <strong>Image endpoint</strong>
+                          <small>Use /chat/with-image for attached images.</small>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(d.supportsImageChatEndpoint)}
+                          onChange={(e) => edit(p.id, { supportsImageChatEndpoint: e.target.checked })}
+                        />
+                      </label>
+                      <label className="toggle-row">
+                        <span>
+                          <strong>File endpoint</strong>
+                          <small>Use /chat/upload-file for non-image attachments.</small>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(d.supportsFileChatEndpoint)}
+                          onChange={(e) => edit(p.id, { supportsFileChatEndpoint: e.target.checked })}
+                        />
+                      </label>
+                    </div>
                     <div className="row">
                       <button onClick={() => saveProvider(d)}>
                         {savedProviderId === p.id ? "Saved" : "Save"}

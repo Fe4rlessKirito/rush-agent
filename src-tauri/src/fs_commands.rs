@@ -57,12 +57,19 @@ fn resolve(state: &State<ProjectRoot>, rel: &str) -> Result<PathBuf, String> {
     // Defense in depth: canonicalize the parent and confirm it stays under the
     // canonicalized root, catching symlink-based escapes the textual check misses.
     if let Ok(canon_root) = root.canonicalize() {
-        // Only check existing ancestors; a not-yet-created file has no canonical form.
-        let check = if full.exists() {
-            full.as_path()
-        } else {
-            full.parent().unwrap_or(&full)
-        };
+        // Only existing paths have a canonical form. For new nested paths, walk
+        // upward to the nearest existing ancestor so symlinked directories are
+        // still caught before create_dir_all/write follows them outside root.
+        let mut check = full.as_path();
+        while !check.exists() {
+            let Some(parent) = check.parent() else {
+                break;
+            };
+            if parent == check {
+                break;
+            }
+            check = parent;
+        }
         if let Ok(canon) = check.canonicalize() {
             if !canon.starts_with(&canon_root) {
                 return Err(format!("resolved path escapes project root: {rel}"));

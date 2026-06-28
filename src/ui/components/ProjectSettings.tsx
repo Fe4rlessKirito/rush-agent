@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useProjectStore } from "../../core/projectStore";
 import { setDesktopProjectRoot } from "../../core/projectRoot";
+import { useFileStore } from "../../core/fileStore";
 
 interface Props {
   onClose: () => void;
@@ -33,9 +34,13 @@ export function ProjectSettings({ onClose }: Props) {
     renameProject(project.id, name);
     setProjectPath(project.id, path);
     setInstructions(project.id, instructions);
-    await setDesktopProjectRoot(path).catch((err) => {
+    try {
+      await setDesktopProjectRoot(path);
+      if (path.trim()) await useFileStore.getState().loadFromDisk(path);
+      else useFileStore.getState().loadFiles(project.files);
+    } catch (err) {
       console.warn("set_project_root failed", err);
-    });
+    }
     onClose();
   };
 

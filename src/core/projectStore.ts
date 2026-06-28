@@ -81,10 +81,13 @@ export const useProjectStore = create<ProjectState>()(
       saveActiveFiles: () => {
         const id = get().activeProjectId;
         if (!id) return;
-        const files = { ...useFileStore.getState().files };
+        const fileState = useFileStore.getState();
+        const files = { ...fileState.files };
         set((s) => ({
           projects: s.projects.map((p) =>
-            p.id === id ? { ...p, files, updatedAt: Date.now() } : p,
+            p.id === id
+              ? { ...p, ...(fileState.mode === "disk" ? {} : { files }), updatedAt: Date.now() }
+              : p,
           ),
         }));
       },

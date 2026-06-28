@@ -9,7 +9,7 @@ describe("riskOf", () => {
   });
 
   it("classifies always-destructive tools as 'destructive'", () => {
-    for (const name of ["delete_file", "move_file", "git_push", "git_pull", "npm_install"]) {
+    for (const name of ["delete_file", "move_file", "git_push", "git_pull", "npm_install", "McpServerConfigure", "McpServerConnect", "McpServerRemove", "McpToolCall", "mcp__docs__search"]) {
       expect(riskOf(name, {})).toBe("destructive");
     }
   });
@@ -24,6 +24,12 @@ describe("riskOf", () => {
     expect(riskOf("git_reset", { mode: "HARD" })).toBe("destructive");
     expect(riskOf("git_reset", { mode: "soft" })).toBe("write");
     expect(riskOf("git_reset", {})).toBe("write");
+  });
+
+  it("treats removing a worktree as destructive", () => {
+    expect(riskOf("EnterWorktree", {})).toBe("write");
+    expect(riskOf("ExitWorktree", {})).toBe("write");
+    expect(riskOf("ExitWorktree", { remove: true })).toBe("destructive");
   });
 
   it("gates side-effecting commands (terminal/commit/build) behind confirmation", () => {

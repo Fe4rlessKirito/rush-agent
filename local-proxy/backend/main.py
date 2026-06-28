@@ -480,13 +480,14 @@ async def chat_with_image(req: Request):
     body = parse_json_lenient(body_str)
     model = body.get("model", "default")
     image = body.get("image")
+    filename = body.get("filename", "image")
     question = body.get("question", "What's in this image?")
     stream = body.get("stream", False)
 
     if not image:
         raise HTTPException(status_code=400, detail="Image required")
 
-    messages = [{"role": "user", "content": {"image": image, "text": question}}]
+    messages = [{"role": "user", "content": {"image": image, "filename": filename, "text": question}}]
 
     if stream:
         async def gen():

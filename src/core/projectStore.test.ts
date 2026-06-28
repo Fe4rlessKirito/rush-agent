@@ -101,6 +101,21 @@ describe("useProjectStore actions", () => {
     expect(p.files["main.js"]).toContain("edited");
   });
 
+  it("does not replace stored project files with a partial disk-mode cache", () => {
+    const id = useProjectStore.getState().createProject("Disk App");
+    useProjectStore.getState().openProject(id);
+    const before = useProjectStore.getState().projects.find((x) => x.id === id)!.files;
+    useFileStore.setState({
+      mode: "disk",
+      files: { "src/loaded.ts": "cached only" },
+    });
+
+    useProjectStore.getState().saveActiveFiles();
+
+    const after = useProjectStore.getState().projects.find((x) => x.id === id)!.files;
+    expect(after).toEqual(before);
+  });
+
   it("renameProject ignores a blank name and keeps the old one", () => {
     const id = useProjectStore.getState().createProject("Keep Me");
     useProjectStore.getState().renameProject(id, "   ");

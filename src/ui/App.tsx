@@ -68,9 +68,12 @@ export function App() {
     openProject(id);
     const project = useProjectStore.getState().projects.find((p) => p.id === id);
     if (project?.path) {
-      await setDesktopProjectRoot(project.path).catch((err) => {
+      try {
+        await setDesktopProjectRoot(project.path);
+        await useFileStore.getState().loadFromDisk(project.path);
+      } catch (err) {
         console.warn("set_project_root failed", err);
-      });
+      }
     }
     setInProject(true);
   };

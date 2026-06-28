@@ -107,6 +107,7 @@ interface Props {
 }
 
 interface Attachment {
+  id: string;
   name: string;
   type: string;
   file: File;
@@ -121,6 +122,44 @@ interface ProxyBankStatus {
 
 interface LocalProxyStatus {
   enabled: boolean;
+}
+
+function supportsNativeImageContent(cfg: { kind?: string; baseUrl?: string } | undefined): boolean {
+  const baseUrl = cfg?.baseUrl?.toLowerCase() ?? "";
+  return (
+    (cfg?.kind === "openai" && baseUrl.includes("api.openai.com")) ||
+    (cfg?.kind === "anthropic" && baseUrl.includes("api.anthropic.com"))
+  );
+}
+
+const MAX_ATTACHMENTS = 12;
+const IMAGE_EXTENSIONS = new Set(["avif", "bmp", "gif", "jpeg", "jpg", "png", "webp"]);
+const IMAGE_MEDIA_TYPES: Record<string, string> = {
+  avif: "image/avif",
+  bmp: "image/bmp",
+  gif: "image/gif",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
+
+function extensionOf(filename: string): string {
+  return filename.includes(".") ? filename.split(".").pop()?.toLowerCase() ?? "" : "";
+}
+
+function isImageAttachmentFile(file: File): boolean {
+  return file.type.startsWith("image/") || IMAGE_EXTENSIONS.has(extensionOf(file.name));
+}
+
+function imageMediaTypeForFile(file: File): string {
+  if (file.type.startsWith("image/")) return file.type;
+  return IMAGE_MEDIA_TYPES[extensionOf(file.name)] ?? "image/png";
+}
+
+function normalizeDataUrlMediaType(dataUrl: string, mediaType: string): string {
+  if (!dataUrl.startsWith("data:") || !dataUrl.includes(",")) return dataUrl;
+  return dataUrl.replace(/^data:[^,]*,/, `data:${mediaType};base64,`);
 }
 
 export function ChatPanel({ mode = "agent" }: Props) {
@@ -149,7 +188,8 @@ export function ChatPanel({ mode = "agent" }: Props) {
     (s) => s.projects.find((p) => p.id === s.activeProjectId)?.instructions ?? "",
   );
   const [input, setInput] = useState("");
-  const [attachment, setAttachment] = useState<Attachment | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const [contextItems, setContextItems] = useState<LibraryContextItem[]>([]);
   const [contextPicker, setContextPicker] = useState<LibraryContextKind | null>(null);
   const [contextQuery, setContextQuery] = useState("");
@@ -196,6 +236,15 @@ export function ChatPanel({ mode = "agent" }: Props) {
     chatTools.setPermissionRules(toolPermissions);
     flowTools.setPermissionRules(toolPermissions);
   }, [toolPermissions]);
+
+  useEffect(() => {
+    if (!previewAttachment) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPreviewAttachment(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewAttachment]);
 
   useEffect(() => {
     let cancelled = false;
@@ -400,16 +449,23 @@ export function ChatPanel({ mode = "agent" }: Props) {
     setContextQuery("");
   }
 
-  async function* streamImageChat(cfg: { baseUrl: string; apiKey?: string; headers?: Record<string, string> }) {
-    if (!attachment?.dataUrl) return;
+  async function* streamImageChat(
+    cfg: { baseUrl: string; apiKey?: string; headers?: Record<string, string> },
+    imageAttachment: Attachment,
+    question: string,
+  ) {
+    if (!imageAttachment.dataUrl) return;
     const res = await fetch(`${cfg.baseUrl.replace(/\/$/, "")}/chat/with-image`, {
       method: "POST",
       headers: providerHeaders(cfg),
       signal: abortRef.current?.signal,
       body: JSON.stringify({
         model: activeModel,
-        image: attachment.dataUrl,
-        question: input.trim() || "What do you see?",
+        image: imageAttachment.dataUrl,
+        filename: imageAttachment.name,
+        question:
+          question.trim() ||
+          `What do you see in the attached image ${imageAttachment.name}?`,
         stream: true,
       }),
     });
@@ -460,35 +516,95 @@ export function ChatPanel({ mode = "agent" }: Props) {
     );
   }
 
+  async function streamImageEndpointAttachments(
+    cfg: { baseUrl: string; apiKey?: string; headers?: Record<string, string> },
+    imageAttachments: Attachment[],
+    question: string,
+  ): Promise<string> {
+    let text = "";
+    for (const item of imageAttachments) {
+      if (imageAttachments.length > 1) {
+        const label = `\n\n${item.name}\n`;
+        text += label;
+        appendToLatestAgent({ text: label });
+      }
+      for await (const delta of streamImageChat(cfg, item, question)) {
+        text += delta;
+        appendToLatestAgent({ text: delta });
+        await nextPaint();
+      }
+    }
+    return text;
+  }
+
+  async function uploadFileEndpointAttachments(
+    cfg: { baseUrl: string; apiKey?: string; headers?: Record<string, string> },
+    fileAttachments: Attachment[],
+    question: string,
+  ): Promise<string> {
+    let text = "";
+    for (const item of fileAttachments) {
+      if (fileAttachments.length > 1) {
+        const label = `\n\n${item.name}\n`;
+        text += label;
+        appendToLatestAgent({ text: label });
+      }
+      const result = await uploadFileChat(cfg, item, question);
+      text += result;
+      appendToLatestAgent({ text: result || "No file analysis returned." });
+    }
+    return text;
+  }
+
   async function send() {
-    if ((!input.trim() && !attachment) || busy) return;
+    if ((!input.trim() && attachments.length === 0) || busy) return;
     if (!activeProviderId || !activeModel) {
       setChat((l) => [...l, { role: "tool", text: "Pick a provider + model in Settings first." }]);
       return;
     }
+    const cfg = providers.find((p) => p.id === activeProviderId);
+    if (!cfg) {
+      setChat((l) => [...l, { role: "tool", text: "The selected provider no longer exists. Pick a provider in Settings." }]);
+      return;
+    }
     const registry = new ProviderRegistry(providers);
     const provider = registry.get(activeProviderId);
-    const cfg = providers.find((p) => p.id === activeProviderId);
     const userText = input;
-    const attached = attachment;
-    const image = attached?.dataUrl ? attached : null;
-    const fileAttachment = attached && !attached.dataUrl ? attached : null;
+    const attached = attachments;
+    const imageAttachments = attached.filter((item) => item.dataUrl);
+    const fileAttachments = attached.filter((item) => !item.dataUrl);
+    const hasImages = imageAttachments.length > 0;
+    const hasFiles = fileAttachments.length > 0;
     const brainContext = buildBrainContext(userText, mode);
     const selectedLibraryContext = libraryContextText();
     let flowContext = mode === "flow" ? buildFlowRuntimeInstructions() : "";
     const effortThinking = cfg?.supportsThinking ? thinkingForEffort(effort) : undefined;
     const toolNamesUsed: string[] = [];
     let assistantText = "";
-    const flowRun = mode === "flow" ? useFlowStore.getState().startRun(userText) : null;
+    const flowRun = mode === "flow" && attached.length === 0 ? useFlowStore.getState().startRun(userText) : null;
     let flowSawTool = false;
     const flowResultLanes: string[] = [];
     if (flowRun) {
       useFlowStore.getState().setLaneStatus(flowRun.id, "planner", "running", "Planning the work lanes.");
     }
-    const userContent: string | ChatContentPart[] = image
+    const imagePrompt = hasImages
       ? [
-          { type: "text", text: userText.trim() || "What do you see?" },
-          { type: "image", dataUrl: image.dataUrl ?? "", mediaType: image.type, name: image.name },
+          userText.trim() ||
+            `What do you see in the attached ${imageAttachments.length === 1 ? "image" : "images"} ${imageAttachments.map((item) => item.name).join(", ")}?`,
+          "",
+          `Attached ${imageAttachments.length === 1 ? "image" : "images"}: ${imageAttachments.map((item) => item.name).join(", ")}.`,
+          "Analyze the image content itself. This is not filesystem, terminal, or screen access.",
+        ].join("\n")
+      : "";
+    const userContent: string | ChatContentPart[] = hasImages
+      ? [
+          { type: "text", text: imagePrompt },
+          ...imageAttachments.map((item) => ({
+            type: "image" as const,
+            dataUrl: item.dataUrl ?? "",
+            mediaType: item.type,
+            name: item.name,
+          })),
         ]
       : userText;
     const history: ChatMessage[] = chat
@@ -498,105 +614,139 @@ export function ChatPanel({ mode = "agent" }: Props) {
         role: line.role === "user" ? "user" : "assistant",
         content: line.text,
       }));
+    const imageUnsupported =
+      hasImages && !cfg?.supportsImageChatEndpoint && !supportsNativeImageContent(cfg);
+    const fileUnsupported = hasFiles && !cfg?.supportsFileChatEndpoint;
+    const mixedUnsupported = hasImages && hasFiles && !cfg?.supportsImageChatEndpoint;
+    if (imageUnsupported || fileUnsupported || mixedUnsupported) {
+      const text = imageUnsupported
+        ? "This provider is not configured for image attachments. Enable Provider Settings -> Image endpoint for WMan-compatible proxies, or choose a provider that supports image content."
+        : fileUnsupported
+          ? "This provider is not configured for file attachments. Enable Provider Settings -> File endpoint for WMan-compatible proxies, or choose a provider that supports file uploads."
+          : "Mixed image and file attachments need both Provider Settings -> Image endpoint and File endpoint enabled for this provider.";
+      setChat((l) => [...l, { role: "tool", text }]);
+      return;
+    }
     setInput("");
-    setAttachment(null);
+    setAttachments([]);
+    setPreviewAttachment(null);
     setContextItems([]);
-    const visibleUserText = image
-      ? `${userText || "Analyze this image"}\n[attached image: ${image.name}]`
-      : fileAttachment
-        ? `${userText || "Analyze this file"}\n[attached file: ${fileAttachment.name}]`
-        : userText;
+    const attachmentSummary = [
+      hasImages
+        ? `[attached ${imageAttachments.length === 1 ? "image" : "images"}: ${imageAttachments.map((item) => item.name).join(", ")}]`
+        : "",
+      hasFiles
+        ? `[attached ${fileAttachments.length === 1 ? "file" : "files"}: ${fileAttachments.map((item) => item.name).join(", ")}]`
+        : "",
+    ].filter(Boolean).join("\n");
+    const visibleUserText = attachmentSummary
+      ? `${userText || "Analyze the attachment(s)"}\n${attachmentSummary}`
+      : userText;
     setChat((l) => [...l, { role: "user", text: visibleUserText }, { role: "agent", text: "" }]);
     setBusy(true);
     abortRef.current = new AbortController();
 
     if (flowRun) {
-      const plan = await buildFlowPlan(provider, activeModel, userText, abortRef.current.signal);
-      useFlowStore.getState().setPlan(flowRun.id, plan);
-      useFlowStore.getState().setLaneStatus(flowRun.id, "planner", "completed", plan.summary);
-      for (const lane of plan.lanes) {
-        useFlowStore.getState().createWorkerLane(flowRun.id, lane.title, lane.task, lane.id);
+      try {
+        const plan = await buildFlowPlan(provider, activeModel, userText, abortRef.current.signal);
+        useFlowStore.getState().setPlan(flowRun.id, plan);
+        useFlowStore.getState().setLaneStatus(flowRun.id, "planner", "completed", plan.summary);
+        for (const lane of plan.lanes) {
+          useFlowStore.getState().createWorkerLane(flowRun.id, lane.title, lane.task, lane.id);
+        }
+        const runtimeLaneFor = (planLaneId: string) =>
+          useFlowStore.getState().runs
+            .find((run) => run.id === flowRun.id)
+            ?.lanes.find((item) => item.planLaneId === planLaneId);
+        const canRunPlanLane = (planLaneId: string) => {
+          const runtimeLane = runtimeLaneFor(planLaneId);
+          return runtimeLane ? runtimeLane.status !== "cancelled" && runtimeLane.status !== "ignored" : true;
+        };
+        const unregisterPlanLane = (planLaneId: string) => {
+          const runtimeLane = runtimeLaneFor(planLaneId);
+          if (runtimeLane) unregisterFlowLaneController(flowRun.id, runtimeLane.id);
+        };
+        useFlowStore.getState().setLaneStatus(flowRun.id, "worker", "running", "Scheduling planned worker lanes.");
+        const schedulerResults = await runFlowScheduler({
+          provider,
+          model: activeModel,
+          tools: codeTools,
+          plan,
+          signal: abortRef.current.signal,
+          projectInstructions,
+          shouldRunLane(lane) {
+            return canRunPlanLane(lane.id);
+          },
+          getLaneSignal(lane) {
+            const runtimeLane = runtimeLaneFor(lane.id);
+            if (!runtimeLane || !canRunPlanLane(lane.id)) return undefined;
+            const controller = new AbortController();
+            registerFlowLaneController(flowRun.id, runtimeLane.id, controller);
+            return controller.signal;
+          },
+          onLaneStart(lane) {
+            const runtimeLane = runtimeLaneFor(lane.id);
+            if (!runtimeLane || !canRunPlanLane(lane.id)) return;
+            useFlowStore.getState().setLaneStatus(flowRun.id, runtimeLane.id, "running", lane.task);
+          },
+          onLaneComplete(lane, output) {
+            const runtimeLane = runtimeLaneFor(lane.id);
+            if (!runtimeLane || !canRunPlanLane(lane.id)) return;
+            useFlowStore.getState().appendLaneOutput(flowRun.id, runtimeLane.id, output);
+            useFlowStore.getState().setLaneStatus(flowRun.id, runtimeLane.id, "completed", "Scheduler completed this worker lane.");
+            unregisterPlanLane(lane.id);
+          },
+          onLaneError(lane, error) {
+            const runtimeLane = runtimeLaneFor(lane.id);
+            if (!runtimeLane || !canRunPlanLane(lane.id)) return;
+            useFlowStore.getState().appendLaneOutput(flowRun.id, runtimeLane.id, error);
+            useFlowStore.getState().setLaneStatus(flowRun.id, runtimeLane.id, "blocked", error);
+            unregisterPlanLane(lane.id);
+          },
+          onLaneSkip(lane) {
+            unregisterPlanLane(lane.id);
+          },
+        });
+        useFlowStore.getState().setLaneStatus(flowRun.id, "worker", "completed", "Scheduled worker lanes finished.");
+        const schedulerContext = formatSchedulerResults(schedulerResults);
+        flowContext = [
+          flowContext,
+          "# Deterministic Flow plan",
+          `Summary: ${plan.summary}`,
+          "Worker lanes:",
+          ...plan.lanes.map((lane) => `- ${lane.id} / ${lane.title}: ${lane.task}${lane.dependsOn.length ? ` (depends on ${lane.dependsOn.join(", ")})` : ""}`),
+          `Verification: ${plan.verification}`,
+          "# Scheduled worker results",
+          schedulerContext,
+          "Use these scheduled worker results as completed Flow lane output. Do not rerun the same lanes unless verification finds a specific gap.",
+        ].join("\n");
+      } catch (err) {
+        const message = `Flow planner failed: ${String(err)}`;
+        useFlowStore.getState().setLaneStatus(flowRun.id, "planner", "blocked", message);
+        useFlowStore.getState().completeRun(flowRun.id, "blocked");
+        setChat((l) => {
+          const next = l.slice();
+          const cur = next[next.length - 1];
+          next[next.length - 1] = { ...cur, role: "agent", text: message };
+          return next;
+        });
+        setBusy(false);
+        return;
       }
-      const runtimeLaneFor = (planLaneId: string) =>
-        useFlowStore.getState().runs
-          .find((run) => run.id === flowRun.id)
-          ?.lanes.find((item) => item.planLaneId === planLaneId);
-      const canRunPlanLane = (planLaneId: string) => {
-        const runtimeLane = runtimeLaneFor(planLaneId);
-        return runtimeLane ? runtimeLane.status !== "cancelled" && runtimeLane.status !== "ignored" : true;
-      };
-      const unregisterPlanLane = (planLaneId: string) => {
-        const runtimeLane = runtimeLaneFor(planLaneId);
-        if (runtimeLane) unregisterFlowLaneController(flowRun.id, runtimeLane.id);
-      };
-      useFlowStore.getState().setLaneStatus(flowRun.id, "worker", "running", "Scheduling planned worker lanes.");
-      const schedulerResults = await runFlowScheduler({
-        provider,
-        model: activeModel,
-        tools: codeTools,
-        plan,
-        signal: abortRef.current.signal,
-        projectInstructions,
-        shouldRunLane(lane) {
-          return canRunPlanLane(lane.id);
-        },
-        getLaneSignal(lane) {
-          const runtimeLane = runtimeLaneFor(lane.id);
-          if (!runtimeLane || !canRunPlanLane(lane.id)) return undefined;
-          const controller = new AbortController();
-          registerFlowLaneController(flowRun.id, runtimeLane.id, controller);
-          return controller.signal;
-        },
-        onLaneStart(lane) {
-          const runtimeLane = runtimeLaneFor(lane.id);
-          if (!runtimeLane || !canRunPlanLane(lane.id)) return;
-          useFlowStore.getState().setLaneStatus(flowRun.id, runtimeLane.id, "running", lane.task);
-        },
-        onLaneComplete(lane, output) {
-          const runtimeLane = runtimeLaneFor(lane.id);
-          if (!runtimeLane || !canRunPlanLane(lane.id)) return;
-          useFlowStore.getState().appendLaneOutput(flowRun.id, runtimeLane.id, output);
-          useFlowStore.getState().setLaneStatus(flowRun.id, runtimeLane.id, "completed", "Scheduler completed this worker lane.");
-          unregisterPlanLane(lane.id);
-        },
-        onLaneError(lane, error) {
-          const runtimeLane = runtimeLaneFor(lane.id);
-          if (!runtimeLane || !canRunPlanLane(lane.id)) return;
-          useFlowStore.getState().appendLaneOutput(flowRun.id, runtimeLane.id, error);
-          useFlowStore.getState().setLaneStatus(flowRun.id, runtimeLane.id, "blocked", error);
-          unregisterPlanLane(lane.id);
-        },
-        onLaneSkip(lane) {
-          unregisterPlanLane(lane.id);
-        },
-      });
-      useFlowStore.getState().setLaneStatus(flowRun.id, "worker", "completed", "Scheduled worker lanes finished.");
-      const schedulerContext = formatSchedulerResults(schedulerResults);
-      flowContext = [
-        flowContext,
-        "# Deterministic Flow plan",
-        `Summary: ${plan.summary}`,
-        "Worker lanes:",
-        ...plan.lanes.map((lane) => `- ${lane.id} / ${lane.title}: ${lane.task}${lane.dependsOn.length ? ` (depends on ${lane.dependsOn.join(", ")})` : ""}`),
-        `Verification: ${plan.verification}`,
-        "# Scheduled worker results",
-        schedulerContext,
-        "Use these scheduled worker results as completed Flow lane output. Do not rerun the same lanes unless verification finds a specific gap.",
-      ].join("\n");
     }
 
     if (!isAgentMode) {
       try {
-        if (fileAttachment && cfg?.supportsFileChatEndpoint) {
-          const text = await uploadFileChat(cfg, fileAttachment, userText);
+        if (hasImages && cfg?.supportsImageChatEndpoint) {
+          const text = await streamImageEndpointAttachments(cfg, imageAttachments, userText);
           assistantText += text;
-          appendToLatestAgent({ text: text || "No file analysis returned." });
-        } else if (image && cfg?.supportsImageChatEndpoint) {
-          for await (const delta of streamImageChat(cfg)) {
-            assistantText += delta;
-            appendToLatestAgent({ text: delta });
-            await nextPaint();
+          if (hasFiles && cfg?.supportsFileChatEndpoint) {
+            const fileText = await uploadFileEndpointAttachments(cfg, fileAttachments, userText);
+            assistantText += fileText;
           }
+        } else if (hasFiles && cfg?.supportsFileChatEndpoint) {
+          const text = await uploadFileEndpointAttachments(cfg, fileAttachments, userText);
+          assistantText += text;
         } else {
           for await (const ev of runAgent(
             provider,
@@ -606,7 +756,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
             abortRef.current.signal,
             8,
             [
-              "You are Rush in Chat mode. You may answer, explain, plan, use Brain memories, search saved Library chats, and read saved Deep Research. You do not have filesystem, terminal, Git, package-manager, MCP, or Flow-agent access in Chat. Do not claim to inspect files, run commands, edit projects, or save files from Chat.",
+              "You are Rush in Chat mode. You may answer, explain, plan, use Brain memories, search saved Library chats, read saved Deep Research, and analyze images attached directly to the current message. You do not have filesystem, terminal, Git, package-manager, MCP, or Flow-agent access in Chat. Do not claim to inspect workspace files, run commands, edit projects, save files, or view the user's screen from Chat. Attached images are visible message content, not filesystem or screen access.",
               brainContext,
               selectedLibraryContext,
             ].filter(Boolean).join("\n\n"),
@@ -647,11 +797,36 @@ export function ChatPanel({ mode = "agent" }: Props) {
       return;
     }
 
-    if (fileAttachment && cfg?.supportsFileChatEndpoint) {
+    if (hasImages && cfg?.supportsImageChatEndpoint) {
       try {
-        const text = await uploadFileChat(cfg, fileAttachment, userText);
+        const text = await streamImageEndpointAttachments(cfg, imageAttachments, userText);
         assistantText += text;
-        appendToLatestAgent({ text: text || "No file analysis returned." });
+        if (hasFiles && cfg?.supportsFileChatEndpoint) {
+          const fileText = await uploadFileEndpointAttachments(cfg, fileAttachments, userText);
+          assistantText += fileText;
+        }
+      } catch (err) {
+        setChat((l) => {
+          const next = l.slice();
+          const cur = next[next.length - 1];
+          next[next.length - 1] = {
+            ...cur,
+            role: "agent",
+            text: `${cur.text}${cur.text ? "\n\n" : ""}Error: ${String(err)}`,
+          };
+          return next;
+        });
+      } finally {
+        extractBrainFromTurn({ userText, assistantText, mode, toolNames: toolNamesUsed });
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (hasFiles && cfg?.supportsFileChatEndpoint) {
+      try {
+        const text = await uploadFileEndpointAttachments(cfg, fileAttachments, userText);
+        assistantText += text;
       } catch (err) {
         setChat((l) => {
           const next = l.slice();
@@ -785,19 +960,61 @@ export function ChatPanel({ mode = "agent" }: Props) {
   }
 
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (f) {
-      if (f.type.startsWith("image/")) {
-        try {
-          setAttachment({ name: f.name, type: f.type, file: f, dataUrl: await readFileAsDataUrl(f) });
-        } catch (err) {
-          setChat((l) => [...l, { role: "tool", text: `Attachment failed: ${String(err)}` }]);
+    const picked = Array.from(e.target.files ?? []);
+    const remaining = MAX_ATTACHMENTS - attachments.length;
+    const accepted = picked.slice(0, Math.max(0, remaining));
+    const skipped = picked.length - accepted.length;
+
+    if (skipped > 0) {
+      setChat((l) => [...l, { role: "tool", text: `Attachment limit is ${MAX_ATTACHMENTS}; skipped ${skipped} file${skipped === 1 ? "" : "s"}.` }]);
+    }
+
+    if (accepted.length > 0) {
+      const next: Attachment[] = [];
+      for (const [index, f] of accepted.entries()) {
+        const isImage = isImageAttachmentFile(f);
+        const type = isImage ? imageMediaTypeForFile(f) : f.type || "application/octet-stream";
+        const base = {
+          id: `${Date.now()}-${attachments.length + index}-${f.name}`,
+          name: f.name,
+          type,
+          file: f,
+        };
+        if (isImage) {
+          try {
+            next.push({ ...base, dataUrl: normalizeDataUrlMediaType(await readFileAsDataUrl(f), type) });
+          } catch (err) {
+            setChat((l) => [...l, { role: "tool", text: `Attachment failed: ${String(err)}` }]);
+          }
+        } else {
+          next.push(base);
         }
-      } else {
-        setAttachment({ name: f.name, type: f.type || "application/octet-stream", file: f });
+      }
+      if (next.length > 0) {
+        setAttachments((items) => [...items, ...next].slice(0, MAX_ATTACHMENTS));
       }
     }
     e.target.value = "";
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((items) => items.filter((item) => item.id !== id));
+    setPreviewAttachment((item) => (item?.id === id ? null : item));
+  }
+
+  function attachmentTypeLabel(item: Attachment): string {
+    if (item.dataUrl) return "Image";
+    const ext = extensionOf(item.name).toUpperCase();
+    return ext || "File";
+  }
+
+  function attachmentFileIcon() {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 3h6l4 4v14H7z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M13 3v5h5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      </svg>
+    );
   }
 
   // Auto rule: the thinking block stays open while its reasoning is streaming
@@ -831,6 +1048,10 @@ export function ChatPanel({ mode = "agent" }: Props) {
       if (!q) return true;
       return run.title.toLowerCase().includes(q) || run.prompt.toLowerCase().includes(q) || run.content.toLowerCase().includes(q);
     });
+  const activeProviderConfig = providers.find((p) => p.id === activeProviderId);
+  const attachmentAccept = isAgentMode || activeProviderConfig?.supportsFileChatEndpoint
+    ? undefined
+    : "image/*";
 
   return (
     <div className="chat-panel">
@@ -868,6 +1089,42 @@ export function ChatPanel({ mode = "agent" }: Props) {
         ))}
       </div>
       <div className="composer">
+        {attachments.length > 0 && (
+          <div className="attachment-tray" aria-label="Attachments">
+            {attachments.map((item) => (
+              <div className="attachment-preview" key={item.id} title={item.name}>
+                <div className="attachment-preview-media">
+                  {item.dataUrl ? (
+                    <button
+                      type="button"
+                      className="attachment-preview-button"
+                      onClick={() => setPreviewAttachment(item)}
+                      aria-label={`Preview ${item.name}`}
+                      title="Preview image"
+                    >
+                      <img src={item.dataUrl} alt={item.name} />
+                    </button>
+                  ) : (
+                    attachmentFileIcon()
+                  )}
+                </div>
+                <div className="attachment-preview-meta">
+                  <span className="attachment-preview-name">{item.name}</span>
+                  <span className="attachment-preview-type">{attachmentTypeLabel(item)}</span>
+                </div>
+                <button
+                  type="button"
+                  className="attachment-remove"
+                  onClick={() => removeAttachment(item.id)}
+                  aria-label={`Remove ${item.name}`}
+                  title="Remove attachment"
+                >
+                  x
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           rows={1}
@@ -887,19 +1144,6 @@ export function ChatPanel({ mode = "agent" }: Props) {
             }
           }}
         />
-        {attachment && (
-          <div className="attachment-chip">
-            <span>{attachment.name}</span>
-            <button
-              type="button"
-              onClick={() => setAttachment(null)}
-              aria-label="Remove attachment"
-              title="Remove attachment"
-            >
-              x
-            </button>
-          </div>
-        )}
         {contextItems.length > 0 && (
           <div className="context-chip-row">
             {contextItems.map((item) => (
@@ -932,7 +1176,8 @@ export function ChatPanel({ mode = "agent" }: Props) {
             ref={fileRef}
             type="file"
             hidden
-            accept={isAgentMode ? undefined : providers.find((p) => p.id === activeProviderId)?.supportsFileChatEndpoint ? undefined : "image/*"}
+            multiple
+            accept={attachmentAccept}
             onChange={onPickFile}
           />
 
@@ -1035,6 +1280,20 @@ export function ChatPanel({ mode = "agent" }: Props) {
           </button>
         </div>
       </div>
+
+      {previewAttachment?.dataUrl && (
+        <div className="image-preview-overlay" role="dialog" aria-modal="true" onMouseDown={() => setPreviewAttachment(null)}>
+          <div className="image-preview-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="image-preview-head">
+              <span>{previewAttachment.name}</span>
+              <button type="button" onClick={() => setPreviewAttachment(null)} aria-label="Close image preview">
+                x
+              </button>
+            </div>
+            <img src={previewAttachment.dataUrl} alt={previewAttachment.name} />
+          </div>
+        </div>
+      )}
 
       {confirm && (
         <div className="confirm-overlay" role="dialog" aria-modal="true">

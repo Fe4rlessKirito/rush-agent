@@ -14,6 +14,8 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
+use crate::fs_commands::ProjectRoot;
+
 #[derive(Clone)]
 struct LspCommand {
     bin: String,
@@ -29,6 +31,15 @@ struct LspServer {
     opened_documents: Mutex<HashMap<String, i32>>,
     // request id -> response result (or error). Filled by the reader thread.
     pending: Arc<(Mutex<HashMap<i64, Value>>, Condvar)>,
+}
+
+impl Drop for LspServer {
+    fn drop(&mut self) {
+        if let Ok(mut child) = self.child.lock() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
 }
 
 #[derive(Default)]
@@ -143,15 +154,63 @@ impl LspServer {
     }
 }
 
+fn encode_file_uri_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        let ch = byte as char;
+        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '.' | '_' | '~' | '/' | ':') {
+            out.push(ch);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
+}
+
 fn path_to_uri(path: &str) -> String {
-    // Minimal file URI for Windows-style paths. Good enough for the handshake
-    // and document sync; a full RFC 3986 encoder can come later.
-    let normalized = path.replace('\\', "/");
+    let normalized = encode_file_uri_path(&path.replace('\\', "/"));
     if normalized.starts_with('/') {
         format!("file://{}", normalized)
     } else {
         format!("file:///{}", normalized)
     }
+}
+
+fn active_root(root: &tauri::State<ProjectRoot>) -> Result<PathBuf, String> {
+    let guard = root.0.lock().map_err(|_| "root lock poisoned")?;
+    if let Some(path) = guard.as_ref() {
+        return Ok(path.clone());
+    }
+    std::env::current_dir().map_err(|e| format!("current_dir: {e}"))
+}
+
+fn canonical_project_root(root: &tauri::State<ProjectRoot>) -> Result<PathBuf, String> {
+    active_root(root)?
+        .canonicalize()
+        .map_err(|e| format!("canonicalize project root: {e}"))
+}
+
+fn resolve_project_file(
+    root: &tauri::State<ProjectRoot>,
+    file_path: &str,
+) -> Result<PathBuf, String> {
+    let project_root = active_root(root)?;
+    let requested = PathBuf::from(file_path);
+    let full = if requested.is_absolute() {
+        requested
+    } else {
+        project_root.join(requested)
+    };
+    let canon_root = project_root
+        .canonicalize()
+        .map_err(|e| format!("canonicalize project root: {e}"))?;
+    let canon_file = full
+        .canonicalize()
+        .map_err(|e| format!("canonicalize LSP file path: {e}"))?;
+    if !canon_file.starts_with(&canon_root) {
+        return Err(format!("LSP file path escapes project root: {file_path}"));
+    }
+    Ok(canon_file)
 }
 
 fn normalize_language(language: &str) -> Result<String, String> {
@@ -285,8 +344,9 @@ fn binary_for(
 #[tauri::command]
 pub fn lsp_start(
     state: tauri::State<LspState>,
+    root: tauri::State<ProjectRoot>,
     language: String,
-    root_path: String,
+    _root_path: String,
     binary_path: Option<String>,
     prefer_bundled: Option<bool>,
 ) -> Result<Value, String> {
@@ -323,7 +383,8 @@ pub fn lsp_start(
         Arc::new((Mutex::new(HashMap::new()), Condvar::new()));
     spawn_reader(stdout, pending.clone());
 
-    let root_uri = path_to_uri(&root_path);
+    let root_path = canonical_project_root(&root)?;
+    let root_uri = path_to_uri(&root_path.to_string_lossy());
     let server = Arc::new(LspServer {
         child: Mutex::new(child),
         stdin: Mutex::new(stdin),
@@ -461,12 +522,15 @@ fn sync_document(server: &LspServer, file_path: &str) -> Result<(), String> {
 #[tauri::command]
 pub fn lsp_definition(
     state: tauri::State<LspState>,
+    root: tauri::State<ProjectRoot>,
     language: String,
     file_path: String,
     line: u32,
     character: u32,
 ) -> Result<Value, String> {
     let server = get_server(&state, &language)?;
+    let file_path = resolve_project_file(&root, &file_path)?;
+    let file_path = file_path.to_string_lossy().to_string();
     sync_document(&server, &file_path)?;
     server.request(
         "textDocument/definition",
@@ -481,12 +545,15 @@ pub fn lsp_definition(
 #[tauri::command]
 pub fn lsp_references(
     state: tauri::State<LspState>,
+    root: tauri::State<ProjectRoot>,
     language: String,
     file_path: String,
     line: u32,
     character: u32,
 ) -> Result<Value, String> {
     let server = get_server(&state, &language)?;
+    let file_path = resolve_project_file(&root, &file_path)?;
+    let file_path = file_path.to_string_lossy().to_string();
     sync_document(&server, &file_path)?;
     server.request(
         "textDocument/references",
@@ -502,6 +569,7 @@ pub fn lsp_references(
 #[tauri::command]
 pub fn lsp_rename(
     state: tauri::State<LspState>,
+    root: tauri::State<ProjectRoot>,
     language: String,
     file_path: String,
     line: u32,
@@ -509,6 +577,8 @@ pub fn lsp_rename(
     new_name: String,
 ) -> Result<Value, String> {
     let server = get_server(&state, &language)?;
+    let file_path = resolve_project_file(&root, &file_path)?;
+    let file_path = file_path.to_string_lossy().to_string();
     sync_document(&server, &file_path)?;
     server.request(
         "textDocument/rename",
@@ -570,5 +640,13 @@ mod tests {
         assert_eq!(language_id_for("src/App.tsx"), "typescript");
         assert_eq!(language_id_for("src/app.jsx"), "javascript");
         assert_eq!(language_id_for("README.md"), "plaintext");
+    }
+
+    #[test]
+    fn file_uris_escape_spaces_and_fragments() {
+        assert_eq!(
+            path_to_uri("C:\\Users\\marko\\My Project\\src\\a#b.ts"),
+            "file:///C:/Users/marko/My%20Project/src/a%23b.ts"
+        );
     }
 }

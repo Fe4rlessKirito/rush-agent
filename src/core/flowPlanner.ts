@@ -42,20 +42,38 @@ export function fallbackFlowPlan(prompt: string): FlowPlan {
 export function parseFlowPlan(raw: string, prompt: string): FlowPlan {
   const parsed = extractJson(raw) as Record<string, unknown>;
   const rawLanes = Array.isArray(parsed.lanes) ? parsed.lanes : [];
+  const idMap = new Map<string, string>();
+  rawLanes.slice(0, 6).forEach((item, index) => {
+    const lane = item as Record<string, unknown>;
+    const rawId = text(lane.id);
+    const normalized = normalizeId(rawId, `worker-${index + 1}`);
+    if (rawId) idMap.set(rawId, normalized);
+    idMap.set(normalized, normalized);
+  });
   const lanes: FlowPlanLane[] = rawLanes
     .slice(0, 6)
     .map((item, index) => {
       const lane = item as Record<string, unknown>;
+      const id = normalizeId(text(lane.id), `worker-${index + 1}`);
       return {
-        id: normalizeId(text(lane.id), `worker-${index + 1}`),
+        id,
         title: text(lane.title) || `Worker ${index + 1}`,
         task: text(lane.task) || text(lane.description) || prompt,
-        dependsOn: Array.isArray(lane.dependsOn) ? lane.dependsOn.map(String).filter(Boolean) : [],
+        dependsOn: Array.isArray(lane.dependsOn)
+          ? lane.dependsOn
+              .map(String)
+              .map((dep) => idMap.get(dep) ?? normalizeId(dep, dep))
+              .filter((dep) => dep && dep !== id)
+          : [],
       };
     })
     .filter((lane) => lane.task);
 
   if (lanes.length === 0) return fallbackFlowPlan(prompt);
+  const laneIds = new Set(lanes.map((lane) => lane.id));
+  for (const lane of lanes) {
+    lane.dependsOn = [...new Set(lane.dependsOn)].filter((dep) => laneIds.has(dep));
+  }
   return {
     summary: text(parsed.summary) || "Flow plan generated.",
     lanes,
@@ -90,4 +108,3 @@ export async function buildFlowPlan(provider: Provider, model: string, prompt: s
     return fallbackFlowPlan(prompt);
   }
 }
-

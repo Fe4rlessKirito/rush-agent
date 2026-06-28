@@ -42,4 +42,19 @@ describe("mcpStore", () => {
     expect(useMcpStore.getState().resources).toHaveLength(0);
     expect(useMcpStore.getState().deferredTools).toHaveLength(0);
   });
+
+  it("resets runtime state without removing configured servers", () => {
+    useMcpStore.getState().upsertServer({ id: "docs", label: "Docs", transport: "stdio", enabled: true });
+    useMcpStore.getState().setStatus("docs", "connected");
+    useMcpStore.getState().setResources("docs", [{ uri: "mcp://docs/readme", text: "Readme" }]);
+    useMcpStore.getState().setDeferredTools("docs", [{ name: "mcp__docs__search" }]);
+
+    useMcpStore.getState().resetRuntime();
+
+    expect(useMcpStore.getState().servers).toHaveLength(1);
+    expect(useMcpStore.getState().statuses).toEqual({});
+    expect(useMcpStore.getState().errors).toEqual({});
+    expect(useMcpStore.getState().resources).toEqual([]);
+    expect(useMcpStore.getState().deferredTools).toEqual([]);
+  });
 });

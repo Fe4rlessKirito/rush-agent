@@ -1,14 +1,24 @@
-import asyncio
-import json
 import logging
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
+from urllib.parse import quote, urlencode
 
 log = logging.getLogger("backend.image_gen")
 router = APIRouter(prefix="/api", tags=["generation"])
 
 # Using Pollinations AI as a reliable, free text-to-image provider
 POLLINATIONS_BASE_URL = "https://image.pollinations.ai/prompt/"
+
+def _bounded_int(value, default: int, lo: int, hi: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, parsed))
+
+
+def _clean_model(value) -> str:
+    model = str(value or "flux").strip()
+    return model if model.replace("-", "").replace("_", "").isalnum() else "flux"
 
 @router.get("/generate-image")
 @router.post("/generate-image")
@@ -25,7 +35,7 @@ async def generate_image(request: Request):
             height = body.get("height", 1024)
             model = body.get("model", "flux")
             seed = body.get("seed")
-        except:
+        except Exception:
             prompt = None
     else:
         prompt = request.query_params.get("prompt")
@@ -37,13 +47,19 @@ async def generate_image(request: Request):
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt is required")
 
-    # Construct Pollinations URL
-    # Format: https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&model={m}&seed={s}&nologo=true
-    safe_prompt = prompt.replace(" ", "%20").replace("/", " ")
-    url = f"{POLLINATIONS_BASE_URL}{safe_prompt}?width={width}&height={height}&model={model}&nologo=true"
-    
+    width = _bounded_int(width, 1024, 64, 2048)
+    height = _bounded_int(height, 1024, 64, 2048)
+    model = _clean_model(model)
+
+    params = {
+        "width": width,
+        "height": height,
+        "model": model,
+        "nologo": "true",
+    }
     if seed:
-        url += f"&seed={seed}"
+        params["seed"] = _bounded_int(seed, 0, 0, 2_147_483_647)
+    url = f"{POLLINATIONS_BASE_URL}{quote(prompt, safe='')}?{urlencode(params)}"
 
     # Since the request is just a redirect to the generated asset or a URL return,
     # we return a structured JSON response that the frontend can render.

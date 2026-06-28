@@ -78,7 +78,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
     if (s.mode === "disk" && s.backend && !(path in s.files)) {
       const backend = s.backend;
       backend
-        .readFile(`${s.root}/${path}`)
+        .readFile(path)
         .then((content) =>
           set((st) =>
             st.mode === "disk" ? { files: { ...st.files, [path]: content } } : {},
@@ -113,14 +113,13 @@ export const useFileStore = create<FileStore>((set, get) => ({
     const s = get();
     if (s.mode === "disk" && s.backend) {
       const backend = s.backend;
-      const abs = `${s.root}/${path}`;
       const existing = writeTimers.get(path);
       if (existing) clearTimeout(existing);
       writeTimers.set(
         path,
         setTimeout(() => {
           writeTimers.delete(path);
-          backend.writeFile(abs, content).catch(() => {
+          backend.writeFile(path, content).catch(() => {
             /* surface write failures elsewhere; don't crash the editor */
           });
         }, 250),
@@ -162,30 +161,30 @@ export const useFileStore = create<FileStore>((set, get) => ({
     const rootClean = root.replace(/[\\/]+$/, "");
     const paths: string[] = [];
 
-    async function walk(absDir: string, rel: string): Promise<void> {
+    async function walk(rel: string): Promise<void> {
       let entries: string[];
       try {
-        entries = await backend.listDir(absDir);
+        entries = await backend.listDir(rel || ".");
       } catch {
         return;
       }
       for (const entry of entries) {
-        // Tauri listDir returns "dir <abspath>" / "file <abspath>".
         const isDir = entry.startsWith("dir ");
-        const abs = entry.slice(5);
-        const name = abs.split(/[\\/]/).pop() ?? "";
+        const isFile = entry.startsWith("file ");
+        if (!isDir && !isFile) continue;
+        const entryPath = entry.slice(isDir ? 4 : 5);
+        const name = entryPath.split(/[\\/]/).pop() ?? "";
         if (!name) continue;
-        const childRel = rel ? `${rel}/${name}` : name;
         if (isDir) {
           if (IGNORE_DIRS.has(name)) continue;
-          await walk(abs, childRel);
+          await walk(entryPath);
         } else {
-          paths.push(childRel);
+          paths.push(entryPath);
         }
       }
     }
 
-    await walk(rootClean, "");
+    await walk("");
     set({
       files: {},
       tree: paths.sort(),

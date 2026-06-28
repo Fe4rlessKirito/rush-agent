@@ -368,7 +368,11 @@ export async function* runAgent(
     // Record the exchange so the model sees what happened next iteration. Strip
     // the <thinking> block first — it streamed to the user live, but replaying it
     // into context would bloat the conversation and anchor the next turn.
-    messages.push({ role: "assistant", content: stripThinking(full) });
+    messages.push({
+      role: "assistant",
+      content: stripThinking(full),
+      ...(nativeCalls.length > 0 ? { toolCalls: nativeCalls } : {}),
+    });
     for (const { call, safeResult } of results) {
       messages.push({
         role: "tool",

@@ -337,13 +337,21 @@ export function FlowView() {
     const run = useFlowStore.getState().runs.find((item) => item.id === runId);
     if (!run?.plan || !activeProviderId || !activeModel) return;
 
-    const provider = new ProviderRegistry(providers).get(activeProviderId);
     const resumeController = new AbortController();
     setResumingRunId(runId);
     setFlowChat((lines) => [
       ...lines,
       { role: "tool", text: "Resuming Flow run from saved lane state." },
     ]);
+
+    let provider: Provider;
+    try {
+      provider = new ProviderRegistry(providers).get(activeProviderId);
+    } catch (err) {
+      setLaneStatus(runId, "worker", "blocked", `Resume failed: ${String(err)}`);
+      setResumingRunId(null);
+      return;
+    }
 
     const runtimeLaneFor = (planLaneId: string) =>
       useFlowStore.getState().runs

@@ -12,9 +12,21 @@ function openAIContent(content: ChatMessage["content"]): unknown {
 function openAIMessage(msg: ChatMessage): Record<string, unknown> {
   return {
     role: msg.role,
-    content: openAIContent(msg.content),
+    content: msg.toolCalls?.length ? openAIContent(msg.content) || null : openAIContent(msg.content),
     ...(msg.name ? { name: msg.name } : {}),
     ...(msg.toolCallId ? { tool_call_id: msg.toolCallId } : {}),
+    ...(msg.toolCalls?.length
+      ? {
+          tool_calls: msg.toolCalls.map((call) => ({
+            id: call.id,
+            type: "function",
+            function: {
+              name: call.name,
+              arguments: call.argsJson || "{}",
+            },
+          })),
+        }
+      : {}),
   };
 }
 
