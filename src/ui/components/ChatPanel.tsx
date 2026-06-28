@@ -1112,37 +1112,44 @@ export function ChatPanel({ mode = "agent" }: Props) {
   return (
     <div className="chat-panel">
       <div className="messages">
-        {chat.map((l, i) => (
-          <div key={i} className={`msg ${l.role}`}>
-            {busy && i === chat.length - 1 && l.role === "agent" && !l.text.trim() && !l.thinking?.trim() && (
-              <div className="thinking-status">
-                <span className="thinking-pulse" aria-hidden="true" />
-                <span>Thinking...</span>
-              </div>
-            )}
-            {l.thinking && l.thinking.trim() && (
-              <>
-                {!l.text.trim() && (
-                  <div className="thinking-status">
-                    <span className="thinking-pulse" aria-hidden="true" />
-                    <span>{thinkingPreview(l.thinking)}</span>
-                  </div>
-                )}
-                <details
-                  className="thinking-block"
-                  open={isOpen(l, i)}
-                  onToggle={(e) =>
-                    setOpenOverride((o) => ({ ...o, [i]: (e.target as HTMLDetailsElement).open }))
-                  }
-                >
-                  <summary>Thinking</summary>
-                  <Markdown>{l.thinking}</Markdown>
-                </details>
-              </>
-            )}
-            {l.role === "tool" ? l.text : <Markdown>{l.text}</Markdown>}
-          </div>
-        ))}
+        {chat.map((l, i) => {
+          const isActiveEmptyAgent =
+            busy && i === chat.length - 1 && l.role === "agent" && !l.text.trim() && !l.thinking?.trim();
+          if (l.role === "agent" && !l.text.trim() && !l.thinking?.trim() && !isActiveEmptyAgent) {
+            return null;
+          }
+          return (
+            <div key={i} className={`msg ${l.role}`}>
+              {isActiveEmptyAgent && (
+                <div className="thinking-status">
+                  <span className="thinking-pulse" aria-hidden="true" />
+                  <span>Thinking...</span>
+                </div>
+              )}
+              {l.thinking && l.thinking.trim() && (
+                <>
+                  {!l.text.trim() && (
+                    <div className="thinking-status">
+                      <span className="thinking-pulse" aria-hidden="true" />
+                      <span>{thinkingPreview(l.thinking)}</span>
+                    </div>
+                  )}
+                  <details
+                    className="thinking-block"
+                    open={isOpen(l, i)}
+                    onToggle={(e) =>
+                      setOpenOverride((o) => ({ ...o, [i]: (e.target as HTMLDetailsElement).open }))
+                    }
+                  >
+                    <summary>Thinking</summary>
+                    <Markdown>{l.thinking}</Markdown>
+                  </details>
+                </>
+              )}
+              {l.role === "tool" ? l.text : <Markdown>{l.text}</Markdown>}
+            </div>
+          );
+        })}
       </div>
       <div className="composer">
         {attachments.length > 0 && (

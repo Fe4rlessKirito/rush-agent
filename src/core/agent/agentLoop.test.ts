@@ -78,6 +78,21 @@ describe("parseToolCalls", () => {
     ]);
   });
 
+  it("recovers a batched tool call when the opening tag is missing", () => {
+    const out = parseToolCalls(String.raw`[{"name":"list_dir","args":{"path":"."}},{"name":"read_file","args":{"path":"package.json"}}]</tool_calls>`);
+    expect(out).toEqual([
+      { name: "list_dir", args: { path: "." } },
+      { name: "read_file", args: { path: "package.json" } },
+    ]);
+  });
+
+  it("recovers a single tool call when the opening tag is missing", () => {
+    const out = parseToolCalls(String.raw`{"name":"terminal_start","args":{"shell":"powershell"}}</tool_call>`);
+    expect(out).toEqual([
+      { name: "terminal_start", args: { shell: "powershell" } },
+    ]);
+  });
+
   it("throws when a fallback tool call has non-object args", () => {
     expect(() => parseToolCalls('<tool_call>{"name":"read_file","args":"package.json"}</tool_call>')).toThrow(
       "tool call args must be a JSON object",
@@ -108,6 +123,16 @@ describe("segment", () => {
   it("suppresses tool_call content from visible text", () => {
     const { text } = segment('Before <tool_call>{"name":"a","args":{}}</tool_call> after');
     expect(text).toBe("Before  after");
+  });
+
+  it("suppresses recoverable missing-open batched tool syntax from visible text", () => {
+    const { text } = segment(String.raw`Before [{"name":"list_dir","args":{"path":"."}}]</tool_calls> after`);
+    expect(text).toBe("Before  after");
+  });
+
+  it("suppresses stray closing tool tags from visible text", () => {
+    const { text } = segment("Before </tool_calls> after </tool_call>");
+    expect(text).toBe("Before  after ");
   });
 
   it("holds back a trailing partial tag instead of emitting raw brackets", () => {

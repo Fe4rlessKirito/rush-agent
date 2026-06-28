@@ -26,11 +26,13 @@ const OPEN_THINKING = "<thinking>";
 const CLOSE_THINKING = "</thinking>";
 const OPEN_TOOL = "<tool_call>";
 const OPEN_TOOLS = "<tool_calls>";
+const CLOSE_TOOL = "</tool_call>";
+const CLOSE_TOOLS = "</tool_calls>";
 
 // Largest suffix of `buf` that is a prefix of any control tag. We must not emit
 // it yet — the next chunk might complete the tag.
 function pendingTagTail(buf: string): number {
-  const tags = [OPEN_THINKING, CLOSE_THINKING, OPEN_TOOL, OPEN_TOOLS];
+  const tags = [OPEN_THINKING, CLOSE_THINKING, OPEN_TOOL, OPEN_TOOLS, CLOSE_TOOL, CLOSE_TOOLS];
   let hold = 0;
   for (const tag of tags) {
     for (let n = Math.min(tag.length - 1, buf.length); n > 0; n--) {
@@ -38,6 +40,74 @@ function pendingTagTail(buf: string): number {
     }
   }
   return hold;
+}
+
+function matchingJsonClose(open: string): string {
+  return open === "[" ? "]" : "}";
+}
+
+function findJsonValueEnd(text: string, start: number): number {
+  const open = text[start];
+  if (open !== "[" && open !== "{") return -1;
+  const stack = [matchingJsonClose(open)];
+  let inString = false;
+
+  for (let i = start + 1; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') {
+      let backslashes = 0;
+      for (let j = i - 1; j >= start && text[j] === "\\"; j--) backslashes += 1;
+      if (backslashes % 2 === 0) inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "[" || ch === "{") {
+      stack.push(matchingJsonClose(ch));
+    } else if (ch === "]" || ch === "}") {
+      if (stack.pop() !== ch) return -1;
+      if (stack.length === 0) return i + 1;
+    }
+  }
+  return -1;
+}
+
+function looksLikeToolCallObject(value: unknown): boolean {
+  return !!value && typeof value === "object" && !Array.isArray(value) && "name" in value;
+}
+
+function looksLikeToolCallArray(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0 && value.every(looksLikeToolCallObject);
+}
+
+function findRecoverableToolSyntax(text: string, from = 0): { start: number; end: number } | null {
+  let best: { start: number; end: number } | null = null;
+  const closers = [
+    { tag: CLOSE_TOOLS, open: "[" },
+    { tag: CLOSE_TOOL, open: "{" },
+  ];
+
+  for (const { tag, open } of closers) {
+    const closeAt = text.indexOf(tag, from);
+    if (closeAt === -1) continue;
+    for (let start = closeAt - 1; start >= from; start--) {
+      if (text[start] !== open) continue;
+      const valueEnd = findJsonValueEnd(text, start);
+      if (valueEnd === -1 || valueEnd > closeAt) continue;
+      if (text.slice(valueEnd, closeAt).trim()) continue;
+      try {
+        const parsed = parseToolJson(text.slice(start, valueEnd));
+        const isToolPayload = open === "[" ? looksLikeToolCallArray(parsed) : looksLikeToolCallObject(parsed);
+        if (!isToolPayload) continue;
+        const candidate = { start, end: closeAt + tag.length };
+        if (!best || candidate.start < best.start) best = candidate;
+        break;
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return best;
 }
 
 // Split the accumulated buffer into the visible answer text and the thinking
@@ -56,14 +126,32 @@ export function segment(buf: string): { text: string; thinking: string } {
       i = end === -1 ? safe.length : end + CLOSE_THINKING.length;
     } else if (safe.startsWith(OPEN_TOOL, i) || safe.startsWith(OPEN_TOOLS, i)) {
       // Suppress tool-call content from the visible stream entirely.
-      const close = safe.startsWith(OPEN_TOOLS, i) ? "</tool_calls>" : "</tool_call>";
+      const close = safe.startsWith(OPEN_TOOLS, i) ? CLOSE_TOOLS : CLOSE_TOOL;
       const end = safe.indexOf(close, i);
       i = end === -1 ? safe.length : end + close.length;
+    } else if (safe.startsWith(CLOSE_TOOL, i)) {
+      i += CLOSE_TOOL.length;
+    } else if (safe.startsWith(CLOSE_TOOLS, i)) {
+      i += CLOSE_TOOLS.length;
     } else {
+      const recoverable = findRecoverableToolSyntax(safe, i);
+      if (recoverable && recoverable.start === i) {
+        i = recoverable.end;
+        continue;
+      }
       const nextThink = safe.indexOf(OPEN_THINKING, i);
       const nextTool = safe.indexOf(OPEN_TOOL, i);
       const nextTools = safe.indexOf(OPEN_TOOLS, i);
-      const candidates = [nextThink, nextTool, nextTools].filter((n) => n !== -1);
+      const nextCloseTool = safe.indexOf(CLOSE_TOOL, i);
+      const nextCloseTools = safe.indexOf(CLOSE_TOOLS, i);
+      const candidates = [
+        nextThink,
+        nextTool,
+        nextTools,
+        nextCloseTool,
+        nextCloseTools,
+        recoverable?.start ?? -1,
+      ].filter((n) => n !== -1);
       const next = candidates.length ? Math.min(...candidates) : safe.length;
       text += safe.slice(i, next);
       i = next;
@@ -383,8 +471,18 @@ export function parseToolCalls(text: string): ParsedToolCall[] | null {
   }
 
   const singles = [...text.matchAll(TOOL_CALL_RE_G)];
-  if (singles.length === 0) return null;
-  return singles.map((single) => parsedToolCallFrom(parseToolJson(single[1])));
+  if (singles.length > 0) return singles.map((single) => parsedToolCallFrom(parseToolJson(single[1])));
+
+  const recoverable = findRecoverableToolSyntax(text);
+  if (!recoverable) return null;
+  const payload = text.slice(recoverable.start, recoverable.end);
+  if (payload.endsWith(CLOSE_TOOLS)) {
+    const parsed = parseToolJson(payload.slice(0, -CLOSE_TOOLS.length));
+    if (!Array.isArray(parsed)) throw new Error("tool_calls JSON must be an array");
+    return parsed.map(parsedToolCallFrom);
+  }
+  const parsed = parseToolJson(payload.slice(0, -CLOSE_TOOL.length));
+  return [parsedToolCallFrom(parsed)];
 }
 
 export async function* runAgent(
