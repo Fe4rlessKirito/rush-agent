@@ -70,10 +70,10 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
   },
   {
     id: "wman-local-proxy",
-    label: "Rush Local Proxy",
+    label: "Rush Local Proxy (Rust)",
     kind: "custom",
-    baseUrl: "http://localhost:8000/v1",
-    defaultModel: "claude-opus-4-8",
+    baseUrl: "http://127.0.0.1:8000/v1",
+    defaultModel: "gpt-5-4",
     supportsThinking: true,
     supportsImageChatEndpoint: true,
     supportsFileChatEndpoint: true,

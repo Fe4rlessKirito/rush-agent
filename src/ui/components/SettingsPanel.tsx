@@ -59,6 +59,23 @@ interface ProxyRuntimeConfig {
   pool_size: number;
   signup_delay_ms: number;
   account_ttl_sec: number;
+  proxy_tor: boolean;
+  tor_socks?: string;
+}
+
+interface TorStatus {
+  enabled: boolean;
+  auto_start: boolean;
+  socks: string;
+  socks_reachable: boolean;
+  control_port: number;
+  control_reachable: boolean;
+  control_authenticated: boolean;
+  tor_exe?: string | null;
+  running: boolean;
+  started?: boolean;
+  renewed?: boolean;
+  error?: string | null;
 }
 
 const PROVIDER_ORDER = [
@@ -204,9 +221,13 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
     pool_size: 30,
     signup_delay_ms: 0,
     account_ttl_sec: 1800,
+    proxy_tor: false,
   });
   const [proxyConfigBusy, setProxyConfigBusy] = useState(false);
   const [proxyConfigMessage, setProxyConfigMessage] = useState("");
+  const [torStatus, setTorStatus] = useState<TorStatus | null>(null);
+  const [torBusy, setTorBusy] = useState(false);
+  const [torMessage, setTorMessage] = useState("");
   const [lspProbe, setLspProbe] = useState<Record<LanguageServerKey, LspProbeState>>({
     rust: { status: "idle" },
     typescript: { status: "idle" },
@@ -270,7 +291,10 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
         if (cancelled) return;
         setLocalProxyStatus(status);
         setLocalProxyEnabled(status.enabled);
-        if (status.enabled) void refreshProxyConfig();
+        if (status.enabled) {
+          void refreshProxyConfig();
+          void refreshTorStatus();
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -359,6 +383,7 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
         pool_size: Math.min(20000, Math.max(1, Math.round(proxyConfig.pool_size))),
         signup_delay_ms: Math.max(0, Math.round(proxyConfig.signup_delay_ms)),
         account_ttl_sec: Math.max(60, Math.round(proxyConfig.account_ttl_sec)),
+        proxy_tor: Boolean(proxyConfig.proxy_tor),
       };
       const res = await fetch("http://localhost:8000/config", {
         method: "POST",
@@ -368,6 +393,7 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
       if (!res.ok) throw new Error(`config ${res.status}`);
       setProxyConfig(body);
       setProxyConfigMessage("Saved proxy config");
+      void refreshTorStatus();
     } catch (err) {
       setProxyConfigMessage(`Unable to save proxy config: ${String(err)}`);
     } finally {
@@ -375,8 +401,57 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
     }
   }
 
-  function editProxyConfig(key: keyof ProxyRuntimeConfig, value: number) {
+  function editProxyConfig(key: "pool_size" | "signup_delay_ms" | "account_ttl_sec", value: number) {
     setProxyConfig((config) => ({ ...config, [key]: value }));
+  }
+
+  function setProxyTor(enabled: boolean) {
+    setProxyConfig((config) => ({ ...config, proxy_tor: enabled }));
+  }
+
+  async function refreshTorStatus() {
+    setTorBusy(true);
+    try {
+      const res = await fetch("http://localhost:8000/tor/status", { cache: "no-store" });
+      if (!res.ok) throw new Error(`tor status ${res.status}`);
+      const status = (await res.json()) as TorStatus;
+      setTorStatus(status);
+      setTorMessage("");
+    } catch (err) {
+      setTorMessage(`Unable to load Tor status: ${String(err)}`);
+    } finally {
+      setTorBusy(false);
+    }
+  }
+
+  async function startTor() {
+    setTorBusy(true);
+    try {
+      const res = await fetch("http://localhost:8000/tor/start", { method: "POST" });
+      const status = (await res.json()) as TorStatus;
+      setTorStatus(status);
+      if (!res.ok) throw new Error(status.error ?? `tor start ${res.status}`);
+      setTorMessage("Tor started");
+    } catch (err) {
+      setTorMessage(`Unable to start Tor: ${String(err)}`);
+    } finally {
+      setTorBusy(false);
+    }
+  }
+
+  async function renewTorCircuit() {
+    setTorBusy(true);
+    try {
+      const res = await fetch("http://localhost:8000/tor/newnym", { method: "POST" });
+      const status = (await res.json()) as TorStatus;
+      setTorStatus(status);
+      if (!res.ok) throw new Error(status.error ?? `tor newnym ${res.status}`);
+      setTorMessage("Requested a new Tor circuit");
+    } catch (err) {
+      setTorMessage(`Unable to renew Tor circuit: ${String(err)}`);
+    } finally {
+      setTorBusy(false);
+    }
   }
 
   async function toggleLocalProxy(enabled: boolean) {
@@ -387,7 +462,10 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
       const status = await invoke<LocalProxyStatus>("local_proxy_set_enabled", { enabled });
       setLocalProxyStatus(status);
       setLocalProxyEnabled(status.enabled);
-      if (status.enabled) void refreshProxyConfig();
+      if (status.enabled) {
+        void refreshProxyConfig();
+        void refreshTorStatus();
+      }
     } catch (err) {
       setLocalProxyEnabled((current) => !current);
       setLocalProxyStatus({
@@ -720,6 +798,72 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
                 <p className="hint error">{localProxyStatus.error}</p>
               )}
               <div className="proxy-config-panel">
+                <div className="proxy-config-head">
+                  <div>
+                    <strong>Tor routing</strong>
+                    <span>Outbound signup, file upload, and WebSocket traffic</span>
+                  </div>
+                  <button
+                    className="ghost small"
+                    onClick={refreshTorStatus}
+                    disabled={!localProxyEnabled || torBusy}
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                <label className="toggle-row">
+                  <span>
+                    <strong>Route through Tor</strong>
+                    <small>
+                      {proxyConfig.proxy_tor
+                        ? torStatus?.running
+                          ? `On, ${torStatus.socks}`
+                          : "On, not connected"
+                        : "Off"}
+                    </small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={proxyConfig.proxy_tor}
+                    disabled={!localProxyEnabled || proxyConfigBusy}
+                    onChange={(e) => setProxyTor(e.target.checked)}
+                  />
+                </label>
+
+                <div className={`tor-status-card ${torStatus?.running ? "ready" : "offline"}`}>
+                  <div>
+                    <span className="tor-status-dot" aria-hidden="true" />
+                    <strong>{torStatus?.running ? "Tor connected" : "Tor unavailable"}</strong>
+                  </div>
+                  <dl>
+                    <dt>SOCKS</dt>
+                    <dd>{torStatus?.socks ?? proxyConfig.tor_socks ?? "socks5h://127.0.0.1:9050"}</dd>
+                    <dt>Control</dt>
+                    <dd>{torStatus?.control_authenticated ? `Authenticated on ${torStatus.control_port}` : "Not authenticated"}</dd>
+                    <dt>Binary</dt>
+                    <dd>{torStatus?.tor_exe ?? "Not found"}</dd>
+                  </dl>
+                  {torStatus?.error && <p className="hint error">{torStatus.error}</p>}
+                  {torMessage && <p className={`proxy-config-message ${torMessage.startsWith("Unable") ? "error" : ""}`}>{torMessage}</p>}
+                  <div className="row">
+                    <button
+                      className="ghost small"
+                      onClick={startTor}
+                      disabled={!localProxyEnabled || torBusy || !proxyConfig.proxy_tor}
+                    >
+                      {torBusy ? "Working..." : "Start Tor"}
+                    </button>
+                    <button
+                      className="ghost small"
+                      onClick={renewTorCircuit}
+                      disabled={!localProxyEnabled || torBusy || !proxyConfig.proxy_tor || !torStatus?.control_authenticated}
+                    >
+                      New circuit
+                    </button>
+                  </div>
+                </div>
+
                 <div className="proxy-config-head">
                   <div>
                     <strong>Account bank</strong>

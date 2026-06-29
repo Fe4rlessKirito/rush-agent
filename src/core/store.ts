@@ -113,7 +113,14 @@ function mergeDefaultProviders(providers: ProviderConfig[] | undefined): Provide
   const defaultsById = new Map(DEFAULT_PROVIDERS.map((p) => [p.id, p]));
   const mergedSaved = saved.map((p) => {
     const def = defaultsById.get(p.id);
-    return def ? { ...def, ...p } : p;
+    if (!def) return p;
+    const merged = { ...def, ...p };
+    if (p.id === "wman-local-proxy") {
+      if (p.label === "Rush Local Proxy") merged.label = def.label;
+      if (p.baseUrl === "http://localhost:8000/v1") merged.baseUrl = def.baseUrl;
+      if (p.defaultModel === "claude-opus-4-8") merged.defaultModel = def.defaultModel;
+    }
+    return merged;
   });
   const savedIds = new Set(mergedSaved.map((p) => p.id));
   return [

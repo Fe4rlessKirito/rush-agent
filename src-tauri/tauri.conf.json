@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Rush",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "identifier": "com.rush.agent",
   "build": {
     "frontendDist": "../dist",
@@ -28,12 +28,9 @@
     "targets": "all",
     "createUpdaterArtifacts": true,
     "resources": [
-      "../local-proxy/README.txt",
-      "../local-proxy/requirements.txt",
-      "../local-proxy/start-rush.bat",
-      "../local-proxy/start.bat",
-      "../local-proxy/backend/*.py",
-      "../local-proxy/worker/*.py"
+      "../local-proxy/leech-rs.exe",
+      "../local-proxy/config.toml",
+      "../local-proxy/tor/tor.exe"
     ],
     "icon": [
       "icons/32x32.png",

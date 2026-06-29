@@ -150,7 +150,7 @@ fn proxy_dir(app: &AppHandle) -> Result<PathBuf, String> {
             base.join("_up_").join("local-proxy"),
         ] {
             let _ = writeln!(&mut searched, "- {}", bundled.display());
-            if bundled.join("start-rush.bat").exists() {
+            if bundled.join("leech-rs.exe").exists() || bundled.join("start-rush.bat").exists() {
                 return Ok(bundled);
             }
         }
@@ -182,10 +182,32 @@ fn health_ready() -> bool {
 }
 
 fn spawn_proxy(proxy_dir: PathBuf) -> Result<Child, String> {
+    let rust_proxy = proxy_dir.join("leech-rs.exe");
+    if rust_proxy.exists() {
+        let mut command = Command::new(&rust_proxy);
+        command
+            .current_dir(&proxy_dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        return command
+            .spawn()
+            .map_err(|e| format!("failed to start Rust local proxy: {e}"));
+    }
+
     let start_bat = proxy_dir.join("start-rush.bat");
     if !start_bat.exists() {
         return Err(format!(
-            "start-rush.bat not found at {}",
+            "local proxy launcher not found. Expected {} or {}",
+            rust_proxy.display(),
             start_bat.display()
         ));
     }

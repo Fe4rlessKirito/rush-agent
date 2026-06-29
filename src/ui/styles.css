@@ -2637,6 +2637,54 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   color: #f0768b;
 }
 
+.tor-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+}
+.tor-status-card > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tor-status-card strong {
+  color: var(--text);
+  font-size: 13px;
+}
+.tor-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #f0768b;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #f0768b 18%, transparent);
+}
+.tor-status-card.ready .tor-status-dot {
+  background: #55d18a;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #55d18a 18%, transparent);
+}
+.tor-status-card dl {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 6px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+.tor-status-card dt {
+  color: var(--text-faint);
+}
+.tor-status-card dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
 /* Provider cards in a responsive grid so the panel uses its width */
 .provider-grid {
   display: grid;
