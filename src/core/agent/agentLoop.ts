@@ -519,6 +519,7 @@ export async function* runAgent(
   maxSteps?: number,
   projectInstructions?: string,
   providerThinking?: ChatRequest["thinking"],
+  appendMessages?: ChatMessage[],
 ): AsyncGenerator<AgentEvent> {
   const definitions = tools.list();
 
@@ -639,18 +640,22 @@ export async function* runAgent(
     // Record the exchange so the model sees what happened next iteration. Strip
     // the <thinking> block first — it streamed to the user live, but replaying it
     // into context would bloat the conversation and anchor the next turn.
-    messages.push({
+    const assistantMsg: ChatMessage = {
       role: "assistant",
       content: stripThinking(full),
       ...(nativeCalls.length > 0 ? { toolCalls: nativeCalls } : {}),
-    });
+    };
+    messages.push(assistantMsg);
+    appendMessages?.push(assistantMsg);
     for (const { call, safeResult } of results) {
-      messages.push({
+      const toolMsg: ChatMessage = {
         role: "tool",
         name: call.name,
         toolCallId: call.id,
         content: fenceToolOutput(call.name, safeResult),
-      });
+      };
+      messages.push(toolMsg);
+      appendMessages?.push(toolMsg);
     }
   }
 

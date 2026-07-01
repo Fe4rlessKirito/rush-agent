@@ -1,0 +1,40 @@
+# Tor state file last generated on 2026-07-01 20:36:24 local time
+# Other times below are in UTC
+# You *do not* need to edit this file.
+
+CircuitBuildTimeBin 255 2
+CircuitBuildTimeBin 275 1
+CircuitBuildTimeBin 285 1
+CircuitBuildTimeBin 295 1
+CircuitBuildTimeBin 325 3
+CircuitBuildTimeBin 365 2
+CircuitBuildTimeBin 445 1
+CircuitBuildTimeBin 485 1
+CircuitBuildTimeBin 515 1
+CircuitBuildTimeBin 895 1
+CircuitBuildTimeBin 905 1
+CircuitBuildTimeBin 3125 1
+Dormant 0
+Guard in=default rsa_id=BE376A38E3544BD46702A0813D1C20F1CA0F2774 nickname=forest32 sampled_on=2026-06-27T19:09:09 sampled_idx=0 sampled_by=0.4.9.11 listed=1 confirmed_on=2026-06-22T20:45:16 confirmed_idx=0 pb_use_attempts=1.000000 pb_use_successes=1.000000 pb_circ_attempts=6.000000 pb_circ_successes=6.000000 pb_successful_circuits_closed=6.000000
+Guard in=default rsa_id=8A5EFB7BF172104441B5C5F5A047D92D9C70BA37 nickname=scrappie sampled_on=2026-06-28T11:09:55 sampled_idx=1 sampled_by=0.4.9.11 listed=1 confirmed_on=2026-06-24T00:49:59 confirmed_idx=1 pb_circ_attempts=2.000000 pb_circ_successes=2.000000 pb_successful_circuits_closed=2.000000
+Guard in=default rsa_id=6E1CEDC61F3707C549B88FB9380E4A750621FCB8 nickname=bavariaboys sampled_on=2026-07-01T02:30:57 sampled_idx=2 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=8AB172C11996EC969EF5B42B7CB8ADDD07455AA4 nickname=MaverickPass sampled_on=2026-06-25T12:53:48 sampled_idx=3 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=3EBB62E87B5603F7E7069C5D7B5A1AAB81F1542A nickname=Jersey sampled_on=2026-06-24T00:52:59 sampled_idx=4 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=91BAB54C6923454F4E5EDC59313C45002B238665 nickname=CryptoHouse sampled_on=2026-06-26T09:24:34 sampled_idx=5 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=62F875123AD985B6EFE51AFF81228E5F4B46B633 nickname=TorRelayPoland sampled_on=2026-06-30T01:58:28 sampled_idx=6 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=2A23B6AC254691CD52F98D26567270889861BC1F nickname=DefendRojava sampled_on=2026-06-27T08:43:16 sampled_idx=7 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=98B7BB824C7DD001E71A42377FEBDACF0F1DE43F nickname=TOKAREV sampled_on=2026-06-20T12:26:19 sampled_idx=8 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=C0C6DA86E0A6C991B21668F777D8E648F3718674 nickname=as214958tor6 sampled_on=2026-06-19T21:18:05 sampled_idx=9 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=4526E68517FD630CBF3C21773270DA8FC77570CD nickname=lilofatrat sampled_on=2026-06-20T13:55:31 sampled_idx=10 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=93228838FD57B495502C873006A466A583560677 nickname=bigmoehouston sampled_on=2026-06-28T14:38:07 sampled_idx=11 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=C437B2E374080B675A0F841C7C24CE01458D65C8 nickname=Hodor sampled_on=2026-06-22T06:34:41 sampled_idx=12 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=ECCEA6BF89E642E6EE59F42C3F57D22F96420997 nickname=maceraTOR sampled_on=2026-06-24T07:08:57 sampled_idx=13 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=E2FA4162D6462DFB3FA0C1D2E2DF1C43DC6C9801 nickname=TheMadHackerLives sampled_on=2026-06-25T16:07:13 sampled_idx=14 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=2FABC6B95C30398ECAD68CBA88AD2AC3CE29917A nickname=prsv sampled_on=2026-06-24T06:13:53 sampled_idx=15 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=54CC34EE7EE45EC335C7E24CC3EBC5547B7D5229 nickname=AppenzellInnerrhod sampled_on=2026-06-25T08:17:38 sampled_idx=16 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=2202E727E45A140298C81425FFBC1244A2E12602 nickname=prsv sampled_on=2026-06-23T21:13:54 sampled_idx=17 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=43C4B296233A29D80479A6839D93B59474336B12 nickname=skyzoobrooklyn sampled_on=2026-06-26T07:04:49 sampled_idx=18 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=CBF2D8F749FA97AFBC5D6FB9042FCC7B0048B44C nickname=orange sampled_on=2026-06-21T06:04:41 sampled_idx=19 sampled_by=0.4.9.11 listed=1
+LastWritten 2026-07-01 18:36:24
+TorVersion Tor 0.4.9.11 (git-f3d28b2e0978ca07)
+TotalBuildTimes 16

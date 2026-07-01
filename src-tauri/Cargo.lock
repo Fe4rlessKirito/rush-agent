@@ -2571,7 +2571,7 @@ dependencies = [
 
 [[package]]
 name = "rush-agent"
-version = "1.7.2"
+version = "1.7.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -2580,6 +2580,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-process",
  "tauri-plugin-updater",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

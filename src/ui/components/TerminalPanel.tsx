@@ -6,6 +6,7 @@ import { isTauriRuntime } from "../../core/agent/tauriFs";
 // pull commands, so we stream by polling terminal_read while a session runs.
 
 const POLL_MS = 300;
+const MAX_TERMINAL_OUTPUT_CHARS = 80_000;
 
 export function TerminalPanel() {
   const [running, setRunning] = useState(false);
@@ -21,7 +22,7 @@ export function TerminalPanel() {
   const append = useCallback((text: string) => {
     setOutput((prev) => {
       const next = prev + text;
-      return next.length > 200_000 ? next.slice(next.length - 200_000) : next;
+      return next.length > MAX_TERMINAL_OUTPUT_CHARS ? next.slice(next.length - MAX_TERMINAL_OUTPUT_CHARS) : next;
     });
   }, []);
 
@@ -133,6 +134,11 @@ export function TerminalPanel() {
                   Stop
                 </button>
               </>
+            )}
+            {output && (
+              <button className="terminal-btn" onClick={() => setOutput("")} title="Clear terminal output">
+                Clear
+              </button>
             )}
           </div>
         )}

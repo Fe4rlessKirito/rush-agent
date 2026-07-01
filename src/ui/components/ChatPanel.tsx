@@ -51,6 +51,7 @@ import { Markdown } from "./Markdown";
 import "highlight.js/styles/github-dark.css";
 
 const fs = isTauriRuntime() ? createTauriFs() : createDevFs();
+const LOCAL_PROXY_BASE_URL = "http://127.0.0.1:8000";
 
 function registerCodeToolset(registry: ToolRegistry, mode: "code" | "flow") {
   registry.registerAll(createFsTools(fs));
@@ -245,6 +246,8 @@ function supportsNativeImageContent(cfg: { kind?: string; baseUrl?: string } | u
 }
 
 const MAX_ATTACHMENTS = 12;
+const MAX_RENDERED_MESSAGES = 80;
+const THINKING_PREVIEW_CHARS = 600;
 const IMAGE_EXTENSIONS = new Set(["avif", "bmp", "gif", "jpeg", "jpg", "png", "webp"]);
 const IMAGE_MEDIA_TYPES: Record<string, string> = {
   avif: "image/avif",
@@ -286,6 +289,12 @@ export function ChatPanel({ mode = "agent" }: Props) {
     setPlainChat,
     flowChat,
     setFlowChat,
+    chatMessages: agentChatMessages,
+    setChatMessages: setAgentChatMessages,
+    plainChatMessages,
+    setPlainChatMessages,
+    flowChatMessages,
+    setFlowChatMessages,
     conversations,
     activeConversationId,
     conversationProjectContext,
@@ -295,6 +304,14 @@ export function ChatPanel({ mode = "agent" }: Props) {
   const isAgentMode = mode !== "plain";
   const chat = mode === "flow" ? flowChat : isAgentMode ? agentChat : plainChat;
   const setChat = mode === "flow" ? setFlowChat : isAgentMode ? setAgentChat : setPlainChat;
+  // Raw provider message history (tool calls/results included) for the active
+  // conversation, mirrored in the store so it survives conversation switches,
+  // mode switches, and app reloads — unlike the old purely-local ref, which
+  // got wiped on any of those and forced a lossy rebuild from display text
+  // alone (dropping every tool_call/tool_result turn).
+  const chatMessages = mode === "flow" ? flowChatMessages : isAgentMode ? agentChatMessages : plainChatMessages;
+  const setChatMessages = mode === "flow" ? setFlowChatMessages : isAgentMode ? setAgentChatMessages : setPlainChatMessages;
+
   // Custom instructions for the currently-open project, fed into the agent's
   // system prompt so each project can steer the model differently.
   const projectInstructions = useProjectStore(
@@ -323,6 +340,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
   // Models offered by the active provider, for the composer's model selector.
   // Falls back to just the active model if the list can't be fetched.
   const [models, setModels] = useState<string[]>([]);
+  const [showAllMessages, setShowAllMessages] = useState(false);
   // Per-line manual override for the thinking disclosure. When a user clicks to
   // open or close a block we honor that choice; otherwise the block follows the
   // auto rule (open while reasoning streams, closed once the answer begins).
@@ -384,7 +402,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
             return;
           }
         }
-        const res = await fetch("http://localhost:8000/bank", { cache: "no-store" });
+        const res = await fetch(`${LOCAL_PROXY_BASE_URL}/bank`, { cache: "no-store" });
         if (!res.ok) throw new Error(`bank ${res.status}`);
         const data = (await res.json()) as ProxyBankStatus;
         if (!cancelled) {
@@ -458,6 +476,10 @@ export function ChatPanel({ mode = "agent" }: Props) {
   useEffect(() => {
     setSelectedPackCommandIndex(0);
   }, [input, packSuggestionKey, activeProjectId]);
+
+  useEffect(() => {
+    setShowAllMessages(false);
+  }, [activeConversationId, mode]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -647,7 +669,12 @@ export function ChatPanel({ mode = "agent" }: Props) {
         const payload = trimmed.slice(5).trim();
         if (payload === "[DONE]") return;
         const json = JSON.parse(payload);
-        const delta = json.delta ?? json.token ?? "";
+        const delta =
+          json.delta ??
+          json.token ??
+          json.choices?.[0]?.delta?.content ??
+          json.choices?.[0]?.message?.content ??
+          "";
         if (delta) yield String(delta);
       }
     }
@@ -784,13 +811,21 @@ export function ChatPanel({ mode = "agent" }: Props) {
           })),
         ]
       : modelUserText;
-    const history: ChatMessage[] = chat
-      .filter((line) => line.role === "user" || line.role === "agent")
-      .filter((line) => line.text.trim())
-      .map((line) => ({
-        role: line.role === "user" ? "user" : "assistant",
-        content: line.text,
-      }));
+    // Prefer the persisted raw message history (includes tool_call/tool_result
+    // turns). Falling back to display text only applies to conversations saved
+    // before this history was tracked — reconstructing from `chat` lines drops
+    // every tool exchange, which is what previously made the model think it
+    // had hallucinated tool results a few rounds in: the evidence was simply
+    // never sent back to it.
+    const history: ChatMessage[] = chatMessages.length > 0
+      ? chatMessages
+      : chat
+          .filter((line) => line.role === "user" || line.role === "agent")
+          .filter((line) => line.text.trim())
+          .map((line) => ({
+            role: line.role === "user" ? "user" : "assistant",
+            content: line.text,
+          }));
     const imageUnsupported =
       hasImages && !cfg?.supportsImageChatEndpoint && !supportsNativeImageContent(cfg);
     const fileUnsupported = hasFiles && !cfg?.supportsFileChatEndpoint;
@@ -915,6 +950,8 @@ export function ChatPanel({ mode = "agent" }: Props) {
     }
 
     if (!isAgentMode) {
+      const chatNewMsgs: ChatMessage[] = [];
+      const chatUserMsg: ChatMessage = { role: "user", content: userContent };
       try {
         if (hasImages && cfg?.supportsImageChatEndpoint) {
           const text = await streamImageEndpointAttachments(cfg, imageAttachments, modelUserText);
@@ -931,7 +968,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
             provider,
             activeModel,
             chatTools,
-            [...history, { role: "user", content: userContent }],
+            [...history, chatUserMsg],
             abortRef.current.signal,
             8,
             [
@@ -940,6 +977,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
               brainContext,
             ].filter(Boolean).join("\n\n"),
             effortThinking,
+            chatNewMsgs,
           )) {
             if (ev.type === "thinking" && ev.text) {
               appendToLatestAgent({ thinking: ev.text });
@@ -970,6 +1008,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
           return next;
         });
       } finally {
+        setChatMessages([...history, chatUserMsg, ...chatNewMsgs]);
         extractBrainFromTurn({ userText, assistantText, mode: "plain" });
         setBusy(false);
       }
@@ -1116,20 +1155,24 @@ export function ChatPanel({ mode = "agent" }: Props) {
       }
     };
 
+    const agentNewMsgs: ChatMessage[] = [];
+    const agentUserMsg: ChatMessage = { role: "user", content: userContent };
     try {
       for await (const ev of runAgent(
         provider,
         activeModel,
         mode === "flow" ? flowTools : codeTools,
-        [...history, { role: "user", content: userContent }],
+        [...history, agentUserMsg],
         abortRef.current.signal,
         undefined,
         [projectRuntimeContext, projectInstructions, brainContext, packRuntimeContext, flowContext].filter(Boolean).join("\n\n"),
         effortThinking,
+        agentNewMsgs,
       )) {
         await handleAndPaint(ev);
       }
     } finally {
+      setChatMessages([...history, agentUserMsg, ...agentNewMsgs]);
       if (flowRun && useFlowStore.getState().runs.find((run) => run.id === flowRun.id)?.status === "running") {
         useFlowStore.getState().completeRun(flowRun.id, "cancelled");
       }
@@ -1212,6 +1255,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
 
   function thinkingPreview(text: string): string {
     const clean = text
+      .slice(0, THINKING_PREVIEW_CHARS)
       .replace(/[`*_>#-]/g, "")
       .split("\n")
       .map((line) => line.trim())
@@ -1237,16 +1281,26 @@ export function ChatPanel({ mode = "agent" }: Props) {
   const attachmentAccept = isAgentMode || activeProviderConfig?.supportsFileChatEndpoint
     ? undefined
     : "image/*";
+  const renderedChatStart = showAllMessages ? 0 : Math.max(0, chat.length - MAX_RENDERED_MESSAGES);
+  const renderedChat = chat.slice(renderedChatStart);
+  const hiddenMessageCount = renderedChatStart;
 
   return (
     <div className="chat-panel">
       <div className="messages">
-        {chat.map((l, i) => {
+        {hiddenMessageCount > 0 && (
+          <button className="messages-window-notice" onClick={() => setShowAllMessages(true)}>
+            Show {hiddenMessageCount} older message{hiddenMessageCount === 1 ? "" : "s"}
+          </button>
+        )}
+        {renderedChat.map((l, relativeIndex) => {
+          const i = renderedChatStart + relativeIndex;
           const isActiveEmptyAgent =
             busy && i === chat.length - 1 && l.role === "agent" && !l.text.trim() && !l.thinking?.trim();
           if (l.role === "agent" && !l.text.trim() && !l.thinking?.trim() && !isActiveEmptyAgent) {
             return null;
           }
+          const thinkingOpen = Boolean(l.thinking?.trim()) && isOpen(l, i);
           return (
             <div key={i} className={`msg ${l.role}`}>
               {isActiveEmptyAgent && (
@@ -1265,13 +1319,13 @@ export function ChatPanel({ mode = "agent" }: Props) {
                   )}
                   <details
                     className="thinking-block"
-                    open={isOpen(l, i)}
+                    open={thinkingOpen}
                     onToggle={(e) =>
                       setOpenOverride((o) => ({ ...o, [i]: (e.target as HTMLDetailsElement).open }))
                     }
                   >
                     <summary>Thinking</summary>
-                    <Markdown>{l.thinking}</Markdown>
+                    {thinkingOpen && <Markdown>{l.thinking}</Markdown>}
                   </details>
                 </>
               )}

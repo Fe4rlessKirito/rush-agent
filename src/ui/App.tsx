@@ -1,24 +1,26 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ChatPanel } from "./components/ChatPanel";
-import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
-import { ProjectsView } from "./components/ProjectsView";
-import { LibraryView, type LibraryFilter } from "./components/LibraryView";
-import { BrainView } from "./components/BrainView";
-import { DeepResearchView } from "./components/DeepResearchView";
-import { FlowView } from "./components/FlowView";
-import { ProjectSettings } from "./components/ProjectSettings";
-import { EditorTabs } from "./components/EditorTabs";
-import { EditorPane } from "./components/EditorPane";
-import { TerminalPanel } from "./components/TerminalPanel";
+import type { LibraryFilter } from "./components/LibraryView";
 import { ToastHost } from "./components/ToastHost";
 import { checkForUpdates } from "../core/updater";
 import { useAppStore, type ConversationMode } from "../core/store";
 import { useProjectStore } from "../core/projectStore";
 import { useFileStore } from "../core/fileStore";
 import { setDesktopProjectRoot } from "../core/projectRoot";
+
+const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((m) => ({ default: m.SettingsPanel })));
+const ProjectsView = lazy(() => import("./components/ProjectsView").then((m) => ({ default: m.ProjectsView })));
+const LibraryView = lazy(() => import("./components/LibraryView").then((m) => ({ default: m.LibraryView })));
+const BrainView = lazy(() => import("./components/BrainView").then((m) => ({ default: m.BrainView })));
+const DeepResearchView = lazy(() => import("./components/DeepResearchView").then((m) => ({ default: m.DeepResearchView })));
+const FlowView = lazy(() => import("./components/FlowView").then((m) => ({ default: m.FlowView })));
+const ProjectSettings = lazy(() => import("./components/ProjectSettings").then((m) => ({ default: m.ProjectSettings })));
+const EditorTabs = lazy(() => import("./components/EditorTabs").then((m) => ({ default: m.EditorTabs })));
+const EditorPane = lazy(() => import("./components/EditorPane").then((m) => ({ default: m.EditorPane })));
+const TerminalPanel = lazy(() => import("./components/TerminalPanel").then((m) => ({ default: m.TerminalPanel })));
 
 type View = "chat" | "code" | "projects" | "library" | "flow";
 type ProjectAiMode = "agent" | "flow";
@@ -324,15 +326,19 @@ export function App() {
         )}
 
         {view === "projects" && !inProject && (
-          <ProjectsView onOpenProject={enterProject} />
+          <Suspense fallback={null}>
+            <ProjectsView onOpenProject={enterProject} />
+          </Suspense>
         )}
 
         {view === "library" && (
-          <LibraryView
-            filter={libraryFilter}
-            onFilterChange={setLibraryFilter}
-            onOpenConversation={openLibraryConversation}
-          />
+          <Suspense fallback={null}>
+            <LibraryView
+              filter={libraryFilter}
+              onFilterChange={setLibraryFilter}
+              onOpenConversation={openLibraryConversation}
+            />
+          </Suspense>
         )}
 
         {view === "projects" && inProject && (
@@ -408,13 +414,17 @@ export function App() {
                 </div>
                 <div className="project-ai-chat-body">
                   {projectAiMode === "flow" ? (
-                    <FlowView embedded />
+                    <Suspense fallback={null}>
+                      <FlowView embedded />
+                    </Suspense>
                   ) : (
                     <ChatPanel mode="agent" />
                   )}
                 </div>
               </div>
-              <TerminalPanel />
+              <Suspense fallback={null}>
+                <TerminalPanel />
+              </Suspense>
             </section>
 
             {!projectEditorMinimized && (
@@ -429,9 +439,13 @@ export function App() {
             {!projectEditorMinimized && (
               <section className="editor-panel dock-right project-editor-pane">
                 <main className="editor">
-                  <EditorTabs />
+                  <Suspense fallback={null}>
+                    <EditorTabs />
+                  </Suspense>
                   <div className="editor-surface">
-                    <EditorPane />
+                    <Suspense fallback={null}>
+                      <EditorPane />
+                    </Suspense>
                   </div>
                 </main>
               </section>
@@ -440,7 +454,9 @@ export function App() {
         )}
 
         {view === "flow" && (
-          <FlowView />
+          <Suspense fallback={null}>
+            <FlowView />
+          </Suspense>
         )}
       </div>
 
@@ -461,11 +477,25 @@ export function App() {
         </div>
       )}
 
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} initialTab={settingsTab} />}
-      {showBrain && <BrainView onClose={() => setShowBrain(false)} />}
-      {showResearch && <DeepResearchView onClose={() => setShowResearch(false)} onOpenLibrary={openResearchLibrary} />}
+      {showSettings && (
+        <Suspense fallback={null}>
+          <SettingsPanel onClose={() => setShowSettings(false)} initialTab={settingsTab} />
+        </Suspense>
+      )}
+      {showBrain && (
+        <Suspense fallback={null}>
+          <BrainView onClose={() => setShowBrain(false)} />
+        </Suspense>
+      )}
+      {showResearch && (
+        <Suspense fallback={null}>
+          <DeepResearchView onClose={() => setShowResearch(false)} onOpenLibrary={openResearchLibrary} />
+        </Suspense>
+      )}
       {showProjectSettings && (
-        <ProjectSettings onClose={() => setShowProjectSettings(false)} />
+        <Suspense fallback={null}>
+          <ProjectSettings onClose={() => setShowProjectSettings(false)} />
+        </Suspense>
       )}
       <ToastHost />
     </div>

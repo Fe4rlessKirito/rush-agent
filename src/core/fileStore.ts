@@ -98,7 +98,9 @@ export const useFileStore = create<FileStore>((set, get) => ({
       const openTabs = s.openTabs.filter((p) => p !== path);
       const activeFile =
         s.activeFile === path ? openTabs[openTabs.length - 1] ?? null : s.activeFile;
-      return { openTabs, activeFile };
+      if (s.mode !== "disk" || writeTimers.has(path)) return { openTabs, activeFile };
+      const { [path]: _closedContent, ...files } = s.files;
+      return { openTabs, activeFile, files };
     }),
 
   setActive: (path) => set({ activeFile: path, showPreview: false }),

@@ -1,0 +1,39 @@
+# Tor state file last generated on 2026-07-01 20:33:51 local time
+# Other times below are in UTC
+# You *do not* need to edit this file.
+
+CircuitBuildTimeBin 315 2
+CircuitBuildTimeBin 335 1
+CircuitBuildTimeBin 345 1
+CircuitBuildTimeBin 405 1
+CircuitBuildTimeBin 415 1
+CircuitBuildTimeBin 425 1
+CircuitBuildTimeBin 445 1
+CircuitBuildTimeBin 505 1
+CircuitBuildTimeBin 685 1
+CircuitBuildTimeBin 725 1
+CircuitBuildTimeBin 905 1
+Dormant 0
+Guard in=default rsa_id=B4ECCA36F61E502B2BE7F08EB089DCE22353EBBE nickname=Zilith sampled_on=2026-06-20T08:15:42 sampled_idx=0 sampled_by=0.4.9.11 listed=1 confirmed_on=2026-06-23T22:52:27 confirmed_idx=2 pb_circ_attempts=3.000000 pb_circ_successes=3.000000 pb_successful_circuits_closed=3.000000
+Guard in=default rsa_id=862F828CC223FF9916ADFCCEC47BC5E9839413BA nickname=bodegabamz sampled_on=2026-06-26T03:39:00 sampled_idx=1 sampled_by=0.4.9.11 listed=1 confirmed_on=2026-06-20T01:05:48 confirmed_idx=0 pb_use_attempts=1.000000 pb_use_successes=1.000000 pb_circ_attempts=3.000000 pb_circ_successes=3.000000 pb_successful_circuits_closed=3.000000
+Guard in=default rsa_id=40A04EC7A0229A92434E10F1F8A9BCE28C54B748 nickname=luckydaye sampled_on=2026-06-24T11:21:15 sampled_idx=2 sampled_by=0.4.9.11 listed=1 confirmed_on=2026-06-23T11:30:07 confirmed_idx=1
+Guard in=default rsa_id=C45FE5C41ACC37E4EA4687FFC54A74F124739DAF nickname=frozone sampled_on=2026-06-21T00:21:17 sampled_idx=3 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=F1BE132696F4D95331E775EC0714F489D609E09C nickname=fatnick sampled_on=2026-06-26T21:15:54 sampled_idx=4 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=5F38E47C0C99DCB309F60D691A4857A1814ED647 nickname=dreary sampled_on=2026-06-28T05:22:23 sampled_idx=5 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=3D7C995F436B237FC07E3FD6F78EF7774E88D501 nickname=prsv sampled_on=2026-06-21T23:12:24 sampled_idx=6 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=8EE44717FA55705C12086F3ECD1F8D9C8676FD05 nickname=ForPrivacyNET sampled_on=2026-06-28T19:57:32 sampled_idx=7 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=BA2AD0818B8D764F645A4116343BB71406D9C931 nickname=4532mLiskamm sampled_on=2026-06-20T11:06:12 sampled_idx=8 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=DB9FD6867FAE9CA02E76316997EE50C5A1407E94 nickname=firewheel sampled_on=2026-06-22T21:22:08 sampled_idx=9 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=2C69CDDB61F9809E3C1BA0642FE05E8E8644B669 nickname=stefanbentenrelay01 sampled_on=2026-06-23T22:35:05 sampled_idx=10 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=45959A38ACAF2ECFB488A3C69D0C04F42438AB9D nickname=venusseries sampled_on=2026-06-29T16:13:39 sampled_idx=11 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=2812B53643E518BFFB4ECC4F966DF06E8A3C9D7B nickname=prsv sampled_on=2026-06-24T11:01:18 sampled_idx=12 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=95FA758717D185CBC1D5EE992AAE084AD041927D nickname=flowjob01 sampled_on=2026-06-27T18:50:57 sampled_idx=13 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=C1213630A84CDF47984D34DBF6E18E2170A2397D nickname=NTH174R1 sampled_on=2026-06-22T04:26:09 sampled_idx=14 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=8E3092910577346648825D3ED8C9093AD26AF341 nickname=thescribe sampled_on=2026-06-21T14:12:02 sampled_idx=15 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=FC87BA11F0364DBF5E5B9846F4C82132792F758C nickname=REMA sampled_on=2026-06-25T18:10:58 sampled_idx=16 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=466058DF87C45EFECF07BDC9D823FF12ED7B6890 nickname=blackwidow sampled_on=2026-06-23T01:52:46 sampled_idx=17 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=03D1EF3EF2BE5145150C58ACC72519DD860E61BA nickname=blackfox sampled_on=2026-06-27T12:17:10 sampled_idx=18 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=7D0E1D0227CC25D9B35B35B99F71A4344301B97F nickname=NTH127R1 sampled_on=2026-06-22T04:01:46 sampled_idx=19 sampled_by=0.4.9.11 listed=1
+LastWritten 2026-07-01 18:33:51
+TorVersion Tor 0.4.9.11 (git-f3d28b2e0978ca07)
+TotalBuildTimes 12

@@ -1912,6 +1912,19 @@ body {
 /* Chat */
 .chat-panel { display: flex; flex-direction: column; width: 100%; }
 .messages { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.messages-window-notice {
+  align-self: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text-dim);
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.messages-window-notice:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
 .msg { padding: 9px 12px; border-radius: 12px; word-break: break-word; line-height: 1.42; font-size: 13.5px; }
 .msg.user {
   background: linear-gradient(135deg, var(--accent), var(--accent-2));

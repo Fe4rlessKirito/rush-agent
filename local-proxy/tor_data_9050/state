@@ -1,0 +1,27 @@
+# Tor state file last generated on 2026-07-01 20:33:23 local time
+# Other times below are in UTC
+# You *do not* need to edit this file.
+
+Dormant 0
+Guard in=default rsa_id=CBB4183DFC94E6809786F6F3CD86B1F3ADD47F2B nickname=MonPremierRelais sampled_on=2026-06-21T17:00:29 sampled_idx=0 sampled_by=0.4.9.11 listed=1 confirmed_on=2026-06-27T12:17:37 confirmed_idx=1
+Guard in=default rsa_id=5C8BC829C436731B50ED8657019E849EDF76B091 nickname=Charon sampled_on=2026-06-25T20:30:45 sampled_idx=1 sampled_by=0.4.9.11 listed=1 confirmed_on=2026-06-22T18:31:27 confirmed_idx=0
+Guard in=default rsa_id=DC50D75D6A5D1E5B74E406B15C43809BB0C5F20A nickname=fluffypancakes007ca sampled_on=2026-06-22T11:41:44 sampled_idx=2 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=41C66EF98021A7DF9D138942F25C7AEB438AB744 nickname=azadisrvs sampled_on=2026-06-30T04:01:31 sampled_idx=3 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=A86B8708BAAC8A1FE66F0FE9270D23A364A1601B nickname=FTPhalifaxRWTH sampled_on=2026-06-19T22:44:47 sampled_idx=4 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=D9E6822261FF374E6C2B19567A51B9DDDB3C3C75 nickname=JohnthePhisherman sampled_on=2026-06-29T01:59:02 sampled_idx=5 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=27D299103EFE60273ECB356F05B1999B0F8F2260 nickname=ianndior sampled_on=2026-06-20T17:10:02 sampled_idx=6 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=4F55125BD4D63B00A3BFEEE2578EB1A11E057B05 nickname=jesterrelay sampled_on=2026-06-23T17:34:25 sampled_idx=7 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=B3A1B8DB8E44423A3DE116063129E925F399EF14 nickname=NTH165R1 sampled_on=2026-06-27T22:18:46 sampled_idx=8 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=10AFE045E82BBC3336BC3477F336362DE813D093 nickname=HugeTransFemNerd sampled_on=2026-06-26T18:36:27 sampled_idx=9 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=83C8D4A066522D230D640FE3592A810C59669B25 nickname=Totoro4220 sampled_on=2026-06-28T14:08:36 sampled_idx=10 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=35A31A210074D66EBE76C4F3FEB972E8C0B178CE nickname=f060b0cb1399c3fbff4 sampled_on=2026-06-24T00:10:00 sampled_idx=11 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=F2D6EB211744D41DC41CCB62BF1C3246D24B42A2 nickname=anong33 sampled_on=2026-06-23T12:52:58 sampled_idx=12 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=5DB9AE27A44EB7B476CC04A66C67A71C97A001E6 nickname=Chenjesu sampled_on=2026-06-26T09:34:10 sampled_idx=13 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=AB7241A3DE693373B9DD4E7396D40BE1E0540589 nickname=UnshakledFreedom sampled_on=2026-06-25T23:52:16 sampled_idx=14 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=5F41F6944BBAA4EE9E8D4E964ACE87F6ED994932 nickname=RelayFR1L sampled_on=2026-06-20T09:51:41 sampled_idx=15 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=48484C84F629BE2D0A7839A243A71D0CDD0B0FF2 nickname=INDSTBeta sampled_on=2026-06-26T00:43:21 sampled_idx=16 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=31D270A38505D4BFBBCABF717E9FB4BCA6DDF2FF nickname=Belgium sampled_on=2026-07-01T17:31:20 sampled_idx=17 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=C09B0B689E4CF3997C45BAC02543C8433AFFB4A6 nickname=SeraphimFields sampled_on=2026-06-22T01:49:19 sampled_idx=18 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=4BE7AB522ED45A4B02D80C7917B4DEE3F2E2D521 nickname=zgato sampled_on=2026-06-28T20:32:44 sampled_idx=19 sampled_by=0.4.9.11 listed=1
+LastWritten 2026-07-01 18:33:23
+TorVersion Tor 0.4.9.11 (git-f3d28b2e0978ca07)

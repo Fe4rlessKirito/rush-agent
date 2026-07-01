@@ -1,0 +1,39 @@
+# Tor state file last generated on 2026-07-01 20:33:27 local time
+# Other times below are in UTC
+# You *do not* need to edit this file.
+
+CircuitBuildTimeBin 455 2
+CircuitBuildTimeBin 465 1
+CircuitBuildTimeBin 575 1
+CircuitBuildTimeBin 655 1
+CircuitBuildTimeBin 665 1
+CircuitBuildTimeBin 695 1
+CircuitBuildTimeBin 705 1
+CircuitBuildTimeBin 765 1
+CircuitBuildTimeBin 835 1
+CircuitBuildTimeBin 845 1
+CircuitBuildTimeBin 4725 1
+Dormant 0
+Guard in=default rsa_id=4FDCEB0A10F599BE355D465754DD544EB05086A7 nickname=huenerfauth sampled_on=2026-06-25T00:05:32 sampled_idx=0 sampled_by=0.4.9.11 listed=1 confirmed_on=2026-06-25T10:01:43 confirmed_idx=0 pb_use_attempts=1.000000 pb_use_successes=1.000000 pb_circ_attempts=3.000000 pb_circ_successes=3.000000 pb_successful_circuits_closed=3.000000
+Guard in=default rsa_id=DA8C9D509989F8175EC3E487788815F7BAD2DAEC nickname=confidential sampled_on=2026-06-19T19:19:42 sampled_idx=1 sampled_by=0.4.9.11 listed=1 confirmed_on=2026-06-24T14:50:55 confirmed_idx=1 pb_circ_attempts=3.000000 pb_circ_successes=3.000000 pb_successful_circuits_closed=3.000000
+Guard in=default rsa_id=296C604F7D6499F073F372C0D37F8F11FB455AEB nickname=myMiddleRelay sampled_on=2026-06-30T16:18:46 sampled_idx=2 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=E88F8E72100709E226F22DF6A50365480054ECD2 nickname=Planetclaire60 sampled_on=2026-06-21T05:11:58 sampled_idx=3 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=89E552CFB28EF96D6E3A8B27037BD897FDD4A700 nickname=scheridan sampled_on=2026-06-29T00:18:29 sampled_idx=4 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=9113E3793CC213F254A80547A966F1EDE507440F nickname=rexZAP3 sampled_on=2026-06-24T03:41:52 sampled_idx=5 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=381925C7F276E5C1CD23B3B6A179FCFD6F0D0093 nickname=h0st2lTake0ver sampled_on=2026-06-22T09:13:09 sampled_idx=6 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=481DBE5A02A41589965640E2E36F5A7EC7CC0E8C nickname=prsv sampled_on=2026-06-20T06:37:38 sampled_idx=7 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=ED1829303F4B0D756FF69BFECFD1D79FC3FCCA7E nickname=sciurus2 sampled_on=2026-06-26T21:38:13 sampled_idx=8 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=07A27CCB9CC6E9C2E208E3C07CD1615AD7FB79D1 nickname=EchoOfFreedom sampled_on=2026-06-20T18:54:10 sampled_idx=9 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=1C0736CF3744A3B87C2D2269B8BD3388C7E60552 nickname=FreedomFries2 sampled_on=2026-06-25T01:05:32 sampled_idx=10 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=4DD822C2CF4542CDF2EDA22480C4EB0331E7B6DB nickname=doraemon sampled_on=2026-06-23T23:24:21 sampled_idx=11 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=6AF0FA4268DA70A58D5C97247D9E9377DDDBA0A3 nickname=token sampled_on=2026-06-20T09:54:37 sampled_idx=12 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=0FB0AB652DC422E7BA6C62DD07F4BE4E50C891E3 nickname=zackhemsey sampled_on=2026-07-01T08:57:08 sampled_idx=13 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=2DD4B76F7D0A54CB0868A5BBB42BF3B35CB73B77 nickname=djmontay sampled_on=2026-06-25T07:17:58 sampled_idx=14 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=3A608F27B4D65675A319862DD7F8E8441E0B4A64 nickname=ForPrivacyNET sampled_on=2026-06-23T19:56:08 sampled_idx=15 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=E5624D1E90FC4F19C83028EB2CFF7636D128B060 nickname=prsv sampled_on=2026-06-20T10:02:15 sampled_idx=16 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=1B01845B0112C825189891F52F6A8A08F1AA4D1B nickname=troubledte sampled_on=2026-06-28T00:27:08 sampled_idx=17 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=9BD9FF65D1847EE94E1579F3CDB35DF9223797A2 nickname=OrrinRelayHetzner sampled_on=2026-06-25T00:58:31 sampled_idx=18 sampled_by=0.4.9.11 listed=1
+Guard in=default rsa_id=DF6F7908E7FDEEE5DE6DD9C92F7C9DFB20B0CE2A nickname=TorchWood sampled_on=2026-06-26T22:26:11 sampled_idx=19 sampled_by=0.4.9.11 listed=1
+LastWritten 2026-07-01 18:33:27
+TorVersion Tor 0.4.9.11 (git-f3d28b2e0978ca07)
+TotalBuildTimes 12

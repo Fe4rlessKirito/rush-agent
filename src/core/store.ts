@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { ProviderConfig } from "./providers/types";
+import type { ProviderConfig, ChatMessage } from "./providers/types";
 import { DEFAULT_PROVIDERS } from "./providers/defaults";
 import type { PermissionConfig } from "./agent/toolPermissions";
 
@@ -41,6 +41,13 @@ export interface Conversation {
   mode: ConversationMode;
   title: string;
   lines: ChatLine[];
+  // Raw provider-facing message history (system/user/assistant/tool turns,
+  // including tool_call args and tool_result content) for this conversation.
+  // `lines` is a lossy, human-readable transcript for display only — it does
+  // not carry enough detail to reconstruct tool call/result context for the
+  // model. `messages` is what actually gets replayed into the next request,
+  // so it must be persisted alongside `lines` rather than derived from it.
+  messages?: ChatMessage[];
   createdAt: number;
   projectId?: string;
   projectRoot?: string;
@@ -87,6 +94,13 @@ export interface AppState {
   chat: ChatLine[];
   plainChat: ChatLine[];
   flowChat: ChatLine[];
+  // Raw message history mirrors, kept in lockstep with chat/plainChat/flowChat
+  // above. These carry the full tool_call/tool_result turns the model needs to
+  // avoid losing track of — and doubting — its own prior tool use. See
+  // Conversation.messages for details.
+  chatMessages: ChatMessage[];
+  plainChatMessages: ChatMessage[];
+  flowChatMessages: ChatMessage[];
 
   setProviders: (p: ProviderConfig[]) => void;
   upsertProvider: (p: ProviderConfig) => void;
@@ -99,6 +113,9 @@ export interface AppState {
   setChat: (updater: ChatLine[] | ((prev: ChatLine[]) => ChatLine[])) => void;
   setPlainChat: (updater: ChatLine[] | ((prev: ChatLine[]) => ChatLine[])) => void;
   setFlowChat: (updater: ChatLine[] | ((prev: ChatLine[]) => ChatLine[])) => void;
+  setChatMessages: (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
+  setPlainChatMessages: (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
+  setFlowChatMessages: (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
   clearChat: () => void;
   clearPlainChat: () => void;
   clearFlowChat: () => void;
@@ -119,6 +136,7 @@ function mergeDefaultProviders(providers: ProviderConfig[] | undefined): Provide
       if (p.label === "Rush Local Proxy") merged.label = def.label;
       if (p.baseUrl === "http://localhost:8000/v1") merged.baseUrl = def.baseUrl;
       if (p.defaultModel === "claude-opus-4-8") merged.defaultModel = def.defaultModel;
+      if (p.supportsFileChatEndpoint === true) merged.supportsFileChatEndpoint = def.supportsFileChatEndpoint;
     }
     return merged;
   });
@@ -159,6 +177,9 @@ function normalizeConversations(state: Partial<AppState>): {
   chat: ChatLine[];
   plainChat: ChatLine[];
   flowChat: ChatLine[];
+  chatMessages: ChatMessage[];
+  plainChatMessages: ChatMessage[];
+  flowChatMessages: ChatMessage[];
 } {
   const raw = state.conversations ?? [];
   const conversations = raw
@@ -170,6 +191,10 @@ function normalizeConversations(state: Partial<AppState>): {
         mode,
         title: c.title || titleFrom(lines, mode),
         lines,
+        // Older, pre-fix conversations won't have a saved `messages` array.
+        // Default to empty rather than undefined so callers can rely on it
+        // always being an array.
+        messages: c.messages ?? [],
         createdAt: c.createdAt ?? Date.now(),
         projectId: c.projectId,
         projectRoot: c.projectRoot,
@@ -204,6 +229,9 @@ function normalizeConversations(state: Partial<AppState>): {
     chat: activeAgent?.lines ?? [],
     plainChat: activePlain?.lines ?? [],
     flowChat: activeFlow?.lines ?? [],
+    chatMessages: activeAgent?.messages ?? [],
+    plainChatMessages: activePlain?.messages ?? [],
+    flowChatMessages: activeFlow?.messages ?? [],
   };
 }
 
@@ -227,10 +255,18 @@ function upsertConversation(
     (current?.projectId === projectContext.projectId && current?.mode === mode);
   const nextId = sameProject && id ? id : newId();
   const idx = conversations.findIndex((c) => c.id === nextId);
+  // setChat/setPlainChat/setFlowChat fire on every streamed token, well before
+  // the end-of-turn setChatMessages call lands. Since this rebuilds the
+  // conversation record from scratch, carry the existing `messages` forward
+  // (when we're still the same conversation) so mid-stream updates to the
+  // display transcript never clobber the raw tool-call/tool-result history
+  // that's already been saved.
+  const carriedMessages = sameProject && id ? current?.messages ?? [] : [];
   const next: Conversation = {
     id: nextId,
     mode,
     lines,
+    messages: carriedMessages,
     title: titleFrom(lines, mode),
     createdAt: Date.now(),
     ...(projectContext
@@ -245,6 +281,26 @@ function upsertConversation(
     ? conversations
     : conversations.filter((c) => c.id !== nextId);
   return { conversations: [next, ...rest], id: nextId };
+}
+
+// Persist the raw provider message history (tool calls/results included) onto
+// an already-existing conversation. Unlike upsertConversation, this never
+// creates, renames, or deletes a conversation — the lines-driven setters own
+// that lifecycle. If the conversation doesn't exist yet (e.g. messages are
+// being recorded before the first `setChat` call lands), this is a no-op;
+// the next setChat call will create the conversation and the messages will
+// be saved on the following turn.
+function updateConversationMessages(
+  conversations: Conversation[],
+  id: string,
+  messages: ChatMessage[],
+): Conversation[] {
+  if (!id) return conversations;
+  const idx = conversations.findIndex((c) => c.id === id);
+  if (idx === -1) return conversations;
+  const next = conversations.slice();
+  next[idx] = { ...next[idx], messages };
+  return next;
 }
 
 export const useAppStore = create<AppState>()(
@@ -268,6 +324,9 @@ export const useAppStore = create<AppState>()(
       chat: [],
       plainChat: [],
       flowChat: [],
+      chatMessages: [],
+      plainChatMessages: [],
+      flowChatMessages: [],
 
       setProviders: (providers) =>
         set((s) => ({
@@ -326,11 +385,22 @@ export const useAppStore = create<AppState>()(
           const activeId = s.activeConversationIds.agent;
           return {
             chat: [],
+            chatMessages: [],
             conversations: activeId
               ? s.conversations.filter((c) => c.id !== activeId)
               : s.conversations,
             activeConversationId: s.activeConversationId === activeId ? "" : s.activeConversationId,
             activeConversationIds: { ...s.activeConversationIds, agent: "" },
+          };
+        }),
+
+      setChatMessages: (updater) =>
+        set((s) => {
+          const messages =
+            typeof updater === "function" ? updater(s.chatMessages) : updater;
+          return {
+            chatMessages: messages,
+            conversations: updateConversationMessages(s.conversations, s.activeConversationIds.agent, messages),
           };
         }),
 
@@ -358,11 +428,22 @@ export const useAppStore = create<AppState>()(
           const activeId = s.activeConversationIds.plain;
           return {
             plainChat: [],
+            plainChatMessages: [],
             conversations: activeId
               ? s.conversations.filter((c) => c.id !== activeId)
               : s.conversations,
             activeConversationId: s.activeConversationId === activeId ? "" : s.activeConversationId,
             activeConversationIds: { ...s.activeConversationIds, plain: "" },
+          };
+        }),
+
+      setPlainChatMessages: (updater) =>
+        set((s) => {
+          const messages =
+            typeof updater === "function" ? updater(s.plainChatMessages) : updater;
+          return {
+            plainChatMessages: messages,
+            conversations: updateConversationMessages(s.conversations, s.activeConversationIds.plain, messages),
           };
         }),
 
@@ -390,11 +471,22 @@ export const useAppStore = create<AppState>()(
           const activeId = s.activeConversationIds.flow;
           return {
             flowChat: [],
+            flowChatMessages: [],
             conversations: activeId
               ? s.conversations.filter((c) => c.id !== activeId)
               : s.conversations,
             activeConversationId: s.activeConversationId === activeId ? "" : s.activeConversationId,
             activeConversationIds: { ...s.activeConversationIds, flow: "" },
+          };
+        }),
+
+      setFlowChatMessages: (updater) =>
+        set((s) => {
+          const messages =
+            typeof updater === "function" ? updater(s.flowChatMessages) : updater;
+          return {
+            flowChatMessages: messages,
+            conversations: updateConversationMessages(s.conversations, s.activeConversationIds.flow, messages),
           };
         }),
 
@@ -416,6 +508,8 @@ export const useAppStore = create<AppState>()(
               },
               chat: activeAgent?.lines ?? [],
               flowChat: activeFlow?.lines ?? [],
+              chatMessages: activeAgent?.messages ?? [],
+              flowChatMessages: activeFlow?.messages ?? [],
             };
           }
 
@@ -431,6 +525,8 @@ export const useAppStore = create<AppState>()(
             },
             chat: activeAgent?.lines ?? [],
             flowChat: activeFlow?.lines ?? [],
+            chatMessages: activeAgent?.messages ?? [],
+            flowChatMessages: activeFlow?.messages ?? [],
           };
         }),
 
@@ -438,7 +534,11 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           activeConversationId: "",
           activeConversationIds: { ...s.activeConversationIds, [mode]: "" },
-          ...(mode === "agent" ? { chat: [] } : mode === "flow" ? { flowChat: [] } : { plainChat: [] }),
+          ...(mode === "agent"
+            ? { chat: [], chatMessages: [] }
+            : mode === "flow"
+              ? { flowChat: [], flowChatMessages: [] }
+              : { plainChat: [], plainChatMessages: [] }),
         })),
 
       selectConversation: (id) => {
@@ -455,10 +555,10 @@ export const useAppStore = create<AppState>()(
               }
             : null,
           ...(convo.mode === "agent"
-            ? { chat: convo.lines }
+            ? { chat: convo.lines, chatMessages: convo.messages ?? [] }
             : convo.mode === "flow"
-              ? { flowChat: convo.lines }
-              : { plainChat: convo.lines }),
+              ? { flowChat: convo.lines, flowChatMessages: convo.messages ?? [] }
+              : { plainChat: convo.lines, plainChatMessages: convo.messages ?? [] }),
         }));
         return convo.mode;
       },
@@ -485,15 +585,27 @@ export const useAppStore = create<AppState>()(
             activeConversationId,
             activeConversationIds,
             ...(deletedMode === "agent"
-              ? { chat: replacement?.lines ?? [] }
+              ? { chat: replacement?.lines ?? [], chatMessages: replacement?.messages ?? [] }
               : deletedMode === "flow"
-                ? { flowChat: replacement?.lines ?? [] }
-                : { plainChat: replacement?.lines ?? [] }),
+                ? { flowChat: replacement?.lines ?? [], flowChatMessages: replacement?.messages ?? [] }
+                : { plainChat: replacement?.lines ?? [], plainChatMessages: replacement?.messages ?? [] }),
           };
         }),
     }),
     {
       name: "rush-agent-settings",
+      partialize: (state) => {
+        const {
+          chat: _chat,
+          plainChat: _plainChat,
+          flowChat: _flowChat,
+          chatMessages: _chatMessages,
+          plainChatMessages: _plainChatMessages,
+          flowChatMessages: _flowChatMessages,
+          ...persisted
+        } = state;
+        return persisted;
+      },
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         state.providers = mergeDefaultProviders(state.providers);

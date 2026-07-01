@@ -76,7 +76,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     defaultModel: "gpt-5-4",
     supportsThinking: true,
     supportsImageChatEndpoint: true,
-    supportsFileChatEndpoint: true,
+    supportsFileChatEndpoint: false,
     enabled: false,
   },
 ];

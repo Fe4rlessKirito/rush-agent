@@ -29,6 +29,9 @@ function resetStore() {
     chat: [],
     plainChat: [],
     flowChat: [],
+    chatMessages: [],
+    plainChatMessages: [],
+    flowChatMessages: [],
     activeProviderId: null,
     activeModel: null,
     toolPermissions: {
@@ -136,6 +139,51 @@ describe("useAppStore conversations", () => {
     useAppStore.getState().setChat([{ role: "user", text: "first" }]);
     useAppStore.getState().setChat((prev) => [...prev, { role: "agent", text: "reply" }]);
     expect(useAppStore.getState().chat).toHaveLength(2);
+  });
+
+  it("setChatMessages persists tool call/result turns onto the active conversation", () => {
+    useAppStore.getState().setChat([{ role: "user", text: "read the file" }]);
+    const id = useAppStore.getState().activeConversationIds.agent;
+    useAppStore.getState().setChatMessages([
+      { role: "user", content: "read the file" },
+      { role: "assistant", content: "" },
+      { role: "tool", name: "read_file", content: "file contents here" },
+    ]);
+    expect(useAppStore.getState().chatMessages).toHaveLength(3);
+    const convo = useAppStore.getState().conversations.find((c) => c.id === id);
+    expect(convo?.messages).toHaveLength(3);
+    expect(convo?.messages?.[2]).toMatchObject({ role: "tool", content: "file contents here" });
+  });
+
+  it("setChat rebuilding the display transcript does not clobber previously saved tool messages", () => {
+    // Regression test: setChat used to rebuild the conversation record from
+    // scratch on every streamed token, silently dropping any `messages`
+    // saved by an earlier setChatMessages call for the same conversation.
+    useAppStore.getState().setChat([{ role: "user", text: "read the file" }]);
+    useAppStore.getState().setChatMessages([
+      { role: "user", content: "read the file" },
+      { role: "tool", name: "read_file", content: "file contents here" },
+    ]);
+    // A later turn streams more display lines into the same conversation.
+    useAppStore.getState().setChat((prev) => [...prev, { role: "agent", text: "done" }]);
+    expect(useAppStore.getState().chatMessages).toHaveLength(2);
+    const id = useAppStore.getState().activeConversationIds.agent;
+    const convo = useAppStore.getState().conversations.find((c) => c.id === id);
+    expect(convo?.messages).toHaveLength(2);
+  });
+
+  it("selectConversation restores saved tool-call/tool-result messages, not just display lines", () => {
+    useAppStore.getState().setChat([{ role: "user", text: "read the file" }]);
+    useAppStore.getState().setChatMessages([
+      { role: "user", content: "read the file" },
+      { role: "tool", name: "read_file", content: "file contents here" },
+    ]);
+    const first = useAppStore.getState().activeConversationIds.agent;
+    useAppStore.getState().newConversation("agent");
+    expect(useAppStore.getState().chatMessages).toEqual([]);
+    useAppStore.getState().selectConversation(first);
+    expect(useAppStore.getState().chatMessages).toHaveLength(2);
+    expect(useAppStore.getState().chatMessages[1]).toMatchObject({ role: "tool", content: "file contents here" });
   });
 
   it("newConversation starts an unsaved blank draft", () => {

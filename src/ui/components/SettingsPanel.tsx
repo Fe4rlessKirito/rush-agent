@@ -19,6 +19,7 @@ import { useDraggable } from "../hooks/useDraggable";
 import { PackManager } from "./PackManager";
 
 type Tab = "general" | "providers" | "proxies" | "tools" | "packs" | "lsp" | "mcp";
+const LOCAL_PROXY_BASE_URL = "http://127.0.0.1:8000";
 
 // Per-proxy model-list state. Models are fetched lazily the first time a proxy
 // is expanded, then cached here so reopening it doesn't re-hit the network.
@@ -63,19 +64,14 @@ interface ProxyRuntimeConfig {
   tor_socks?: string;
 }
 
-interface TorStatus {
-  enabled: boolean;
-  auto_start: boolean;
-  socks: string;
-  socks_reachable: boolean;
-  control_port: number;
-  control_reachable: boolean;
-  control_authenticated: boolean;
-  tor_exe?: string | null;
-  running: boolean;
-  started?: boolean;
-  renewed?: boolean;
-  error?: string | null;
+interface ProxyPoolStatus {
+  proxies: string[];
+  proxy_count: number;
+  load?: {
+    window_requests?: number;
+    requests_per_second?: number;
+  };
+  error?: string;
 }
 
 const PROVIDER_ORDER = [
@@ -225,9 +221,9 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
   });
   const [proxyConfigBusy, setProxyConfigBusy] = useState(false);
   const [proxyConfigMessage, setProxyConfigMessage] = useState("");
-  const [torStatus, setTorStatus] = useState<TorStatus | null>(null);
-  const [torBusy, setTorBusy] = useState(false);
-  const [torMessage, setTorMessage] = useState("");
+  const [proxyPoolStatus, setProxyPoolStatus] = useState<ProxyPoolStatus | null>(null);
+  const [proxyPoolBusy, setProxyPoolBusy] = useState(false);
+  const [proxyPoolMessage, setProxyPoolMessage] = useState("");
   const [lspProbe, setLspProbe] = useState<Record<LanguageServerKey, LspProbeState>>({
     rust: { status: "idle" },
     typescript: { status: "idle" },
@@ -293,7 +289,7 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
         setLocalProxyEnabled(status.enabled);
         if (status.enabled) {
           void refreshProxyConfig();
-          void refreshTorStatus();
+          void refreshProxyPoolStatus();
         }
       })
       .catch((err) => {
@@ -364,7 +360,7 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
   async function refreshProxyConfig() {
     setProxyConfigBusy(true);
     try {
-      const res = await fetch("http://localhost:8000/config", { cache: "no-store" });
+      const res = await fetch(`${LOCAL_PROXY_BASE_URL}/config`, { cache: "no-store" });
       if (!res.ok) throw new Error(`config ${res.status}`);
       const config = (await res.json()) as ProxyRuntimeConfig;
       setProxyConfig(config);
@@ -385,15 +381,15 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
         account_ttl_sec: Math.max(60, Math.round(proxyConfig.account_ttl_sec)),
         proxy_tor: Boolean(proxyConfig.proxy_tor),
       };
-      const res = await fetch("http://localhost:8000/config", {
+      const res = await fetch(`${LOCAL_PROXY_BASE_URL}/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`config ${res.status}`);
       setProxyConfig(body);
-      setProxyConfigMessage("Saved proxy config");
-      void refreshTorStatus();
+      setProxyConfigMessage("Requested proxy config update");
+      void refreshProxyPoolStatus();
     } catch (err) {
       setProxyConfigMessage(`Unable to save proxy config: ${String(err)}`);
     } finally {
@@ -409,48 +405,22 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
     setProxyConfig((config) => ({ ...config, proxy_tor: enabled }));
   }
 
-  async function refreshTorStatus() {
-    setTorBusy(true);
+  async function refreshProxyPoolStatus() {
+    setProxyPoolBusy(true);
     try {
-      const res = await fetch("http://localhost:8000/tor/status", { cache: "no-store" });
-      if (!res.ok) throw new Error(`tor status ${res.status}`);
-      const status = (await res.json()) as TorStatus;
-      setTorStatus(status);
-      setTorMessage("");
+      const res = await fetch(`${LOCAL_PROXY_BASE_URL}/proxies`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`proxies ${res.status}`);
+      const status = (await res.json()) as ProxyPoolStatus;
+      setProxyPoolStatus({
+        proxies: Array.isArray(status.proxies) ? status.proxies : [],
+        proxy_count: Number(status.proxy_count ?? status.proxies?.length ?? 0),
+        load: status.load ?? {},
+      });
+      setProxyPoolMessage("");
     } catch (err) {
-      setTorMessage(`Unable to load Tor status: ${String(err)}`);
+      setProxyPoolMessage(`Unable to load proxy pool: ${String(err)}`);
     } finally {
-      setTorBusy(false);
-    }
-  }
-
-  async function startTor() {
-    setTorBusy(true);
-    try {
-      const res = await fetch("http://localhost:8000/tor/start", { method: "POST" });
-      const status = (await res.json()) as TorStatus;
-      setTorStatus(status);
-      if (!res.ok) throw new Error(status.error ?? `tor start ${res.status}`);
-      setTorMessage("Tor started");
-    } catch (err) {
-      setTorMessage(`Unable to start Tor: ${String(err)}`);
-    } finally {
-      setTorBusy(false);
-    }
-  }
-
-  async function renewTorCircuit() {
-    setTorBusy(true);
-    try {
-      const res = await fetch("http://localhost:8000/tor/newnym", { method: "POST" });
-      const status = (await res.json()) as TorStatus;
-      setTorStatus(status);
-      if (!res.ok) throw new Error(status.error ?? `tor newnym ${res.status}`);
-      setTorMessage("Requested a new Tor circuit");
-    } catch (err) {
-      setTorMessage(`Unable to renew Tor circuit: ${String(err)}`);
-    } finally {
-      setTorBusy(false);
+      setProxyPoolBusy(false);
     }
   }
 
@@ -464,7 +434,7 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
       setLocalProxyEnabled(status.enabled);
       if (status.enabled) {
         void refreshProxyConfig();
-        void refreshTorStatus();
+        void refreshProxyPoolStatus();
       }
     } catch (err) {
       setLocalProxyEnabled((current) => !current);
@@ -800,13 +770,13 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
               <div className="proxy-config-panel">
                 <div className="proxy-config-head">
                   <div>
-                    <strong>Tor routing</strong>
-                    <span>Outbound signup, file upload, and WebSocket traffic</span>
+                    <strong>Tor proxy pool</strong>
+                    <span>Auto-managed proxies from <code>/proxies</code></span>
                   </div>
                   <button
                     className="ghost small"
-                    onClick={refreshTorStatus}
-                    disabled={!localProxyEnabled || torBusy}
+                    onClick={refreshProxyPoolStatus}
+                    disabled={!localProxyEnabled || proxyPoolBusy}
                   >
                     Refresh
                   </button>
@@ -817,9 +787,9 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
                     <strong>Route through Tor</strong>
                     <small>
                       {proxyConfig.proxy_tor
-                        ? torStatus?.running
-                          ? `On, ${torStatus.socks}`
-                          : "On, not connected"
+                        ? proxyPoolStatus?.proxy_count
+                          ? `On, ${proxyPoolStatus.proxy_count} active ${proxyPoolStatus.proxy_count === 1 ? "proxy" : "proxies"}`
+                          : "On, proxy pool warming"
                         : "Off"}
                     </small>
                   </span>
@@ -831,37 +801,24 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
                   />
                 </label>
 
-                <div className={`tor-status-card ${torStatus?.running ? "ready" : "offline"}`}>
+                <div className={`tor-status-card ${proxyPoolStatus?.proxy_count ? "ready" : "offline"}`}>
                   <div>
                     <span className="tor-status-dot" aria-hidden="true" />
-                    <strong>{torStatus?.running ? "Tor connected" : "Tor unavailable"}</strong>
+                    <strong>
+                      {proxyPoolStatus?.proxy_count
+                        ? `${proxyPoolStatus.proxy_count} Tor ${proxyPoolStatus.proxy_count === 1 ? "proxy" : "proxies"} active`
+                        : "No Tor proxies active"}
+                    </strong>
                   </div>
                   <dl>
                     <dt>SOCKS</dt>
-                    <dd>{torStatus?.socks ?? proxyConfig.tor_socks ?? "socks5h://127.0.0.1:9050"}</dd>
-                    <dt>Control</dt>
-                    <dd>{torStatus?.control_authenticated ? `Authenticated on ${torStatus.control_port}` : "Not authenticated"}</dd>
-                    <dt>Binary</dt>
-                    <dd>{torStatus?.tor_exe ?? "Not found"}</dd>
+                    <dd>{proxyPoolStatus?.proxies.length ? proxyPoolStatus.proxies.join(", ") : proxyConfig.tor_socks ?? "socks5h://127.0.0.1:9050"}</dd>
+                    <dt>Requests</dt>
+                    <dd>{proxyPoolStatus?.load?.window_requests ?? 0}</dd>
+                    <dt>Rate</dt>
+                    <dd>{Number(proxyPoolStatus?.load?.requests_per_second ?? 0).toFixed(1)} / sec</dd>
                   </dl>
-                  {torStatus?.error && <p className="hint error">{torStatus.error}</p>}
-                  {torMessage && <p className={`proxy-config-message ${torMessage.startsWith("Unable") ? "error" : ""}`}>{torMessage}</p>}
-                  <div className="row">
-                    <button
-                      className="ghost small"
-                      onClick={startTor}
-                      disabled={!localProxyEnabled || torBusy || !proxyConfig.proxy_tor}
-                    >
-                      {torBusy ? "Working..." : "Start Tor"}
-                    </button>
-                    <button
-                      className="ghost small"
-                      onClick={renewTorCircuit}
-                      disabled={!localProxyEnabled || torBusy || !proxyConfig.proxy_tor || !torStatus?.control_authenticated}
-                    >
-                      New circuit
-                    </button>
-                  </div>
+                  {proxyPoolMessage && <p className={`proxy-config-message ${proxyPoolMessage.startsWith("Unable") ? "error" : ""}`}>{proxyPoolMessage}</p>}
                 </div>
 
                 <div className="proxy-config-head">
