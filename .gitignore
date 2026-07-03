@@ -11,6 +11,10 @@ releases/
 
 # Tauri / Rust build output
 src-tauri/target/
+local-proxy/target/
+local-proxy/frontend/node_modules/
+local-proxy/.leech-rs/
+local-proxy/tor_data_*/
 
 # Tauri updater signing key
 src-tauri/updater.key

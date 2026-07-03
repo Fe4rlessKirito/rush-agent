@@ -179,10 +179,10 @@ body {
 }
 .top-mode-tabs {
   display: inline-grid;
-  grid-template-columns: repeat(3, minmax(58px, 1fr));
+  grid-template-columns: repeat(2, minmax(58px, 1fr));
   gap: 4px;
-  width: 250px;
-  flex: 0 0 250px;
+  width: 170px;
+  flex: 0 0 170px;
 }
 .top-mode-tab {
   position: relative;
@@ -1911,6 +1911,31 @@ body {
 
 /* Chat */
 .chat-panel { display: flex; flex-direction: column; width: 100%; }
+.chat-mode-switcher {
+  display: inline-flex; gap: 4px; align-self: flex-start;
+  margin: 10px 14px 0; padding: 3px;
+  background: var(--panel-2); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px;
+}
+.chat-mode-tab {
+  border: none; background: transparent; color: var(--text-faint);
+  font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 6px;
+  cursor: pointer; transition: background 0.15s ease, color 0.15s ease;
+}
+.chat-mode-tab:hover { color: var(--text); }
+.chat-mode-tab.active { background: #303037; color: var(--text); }
+.mode-switch-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 10px 14px 0; padding: 8px 12px;
+  background: var(--panel-2); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px;
+  font-size: 12.5px; color: var(--text);
+}
+.mode-switch-hint { color: var(--text-faint); }
+.mode-switch-banner-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.mode-switch-banner-actions button {
+  border: 1px solid rgba(255, 255, 255, 0.1); background: var(--panel); color: var(--text);
+  font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+}
+.mode-switch-banner-actions button:first-child { background: #303037; }
 .messages { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .messages-window-notice {
   align-self: center;

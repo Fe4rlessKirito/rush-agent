@@ -24,13 +24,12 @@ function resetStore() {
     providers: DEFAULT_PROVIDERS,
     conversations: [],
     activeConversationId: "",
-    activeConversationIds: { plain: "", agent: "", flow: "" },
+    activeConversationIds: { chat: "", flow: "" },
     conversationProjectContext: null,
+    chatMode: "plain",
     chat: [],
-    plainChat: [],
     flowChat: [],
     chatMessages: [],
-    plainChatMessages: [],
     flowChatMessages: [],
     activeProviderId: null,
     activeModel: null,
@@ -114,7 +113,7 @@ describe("useAppStore conversations", () => {
 
   it("starts with no saved conversations", () => {
     expect(useAppStore.getState().conversations).toEqual([]);
-    expect(useAppStore.getState().activeConversationIds).toEqual({ plain: "", agent: "", flow: "" });
+    expect(useAppStore.getState().activeConversationIds).toEqual({ chat: "", flow: "" });
   });
 
   it("derives a conversation title from the first user message", () => {
@@ -143,7 +142,7 @@ describe("useAppStore conversations", () => {
 
   it("setChatMessages persists tool call/result turns onto the active conversation", () => {
     useAppStore.getState().setChat([{ role: "user", text: "read the file" }]);
-    const id = useAppStore.getState().activeConversationIds.agent;
+    const id = useAppStore.getState().activeConversationIds.chat;
     useAppStore.getState().setChatMessages([
       { role: "user", content: "read the file" },
       { role: "assistant", content: "" },
@@ -167,7 +166,7 @@ describe("useAppStore conversations", () => {
     // A later turn streams more display lines into the same conversation.
     useAppStore.getState().setChat((prev) => [...prev, { role: "agent", text: "done" }]);
     expect(useAppStore.getState().chatMessages).toHaveLength(2);
-    const id = useAppStore.getState().activeConversationIds.agent;
+    const id = useAppStore.getState().activeConversationIds.chat;
     const convo = useAppStore.getState().conversations.find((c) => c.id === id);
     expect(convo?.messages).toHaveLength(2);
   });
@@ -178,7 +177,7 @@ describe("useAppStore conversations", () => {
       { role: "user", content: "read the file" },
       { role: "tool", name: "read_file", content: "file contents here" },
     ]);
-    const first = useAppStore.getState().activeConversationIds.agent;
+    const first = useAppStore.getState().activeConversationIds.chat;
     useAppStore.getState().newConversation("agent");
     expect(useAppStore.getState().chatMessages).toEqual([]);
     useAppStore.getState().selectConversation(first);
@@ -190,40 +189,50 @@ describe("useAppStore conversations", () => {
     useAppStore.getState().setChat([{ role: "user", text: "old" }]);
     useAppStore.getState().newConversation("agent");
     expect(useAppStore.getState().chat).toEqual([]);
-    expect(useAppStore.getState().activeConversationIds.agent).toBe("");
+    expect(useAppStore.getState().activeConversationIds.chat).toBe("");
     expect(useAppStore.getState().conversations).toHaveLength(1);
   });
 
   it("selectConversation restores that conversation's lines into the chat mirror", () => {
+    useAppStore.getState().setChatMode("agent");
     useAppStore.getState().setChat([{ role: "user", text: "convo one" }]);
-    const first = useAppStore.getState().activeConversationIds.agent;
+    const first = useAppStore.getState().activeConversationIds.chat;
     useAppStore.getState().newConversation("agent");
     const mode = useAppStore.getState().selectConversation(first);
     expect(mode).toBe("agent");
     expect(useAppStore.getState().chat[0].text).toBe("convo one");
   });
 
-  it("keeps plain chat conversations separate from code agent tasks", () => {
-    useAppStore.getState().setPlainChat([{ role: "user", text: "plain question" }]);
-    const plain = useAppStore.getState().activeConversationIds.plain;
-    useAppStore.getState().setChat([{ role: "user", text: "code task" }]);
-    const agent = useAppStore.getState().activeConversationIds.agent;
+  it("keeps Chat and Code turns in the same conversation and lets setChatMode switch sub-mode in place", () => {
+    // Regression test: Chat and Code used to be entirely separate spaces
+    // (separate ids, separate line arrays). They now share one conversation;
+    // switching sub-mode must not fork a new id or touch the existing lines.
+    useAppStore.getState().setChat([{ role: "user", text: "plain question" }]);
+    const id = useAppStore.getState().activeConversationIds.chat;
+    expect(useAppStore.getState().conversations.find((c) => c.id === id)?.mode).toBe("plain");
 
-    expect(plain).not.toBe(agent);
-    expect(useAppStore.getState().conversations.find((c) => c.id === plain)?.mode).toBe("plain");
-    expect(useAppStore.getState().conversations.find((c) => c.id === agent)?.mode).toBe("agent");
+    useAppStore.getState().setChatMode("agent");
+    expect(useAppStore.getState().chatMode).toBe("agent");
+    expect(useAppStore.getState().activeConversationIds.chat).toBe(id);
+    expect(useAppStore.getState().chat[0].text).toBe("plain question");
+    expect(useAppStore.getState().conversations.find((c) => c.id === id)?.mode).toBe("agent");
+
+    useAppStore.getState().setChat((prev) => [...prev, { role: "user", text: "code task" }]);
+    expect(useAppStore.getState().activeConversationIds.chat).toBe(id);
+    expect(useAppStore.getState().chat).toHaveLength(2);
   });
 
-  it("new plain conversations do not wipe the active agent task", () => {
+  it("newConversation always starts a fresh shared Chat/Code draft, in the requested sub-mode", () => {
     useAppStore.getState().setChat([{ role: "user", text: "agent work" }]);
     useAppStore.getState().newConversation("plain");
-    expect(useAppStore.getState().plainChat).toEqual([]);
-    expect(useAppStore.getState().chat[0].text).toBe("agent work");
+    expect(useAppStore.getState().chat).toEqual([]);
+    expect(useAppStore.getState().chatMode).toBe("plain");
+    expect(useAppStore.getState().activeConversationIds.chat).toBe("");
   });
 
   it("keeps flow conversations separate from code agent tasks", () => {
     useAppStore.getState().setChat([{ role: "user", text: "code task" }]);
-    const agent = useAppStore.getState().activeConversationIds.agent;
+    const agent = useAppStore.getState().activeConversationIds.chat;
     useAppStore.getState().setFlowChat([{ role: "user", text: "flow task" }]);
     const flow = useAppStore.getState().activeConversationIds.flow;
 
@@ -240,7 +249,7 @@ describe("useAppStore conversations", () => {
       projectName: "Project A",
     });
     useAppStore.getState().setChat([{ role: "user", text: "project a task" }]);
-    const projectA = useAppStore.getState().activeConversationIds.agent;
+    const projectA = useAppStore.getState().activeConversationIds.chat;
 
     useAppStore.getState().setConversationProjectContext({
       projectId: "project-b",
@@ -249,7 +258,7 @@ describe("useAppStore conversations", () => {
     });
     expect(useAppStore.getState().chat).toEqual([]);
     useAppStore.getState().setChat([{ role: "user", text: "project b task" }]);
-    const projectB = useAppStore.getState().activeConversationIds.agent;
+    const projectB = useAppStore.getState().activeConversationIds.chat;
 
     expect(projectA).not.toBe(projectB);
     expect(useAppStore.getState().conversations.find((c) => c.id === projectA)).toMatchObject({
@@ -283,16 +292,16 @@ describe("useAppStore conversations", () => {
     useAppStore.getState().setChat([{ role: "user", text: "something" }]);
     useAppStore.getState().clearChat();
     expect(useAppStore.getState().chat).toEqual([]);
-    expect(useAppStore.getState().activeConversationIds.agent).toBe("");
+    expect(useAppStore.getState().activeConversationIds.chat).toBe("");
     expect(useAppStore.getState().conversations).toEqual([]);
   });
 
   it("can leave zero conversations after deleting the last saved task", () => {
     useAppStore.getState().setChat([{ role: "user", text: "delete me" }]);
-    const onlyAgent = useAppStore.getState().activeConversationIds.agent;
+    const onlyAgent = useAppStore.getState().activeConversationIds.chat;
     useAppStore.getState().deleteConversation(onlyAgent);
     expect(useAppStore.getState().conversations).toEqual([]);
-    expect(useAppStore.getState().activeConversationIds.agent).toBe("");
+    expect(useAppStore.getState().activeConversationIds.chat).toBe("");
   });
 
   it("persists settings to localStorage under its store key", () => {

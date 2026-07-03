@@ -64,14 +64,53 @@ interface ProxyRuntimeConfig {
   tor_socks?: string;
 }
 
+interface LeechProxyConfig {
+  account_pool?: {
+    size?: number;
+    signup_delay_ms?: number;
+    ttl_sec?: number;
+  };
+  proxy?: {
+    tor_ports?: number[];
+    socks5_url?: string;
+  };
+  provider_proxies?: {
+    use_ai_ports?: number[];
+  };
+}
+
 interface ProxyPoolStatus {
   proxies: string[];
   proxy_count: number;
+  assignments?: Record<string, string[]>;
   load?: {
     window_requests?: number;
     requests_per_second?: number;
   };
   error?: string;
+}
+
+function normalizeProxyConfig(config: Partial<ProxyRuntimeConfig & LeechProxyConfig>): ProxyRuntimeConfig {
+  const useAiPorts = config.provider_proxies?.use_ai_ports ?? config.proxy?.tor_ports ?? [];
+  return {
+    pool_size: Number(config.pool_size ?? config.account_pool?.size ?? 100),
+    signup_delay_ms: Number(config.signup_delay_ms ?? config.account_pool?.signup_delay_ms ?? 1000),
+    account_ttl_sec: Number(config.account_ttl_sec ?? config.account_pool?.ttl_sec ?? 1800),
+    proxy_tor: Boolean(config.proxy_tor ?? (useAiPorts.length > 0 || config.proxy?.socks5_url)),
+    tor_socks: config.tor_socks ?? config.proxy?.socks5_url ?? (useAiPorts[0] ? `socks5h://127.0.0.1:${useAiPorts[0]}` : undefined),
+  };
+}
+
+function normalizeProxyPoolStatus(status: Partial<ProxyPoolStatus>): ProxyPoolStatus {
+  const assignments = status.assignments ?? {};
+  const assigned = Object.values(assignments).flat();
+  const proxies = Array.isArray(status.proxies) && status.proxies.length > 0 ? status.proxies : assigned;
+  return {
+    proxies,
+    proxy_count: Number(status.proxy_count ?? proxies.length ?? 0),
+    assignments,
+    load: status.load ?? {},
+  };
 }
 
 const PROVIDER_ORDER = [
@@ -362,11 +401,11 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
     try {
       const res = await fetch(`${LOCAL_PROXY_BASE_URL}/config`, { cache: "no-store" });
       if (!res.ok) throw new Error(`config ${res.status}`);
-      const config = (await res.json()) as ProxyRuntimeConfig;
+      const config = normalizeProxyConfig(await res.json());
       setProxyConfig(config);
       setProxyConfigMessage("Loaded proxy config");
     } catch (err) {
-      setProxyConfigMessage(`Unable to load proxy config: ${String(err)}`);
+      setProxyConfigMessage(`Runtime config editing is not available for this local proxy: ${String(err)}`);
     } finally {
       setProxyConfigBusy(false);
     }
@@ -391,7 +430,7 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
       setProxyConfigMessage("Requested proxy config update");
       void refreshProxyPoolStatus();
     } catch (err) {
-      setProxyConfigMessage(`Unable to save proxy config: ${String(err)}`);
+      setProxyConfigMessage(`Runtime config editing is not available for this local proxy: ${String(err)}`);
     } finally {
       setProxyConfigBusy(false);
     }
@@ -410,12 +449,7 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
     try {
       const res = await fetch(`${LOCAL_PROXY_BASE_URL}/proxies`, { cache: "no-store" });
       if (!res.ok) throw new Error(`proxies ${res.status}`);
-      const status = (await res.json()) as ProxyPoolStatus;
-      setProxyPoolStatus({
-        proxies: Array.isArray(status.proxies) ? status.proxies : [],
-        proxy_count: Number(status.proxy_count ?? status.proxies?.length ?? 0),
-        load: status.load ?? {},
-      });
+      setProxyPoolStatus(normalizeProxyPoolStatus(await res.json()));
       setProxyPoolMessage("");
     } catch (err) {
       setProxyPoolMessage(`Unable to load proxy pool: ${String(err)}`);

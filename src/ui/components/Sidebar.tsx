@@ -4,7 +4,7 @@ import { useAppStore } from "../../core/store";
 import type { Conversation, ConversationProjectContext } from "../../core/store";
 import { isTauriRuntime } from "../../core/agent/tauriFs";
 
-type View = "chat" | "code" | "projects" | "library" | "flow";
+type View = "chat" | "projects" | "library" | "flow";
 
 interface Props {
   view: View;
@@ -35,7 +35,7 @@ export function Sidebar({ view, onSelectView, projectContext = null }: Props) {
   const selectConversation = useAppStore((s) => s.selectConversation);
   const deleteConversation = useAppStore((s) => s.deleteConversation);
   const visibleConversations = getVisibleSidebarConversations(conversations, projectContext);
-  const newMode = projectContext ? "agent" : view === "code" ? "agent" : view === "flow" ? "flow" : "plain";
+  const newMode = view === "flow" ? "flow" : projectContext ? "agent" : "plain";
   const newLabel = newMode === "agent" ? "New task" : newMode === "flow" ? "New flow" : "New chat";
   const [memory, setMemory] = useState<ProcessMemoryReport | null>(null);
 
@@ -74,7 +74,7 @@ export function Sidebar({ view, onSelectView, projectContext = null }: Props) {
           className="sb-item"
           onClick={() => {
             newConversation(newMode);
-            onSelectView(projectContext ? "projects" : newMode === "agent" ? "code" : newMode === "flow" ? "flow" : "chat");
+            onSelectView(projectContext ? "projects" : newMode === "flow" ? "flow" : "chat");
           }}
           title={newLabel}
         >
@@ -129,7 +129,7 @@ export function Sidebar({ view, onSelectView, projectContext = null }: Props) {
                 className={"sb-chat-row" + (c.id === activeId ? " active" : "")}
                 onClick={() => {
                   const mode = selectConversation(c.id);
-                  onSelectView(mode === "agent" ? "code" : mode === "flow" ? "flow" : "chat");
+                  onSelectView(mode === "flow" ? "flow" : "chat");
                 }}
                 title={c.title}
               >

@@ -22,7 +22,7 @@ const EditorTabs = lazy(() => import("./components/EditorTabs").then((m) => ({ d
 const EditorPane = lazy(() => import("./components/EditorPane").then((m) => ({ default: m.EditorPane })));
 const TerminalPanel = lazy(() => import("./components/TerminalPanel").then((m) => ({ default: m.TerminalPanel })));
 
-type View = "chat" | "code" | "projects" | "library" | "flow";
+type View = "chat" | "projects" | "library" | "flow";
 type ProjectAiMode = "agent" | "flow";
 type SettingsTab = "general" | "providers" | "proxies" | "tools" | "packs" | "lsp" | "mcp";
 type LspToast = {
@@ -54,6 +54,7 @@ export function App() {
   const autoUpdateEnabled = useAppStore((s) => s.autoUpdateEnabled);
   const selectConversation = useAppStore((s) => s.selectConversation);
   const setConversationProjectContext = useAppStore((s) => s.setConversationProjectContext);
+  const chatMode = useAppStore((s) => s.chatMode);
   const openProject = useProjectStore((s) => s.openProject);
   const saveActiveFiles = useProjectStore((s) => s.saveActiveFiles);
   const activeProject = useProjectStore((s) =>
@@ -95,7 +96,7 @@ export function App() {
 
   const openLibraryConversation = (id: string, mode: ConversationMode) => {
     const selectedMode = selectConversation(id) ?? mode;
-    setView(selectedMode === "agent" ? "code" : selectedMode === "flow" ? "flow" : "chat");
+    setView(selectedMode === "flow" ? "flow" : "chat");
   };
 
   const openResearchLibrary = () => {
@@ -231,17 +232,6 @@ export function App() {
             <span>Chat</span>
           </button>
           <button
-            className={"top-mode-tab" + (view === "code" ? " active" : "")}
-            onClick={() => setView("code")}
-            title="Code"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="5" y="7" width="14" height="10" rx="1.5" />
-              <path d="M9.5 10.5 7.5 12l2 1.5M14.5 10.5l2 1.5-2 1.5" />
-            </svg>
-            <span>Code</span>
-          </button>
-          <button
             className={"top-mode-tab" + (view === "flow" ? " active" : "")}
             onClick={() => setView("flow")}
             title="Flow"
@@ -312,15 +302,7 @@ export function App() {
         {view === "chat" && (
           <main className="chat-view">
             <div className="chat-center">
-              <ChatPanel mode="plain" />
-            </div>
-          </main>
-        )}
-
-        {view === "code" && (
-          <main className="chat-view">
-            <div className="chat-center">
-              <ChatPanel mode="agent" />
+              <ChatPanel />
             </div>
           </main>
         )}
@@ -380,7 +362,7 @@ export function App() {
                       role="tab"
                       aria-selected={projectAiMode === "agent"}
                     >
-                      Code
+                      Chat
                     </button>
                     <button
                       className={projectAiMode === "flow" ? "active" : ""}
@@ -418,7 +400,7 @@ export function App() {
                       <FlowView embedded />
                     </Suspense>
                   ) : (
-                    <ChatPanel mode="agent" />
+                    <ChatPanel />
                   )}
                 </div>
               </div>
@@ -460,7 +442,7 @@ export function App() {
         )}
       </div>
 
-      {lspToast && (view === "code" || view === "flow" || (view === "projects" && inProject)) && (
+      {lspToast && ((view === "chat" && chatMode === "agent") || view === "flow" || (view === "projects" && inProject)) && (
         <div className="lsp-toast" role="status">
           <div>
             <strong>{lspToast.language === "rust" ? "Rust" : "TypeScript"} language server missing</strong>

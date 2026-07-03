@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   buildSystemPrompt,
   parseToolCalls,
@@ -6,6 +6,7 @@ import {
   segment,
   stripThinking,
   sanitizeToolOutput,
+  withIdleTimeout,
 } from "./agentLoop";
 import { ToolRegistry } from "./tools";
 import { isToolAvailableInMode } from "./toolModes";
@@ -304,6 +305,51 @@ describe("runAgent system prompt", () => {
     }
   });
 
+  it("stops generation at the tool-call closing tag for XML-tag providers", async () => {
+    // Regression test: without a hard stop sequence, nothing enforces the
+    // system prompt's "call one tool, then stop" instruction for providers
+    // using the XML-tag convention. A model that keeps writing further
+    // <thinking>/<tool_call> cycles in one completion never gets real results
+    // fed back in between — it ends up guessing at outcomes of calls it
+    // hasn't actually made yet.
+    class CapturingProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "test",
+        label: "Test",
+        kind: "custom",
+        baseUrl: "http://localhost",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      readonly requests: ChatRequest[] = [];
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
+        this.requests.push({ ...req, messages: req.messages.map((m) => ({ ...m })) });
+        yield { delta: "Done.", done: false };
+        yield { delta: "", done: true };
+      }
+    }
+
+    const provider = new CapturingProvider();
+    const tools = new ToolRegistry();
+
+    for await (const _event of runAgent(
+      provider,
+      "test-model",
+      tools,
+      [{ role: "user", content: "hi" }],
+    )) {
+      // Drain the generator.
+    }
+
+    expect(provider.requests).toHaveLength(1);
+    expect(provider.requests[0].stop).toEqual(["</tool_call>", "</tool_calls>"]);
+  });
+
   it("uses XML tool-call fallback for custom proxies by default", async () => {
     class CapturingProvider implements Provider {
       readonly config: ProviderConfig = {
@@ -518,6 +564,11 @@ describe("runAgent system prompt", () => {
       name: "list_dir",
       parameters: { type: "object" },
     });
+    // Native tool-calling already halts generation the instant a tool_use /
+    // function_call block is emitted — imposing our own stop sequence here
+    // would be redundant and risks accidentally truncating ordinary prose
+    // that happens to contain the literal tag text.
+    expect(provider.request?.stop).toBeUndefined();
   });
 });
 
@@ -908,5 +959,108 @@ describe("runAgent native tool calls", () => {
         }),
       ]),
     );
+  });
+});
+
+describe("withIdleTimeout", () => {
+  it("aborts and throws if no chunk arrives within the deadline", async () => {
+    // Regression test: previously there was no watchdog anywhere on the
+    // stream — a stalled connection (dropped network, hung local proxy) froze
+    // the whole turn forever with no error and no way to recover.
+    async function* stallsForever() {
+      yield { delta: "partial", done: false };
+      await new Promise(() => {}); // never resolves
+    }
+
+    const controller = new AbortController();
+    const wrapped = withIdleTimeout(stallsForever(), 20, controller);
+
+    const first = await wrapped.next();
+    expect(first.value).toEqual({ delta: "partial", done: false });
+
+    await expect(wrapped.next()).rejects.toThrow(/No response from the model/);
+    expect(controller.signal.aborted).toBe(true);
+  });
+
+  it("does not time out while chunks keep arriving inside the deadline", async () => {
+    async function* trickle() {
+      for (let i = 0; i < 3; i++) {
+        await new Promise((r) => setTimeout(r, 5));
+        yield { delta: String(i), done: false };
+      }
+      yield { delta: "", done: true };
+    }
+
+    const controller = new AbortController();
+    const seen: string[] = [];
+    for await (const chunk of withIdleTimeout(trickle(), 200, controller)) {
+      seen.push(chunk.delta);
+    }
+    expect(seen).toEqual(["0", "1", "2", ""]);
+    expect(controller.signal.aborted).toBe(false);
+  });
+});
+
+describe("runAgent tool execution timeout", () => {
+  it("surfaces a clean error instead of hanging forever when a tool never resolves", async () => {
+    // Regression test: Promise.all over tool execution had no timeout, so a
+    // single hung tool call (e.g. a background process waiting on output that
+    // never comes) silently froze the entire turn — this is the "stuck right
+    // after a tool call" symptom.
+    vi.useFakeTimers();
+    try {
+      class StubProvider implements Provider {
+        readonly config: ProviderConfig = {
+          id: "test",
+          label: "Test",
+          kind: "custom",
+          baseUrl: "http://localhost",
+          defaultModel: "test-model",
+          enabled: true,
+        };
+        async listModels(): Promise<string[]> {
+          return ["test-model"];
+        }
+        async *streamChat(): AsyncGenerator<ChatChunk> {
+          yield {
+            delta: '<tool_call>{"name":"hang_forever","args":{}}</tool_call>',
+            done: false,
+          };
+          yield { delta: "", done: true };
+        }
+      }
+
+      const tools = new ToolRegistry();
+      tools.register({
+        definition: {
+          name: "hang_forever",
+          description: "Never resolves.",
+          inputSchema: { type: "object", properties: {} },
+        },
+        execute: () => new Promise(() => {}),
+      });
+
+      const events: { type: string; text?: string }[] = [];
+      const gen = runAgentUnbounded(
+        new StubProvider(),
+        "test-model",
+        tools,
+        [{ role: "user", content: "hang please" }],
+      );
+
+      const pump = (async () => {
+        for await (const ev of gen) events.push(ev);
+      })();
+
+      // Let the hung tool call actually start before advancing past its
+      // timeout window.
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(121_000);
+      await pump;
+
+      expect(events.some((ev) => ev.type === "error" && /did not respond within/.test(ev.text ?? ""))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -14,7 +14,7 @@ import { EFFORT_TIERS, thinkingForEffort } from "../../core/effort";
 import { ProviderRegistry, createProvider } from "../../core/providers/registry";
 import { filterProviderModels, groupModels, modelDisplayName } from "../../core/providers/modelGroups";
 import { useResearchStore, type ResearchRun } from "../../core/researchStore";
-import { ToolRegistry, type ConfirmRequest } from "../../core/agent/tools";
+import { ToolRegistry, type ConfirmRequest, type Tool } from "../../core/agent/tools";
 import { createFsTools } from "../../core/agent/fsTools";
 import { createDevFs } from "../../core/agent/devFs";
 import { createTauriFs, isTauriRuntime } from "../../core/agent/tauriFs";
@@ -85,10 +85,35 @@ function registerCodeToolset(registry: ToolRegistry, mode: "code" | "flow") {
   registry.registerDynamic(() => createDynamicMcpTools());
 }
 
+// A proposal, not an action: this tool never changes anything on its own.
+// ChatPanel intercepts its tool_call/tool_result events and renders a confirm
+// banner instead of executing the switch — the actual mode change only
+// happens if the user clicks "Switch".
+const suggestModeSwitchTool: Tool = {
+  definition: {
+    name: "suggest_mode_switch",
+    description:
+      "Propose switching this conversation's current mode between Chat and Code. Use this when the task needs capabilities the current mode doesn't have — e.g. you're in Chat and the user needs you to read/edit project files, run commands, or use Git, or you're in Code and a purely conversational request would be better served without file/tool access. This never switches anything by itself: the user sees your proposed mode and reason, and must explicitly confirm before it takes effect.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        mode: { type: "string", enum: ["plain", "agent"], description: "\"agent\" for Code mode, \"plain\" for Chat mode." },
+        reason: { type: "string", description: "One short sentence explaining why this mode is a better fit for the current request." },
+      },
+      required: ["mode", "reason"],
+    },
+  },
+  execute: async (args) => ({
+    ok: true,
+    content: `Proposed switching to ${args.mode === "agent" ? "Code" : "Chat"} mode. Waiting on the user to confirm or dismiss.`,
+  }),
+};
+
 export const codeTools = new ToolRegistry({
   isToolEnabled: (name) => isToolAvailableInMode("code", name),
 });
 registerCodeToolset(codeTools, "code");
+codeTools.register(suggestModeSwitchTool);
 
 export const chatTools = new ToolRegistry({
   isToolEnabled: (name) => isToolAvailableInMode("chat", name),
@@ -99,6 +124,7 @@ chatTools.registerAll(createChatTools({
   getConversations: () => useAppStore.getState().conversations,
   getResearchRuns: () => useResearchStore.getState().runs,
 }));
+chatTools.register(suggestModeSwitchTool);
 
 export const flowTools = new ToolRegistry({
   isToolEnabled: (name) => isToolAvailableInMode("flow", name),
@@ -133,6 +159,11 @@ interface LibraryContextItem {
 }
 
 interface Props {
+  // "flow" opens Flow's own separate conversation space (a fundamentally
+  // different interaction pattern — parallel lanes, not a linear chat).
+  // Omitted (or any other value) opens the unified Chat/Code space; which of
+  // the two is active lives in the store's `chatMode`, switchable in place via
+  // the mode switcher rendered inside this panel.
   mode?: ChatMode;
 }
 
@@ -148,6 +179,40 @@ interface ProxyBankStatus {
   warm_accounts?: number;
   pool_target?: number;
   status?: string;
+  ready?: number;
+  target?: number;
+  generated?: number;
+  failed?: number;
+  accounts?: {
+    ready?: number;
+    target?: number;
+    total?: number;
+    generated?: number;
+    failed?: number;
+  };
+  provider_pools?: Array<{
+    provider?: string;
+    ready?: number;
+    target?: number;
+    generated?: number;
+    failed?: number;
+  }>;
+}
+
+function normalizeProxyBankStatus(data: Partial<ProxyBankStatus>): ProxyBankStatus {
+  const useAiPool = data.provider_pools?.find((pool) => pool.provider === "use.ai");
+  const ready = Number(data.warm_accounts ?? data.ready ?? data.accounts?.ready ?? useAiPool?.ready ?? 0);
+  const target = Number(data.pool_target ?? data.target ?? data.accounts?.target ?? useAiPool?.target ?? data.accounts?.total ?? 0);
+  return {
+    ...data,
+    warm_accounts: ready,
+    pool_target: target,
+    ready,
+    target,
+    generated: Number(data.generated ?? data.accounts?.generated ?? useAiPool?.generated ?? 0),
+    failed: Number(data.failed ?? data.accounts?.failed ?? useAiPool?.failed ?? 0),
+    status: data.status ?? (ready > 0 ? "ready" : "warming"),
+  };
 }
 
 interface LocalProxyStatus {
@@ -277,40 +342,47 @@ function normalizeDataUrlMediaType(dataUrl: string, mediaType: string): string {
   return dataUrl.replace(/^data:[^,]*,/, `data:${mediaType};base64,`);
 }
 
-export function ChatPanel({ mode = "agent" }: Props) {
+export function ChatPanel({ mode }: Props) {
   const {
     providers,
     activeProviderId,
     activeModel,
     setActive,
-    chat: agentChat,
-    setChat: setAgentChat,
-    plainChat,
-    setPlainChat,
+    chat: sharedChat,
+    setChat: setSharedChat,
     flowChat,
     setFlowChat,
-    chatMessages: agentChatMessages,
-    setChatMessages: setAgentChatMessages,
-    plainChatMessages,
-    setPlainChatMessages,
+    chatMessages: sharedChatMessages,
+    setChatMessages: setSharedChatMessages,
     flowChatMessages,
     setFlowChatMessages,
+    chatMode,
+    setChatMode,
     conversations,
     activeConversationId,
     conversationProjectContext,
     toolPermissions,
   } = useAppStore();
   const researchRuns = useResearchStore((s) => s.runs);
-  const isAgentMode = mode !== "plain";
-  const chat = mode === "flow" ? flowChat : isAgentMode ? agentChat : plainChat;
-  const setChat = mode === "flow" ? setFlowChat : isAgentMode ? setAgentChat : setPlainChat;
+  const isFlow = mode === "flow";
+  // Flow always has full tool access, like Code. For the shared Chat/Code
+  // space, whether tools are available depends on the conversation's current
+  // sub-mode, which the user (or the AI, with confirmation) can switch at any
+  // point without starting a new conversation.
+  const isAgentMode = isFlow ? true : chatMode === "agent";
+  // Used for brain/pack context tagging and placeholder text below, where a
+  // ConversationMode-shaped label is expected rather than the raw prop (which
+  // is usually undefined now that Chat and Code share one space).
+  const effectiveMode: ChatMode = isFlow ? "flow" : chatMode;
+  const chat = isFlow ? flowChat : sharedChat;
+  const setChat = isFlow ? setFlowChat : setSharedChat;
   // Raw provider message history (tool calls/results included) for the active
   // conversation, mirrored in the store so it survives conversation switches,
   // mode switches, and app reloads — unlike the old purely-local ref, which
   // got wiped on any of those and forced a lossy rebuild from display text
   // alone (dropping every tool_call/tool_result turn).
-  const chatMessages = mode === "flow" ? flowChatMessages : isAgentMode ? agentChatMessages : plainChatMessages;
-  const setChatMessages = mode === "flow" ? setFlowChatMessages : isAgentMode ? setAgentChatMessages : setPlainChatMessages;
+  const chatMessages = isFlow ? flowChatMessages : sharedChatMessages;
+  const setChatMessages = isFlow ? setFlowChatMessages : setSharedChatMessages;
 
   // Custom instructions for the currently-open project, fed into the agent's
   // system prompt so each project can steer the model differently.
@@ -336,6 +408,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
   const [proxyBankOnline, setProxyBankOnline] = useState(false);
   const [proxyBankDisabled, setProxyBankDisabled] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pendingModeSwitch, setPendingModeSwitch] = useState<{ mode: "plain" | "agent"; reason: string } | null>(null);
   const [effort, setEffort] = useState(1);
   // Models offered by the active provider, for the composer's model selector.
   // Falls back to just the active model if the list can't be fetched.
@@ -404,7 +477,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
         }
         const res = await fetch(`${LOCAL_PROXY_BASE_URL}/bank`, { cache: "no-store" });
         if (!res.ok) throw new Error(`bank ${res.status}`);
-        const data = (await res.json()) as ProxyBankStatus;
+        const data = normalizeProxyBankStatus(await res.json());
         if (!cancelled) {
           setProxyBank(data);
           setProxyBankOnline(true);
@@ -469,8 +542,8 @@ export function ChatPanel({ mode = "agent" }: Props) {
   const modelOptions = Array.from(new Set([...(activeModelAllowed ? [activeModelAllowed] : []), ...models]));
   const modelGroups = groupModels(modelOptions);
   const packCommandSuggestions = useMemo(
-    () => suggestPackCommands(input, mode, 6, activeProjectId),
-    [input, mode, packSuggestionKey, activeProjectId],
+    () => suggestPackCommands(input, effectiveMode, 6, activeProjectId),
+    [input, effectiveMode, packSuggestionKey, activeProjectId],
   );
 
   useEffect(() => {
@@ -479,7 +552,8 @@ export function ChatPanel({ mode = "agent" }: Props) {
 
   useEffect(() => {
     setShowAllMessages(false);
-  }, [activeConversationId, mode]);
+    setPendingModeSwitch(null);
+  }, [activeConversationId, effectiveMode]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -768,15 +842,15 @@ export function ChatPanel({ mode = "agent" }: Props) {
     const fileAttachments = attached.filter((item) => !item.dataUrl);
     const hasImages = imageAttachments.length > 0;
     const hasFiles = fileAttachments.length > 0;
-    const brainContext = buildBrainContext(userText, mode, activeProjectId);
-    const packRuntimeContext = buildPackRuntimeContext(mode, activeProjectId);
-    const packCommandInvocation = resolvePackCommandInvocation(userText, mode, activeProjectId);
+    const brainContext = buildBrainContext(userText, effectiveMode, activeProjectId);
+    const packRuntimeContext = buildPackRuntimeContext(effectiveMode, activeProjectId);
+    const packCommandInvocation = resolvePackCommandInvocation(userText, effectiveMode, activeProjectId);
     const selectedLibraryContext = libraryContextText();
     const modelUserText = userTextWithPackCommandInvocation(
       userTextWithLibraryContext(userText, selectedLibraryContext),
       packCommandInvocation,
     );
-    let flowContext = mode === "flow" ? buildFlowRuntimeInstructions() : "";
+    let flowContext = isFlow ? buildFlowRuntimeInstructions() : "";
     const effortThinking = cfg?.supportsThinking ? thinkingForEffort(effort) : undefined;
     const toolNamesUsed: string[] = [];
     let assistantText = "";
@@ -785,7 +859,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
         ? `Use selected Library context: ${contextItems.map((item) => item.title).join(", ")}`
         : userText
     );
-    const flowRun = mode === "flow" && attached.length === 0 ? useFlowStore.getState().startRun(flowPrompt) : null;
+    const flowRun = isFlow && attached.length === 0 ? useFlowStore.getState().startRun(flowPrompt) : null;
     let flowSawTool = false;
     const flowResultLanes: string[] = [];
     if (flowRun) {
@@ -988,9 +1062,18 @@ export function ChatPanel({ mode = "agent" }: Props) {
               await nextPaint();
             } else if (ev.type === "tool_call") {
               if (ev.toolName) toolNamesUsed.push(ev.toolName);
-              setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs) }, { role: "agent", text: "" }]);
+              if (ev.toolName === "suggest_mode_switch") {
+                setPendingModeSwitch({
+                  mode: ev.toolArgs?.mode === "agent" ? "agent" : "plain",
+                  reason: String(ev.toolArgs?.reason ?? ""),
+                });
+              } else {
+                setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs) }, { role: "agent", text: "" }]);
+              }
             } else if (ev.type === "tool_result") {
-              setChat((l) => [...l, { role: "tool", text: describeToolResult(ev.toolName, ev.toolResult) }, { role: "agent", text: "" }]);
+              if (ev.toolName !== "suggest_mode_switch") {
+                setChat((l) => [...l, { role: "tool", text: describeToolResult(ev.toolName, ev.toolResult) }, { role: "agent", text: "" }]);
+              }
             } else if (ev.type === "error") {
               setChat((l) => [...l, { role: "tool", text: `Error: ${ev.text}` }]);
             }
@@ -1009,7 +1092,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
         });
       } finally {
         setChatMessages([...history, chatUserMsg, ...chatNewMsgs]);
-        extractBrainFromTurn({ userText, assistantText, mode: "plain" });
+        extractBrainFromTurn({ userText, assistantText, mode: effectiveMode });
         setBusy(false);
       }
       return;
@@ -1035,7 +1118,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
           return next;
         });
       } finally {
-        extractBrainFromTurn({ userText, assistantText, mode, toolNames: toolNamesUsed });
+        extractBrainFromTurn({ userText, assistantText, mode: effectiveMode, toolNames: toolNamesUsed });
         setBusy(false);
       }
       return;
@@ -1057,7 +1140,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
           return next;
         });
       } finally {
-        extractBrainFromTurn({ userText, assistantText, mode, toolNames: toolNamesUsed });
+        extractBrainFromTurn({ userText, assistantText, mode: effectiveMode, toolNames: toolNamesUsed });
         setBusy(false);
       }
       return;
@@ -1080,6 +1163,13 @@ export function ChatPanel({ mode = "agent" }: Props) {
         }
       } else if (e.type === "tool_call") {
         if (e.toolName) toolNamesUsed.push(e.toolName);
+        if (!isFlow && e.toolName === "suggest_mode_switch") {
+          setPendingModeSwitch({
+            mode: e.toolArgs?.mode === "plain" ? "plain" : "agent",
+            reason: String(e.toolArgs?.reason ?? ""),
+          });
+          return;
+        }
         if (flowRun) {
           if (!flowSawTool) {
             flowSawTool = true;
@@ -1116,6 +1206,9 @@ export function ChatPanel({ mode = "agent" }: Props) {
         }
         setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs) }, { role: "agent", text: "" }]);
       } else if (e.type === "tool_result") {
+        if (e.toolName === "suggest_mode_switch") {
+          return;
+        }
         if (flowRun) {
           const laneId = flowResultLanes.shift() ?? "worker";
           useFlowStore.getState().appendLaneOutput(
@@ -1161,7 +1254,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
       for await (const ev of runAgent(
         provider,
         activeModel,
-        mode === "flow" ? flowTools : codeTools,
+        isFlow ? flowTools : codeTools,
         [...history, agentUserMsg],
         abortRef.current.signal,
         undefined,
@@ -1176,7 +1269,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
       if (flowRun && useFlowStore.getState().runs.find((run) => run.id === flowRun.id)?.status === "running") {
         useFlowStore.getState().completeRun(flowRun.id, "cancelled");
       }
-      extractBrainFromTurn({ userText, assistantText, mode, toolNames: toolNamesUsed });
+      extractBrainFromTurn({ userText, assistantText, mode: effectiveMode, toolNames: toolNamesUsed });
       setBusy(false);
     }
   }
@@ -1287,6 +1380,55 @@ export function ChatPanel({ mode = "agent" }: Props) {
 
   return (
     <div className="chat-panel">
+      {!isFlow && (
+        <div className="chat-mode-switcher" role="tablist" aria-label="Conversation mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={chatMode === "plain"}
+            className={`chat-mode-tab ${chatMode === "plain" ? "active" : ""}`}
+            onClick={() => setChatMode("plain")}
+          >
+            Chat
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={chatMode === "agent"}
+            className={`chat-mode-tab ${chatMode === "agent" ? "active" : ""}`}
+            onClick={() => setChatMode("agent")}
+          >
+            Code
+          </button>
+        </div>
+      )}
+      {!isFlow && chatMode === "agent" && !conversationProjectContext?.projectRoot && (
+        <div className="mode-switch-banner mode-switch-hint" role="status">
+          <span>Code mode works best with a project open — file, terminal, and Git tools need a project root. Open one from the sidebar.</span>
+        </div>
+      )}
+      {pendingModeSwitch && (
+        <div className="mode-switch-banner" role="alert">
+          <span>
+            Rush suggests switching to <strong>{pendingModeSwitch.mode === "agent" ? "Code" : "Chat"}</strong> mode
+            {pendingModeSwitch.reason ? `: ${pendingModeSwitch.reason}` : "."}
+          </span>
+          <div className="mode-switch-banner-actions">
+            <button
+              type="button"
+              onClick={() => {
+                setChatMode(pendingModeSwitch.mode);
+                setPendingModeSwitch(null);
+              }}
+            >
+              Switch
+            </button>
+            <button type="button" onClick={() => setPendingModeSwitch(null)}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       <div className="messages">
         {hiddenMessageCount > 0 && (
           <button className="messages-window-notice" onClick={() => setShowAllMessages(true)}>
@@ -1377,7 +1519,7 @@ export function ChatPanel({ mode = "agent" }: Props) {
           value={input}
           placeholder={
             isAgentMode
-              ? mode === "flow"
+              ? isFlow
                 ? "Command the Flow agents..."
                 : "Ask Rush to inspect, edit, run, or explain code..."
               : "Message Rush..."

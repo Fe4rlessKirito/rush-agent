@@ -24,6 +24,19 @@ describe("riskOf", () => {
     expect(riskOf("search_replace", {})).toBe("read");
   });
 
+  it("treats a format_files dry-run check as read-only, not destructive", () => {
+    // Regression test: both branches of this ternary used to return
+    // "destructive", so a read-only --check pass required the same
+    // confirmation as an actual in-place format.
+    expect(riskOf("format_files", { check: true })).toBe("read");
+    expect(riskOf("format_files", {})).toBe("destructive");
+    expect(riskOf("format_files", { check: false })).toBe("destructive");
+  });
+
+  it("treats suggest_mode_switch as read-only — it only proposes a switch, never executes one", () => {
+    expect(riskOf("suggest_mode_switch", { mode: "agent", reason: "need file access" })).toBe("read");
+  });
+
   it("is arg-sensitive for git_reset: only a hard reset is destructive", () => {
     expect(riskOf("git_reset", { mode: "hard" })).toBe("destructive");
     expect(riskOf("git_reset", { mode: "HARD" })).toBe("destructive");

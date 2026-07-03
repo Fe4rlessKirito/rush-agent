@@ -29,6 +29,15 @@ const OPEN_TOOLS = "<tool_calls>";
 const CLOSE_TOOL = "</tool_call>";
 const CLOSE_TOOLS = "</tool_calls>";
 
+// Neither the provider stream nor tool execution had any timeout anywhere in
+// this file — a stalled network read (dropped connection, hung local proxy)
+// or a tool that never resolves (e.g. a background process waiting on
+// output that never comes) would freeze the whole turn forever with no way
+// to recover. These watchdogs turn a silent, permanent hang into a visible,
+// recoverable error.
+export const STREAM_IDLE_TIMEOUT_MS = 45_000;
+export const TOOL_EXECUTION_TIMEOUT_MS = 120_000;
+
 // Largest suffix of `buf` that is a prefix of any control tag. We must not emit
 // it yet — the next chunk might complete the tag.
 function pendingTagTail(buf: string): number {
@@ -487,6 +496,51 @@ function parseNativeToolCalls(calls: NativeToolCall[]): ParsedToolCall[] {
   });
 }
 
+export function withIdleTimeout<T>(
+  iterable: AsyncGenerator<T>,
+  ms: number,
+  controller: AbortController,
+): AsyncGenerator<T> {
+  const it = iterable[Symbol.asyncIterator]();
+  return (async function* () {
+    while (true) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error(`No response from the model for ${Math.round(ms / 1000)}s — the connection likely stalled.`));
+        }, ms);
+      });
+      try {
+        const result = await Promise.race([it.next(), timeout]);
+        if (result.done) return;
+        yield result.value;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  })();
+}
+
+async function callToolWithTimeout(
+  tools: ToolRegistry,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<{ content: string }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Tool "${name}" did not respond within ${Math.round(TOOL_EXECUTION_TIMEOUT_MS / 1000)}s.`)),
+      TOOL_EXECUTION_TIMEOUT_MS,
+    );
+  });
+  try {
+    return await Promise.race([tools.call(name, args), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function parseToolCalls(text: string): ParsedToolCall[] | null {
   const batch = text.match(TOOL_CALLS_RE);
   if (batch) {
@@ -534,6 +588,18 @@ export async function* runAgent(
       }))
     : undefined;
 
+  // Native tool-calling providers stop generation on their own the instant a
+  // tool_use/function_call is emitted — that's inherent to the protocol. The
+  // XML-tag convention has no such guarantee: the system prompt *asks* the
+  // model to stop after one <tool_call>, but nothing enforces it. Left
+  // unenforced, a model can keep writing <thinking>/<tool_call> cycles back to
+  // back inside one completion, none of which have real tool results fed back
+  // in between (a tool can't run until its full JSON args are known) — the
+  // model ends up guessing at the outcome of calls it hasn't actually made
+  // yet. A hard stop sequence on the closing tag makes the "one call, then
+  // stop" contract real instead of just requested.
+  const xmlToolStop = toolSchemas ? undefined : [CLOSE_TOOL, CLOSE_TOOLS];
+
   const messages: ChatMessage[] = [
     { role: "system", content: buildSystemPrompt(definitions, projectInstructions) },
     ...userMessages,
@@ -549,14 +615,27 @@ export async function* runAgent(
     // provider speaks native tool-calling these are authoritative and we skip
     // XML-tag parsing entirely.
     const nativeCalls: NativeToolCall[] = [];
+    // A step-local controller lets the idle watchdog abort just this request
+    // (so the underlying fetch actually tears down) while still honoring the
+    // caller's own abort (the UI's stop button) the same as before.
+    const stepController = new AbortController();
+    if (signal) {
+      if (signal.aborted) stepController.abort();
+      else signal.addEventListener("abort", () => stepController.abort(), { once: true });
+    }
     try {
-      for await (const chunk of provider.streamChat({
-        model,
-        messages,
-        signal,
-        tools: toolSchemas,
-        thinking: providerThinking,
-      })) {
+      for await (const chunk of withIdleTimeout(
+        provider.streamChat({
+          model,
+          messages,
+          signal: stepController.signal,
+          tools: toolSchemas,
+          thinking: providerThinking,
+          stop: xmlToolStop,
+        }),
+        STREAM_IDLE_TIMEOUT_MS,
+        stepController,
+      )) {
         if (chunk.toolCall) nativeCalls.push(chunk.toolCall);
         if (chunk.thinking) {
           yield { type: "thinking", text: chunk.thinking };
@@ -626,12 +705,18 @@ export async function* runAgent(
       yield { type: "tool_call", toolName: call.name, toolArgs: call.args };
     }
 
-    const results = await Promise.all(
-      parsedCalls.map(async (call) => {
-        const result = await tools.call(call.name, call.args ?? {});
-        return { call, safeResult: sanitizeToolOutput(result.content) };
-      }),
-    );
+    let results: { call: ParsedToolCall; safeResult: string }[];
+    try {
+      results = await Promise.all(
+        parsedCalls.map(async (call) => {
+          const result = await callToolWithTimeout(tools, call.name, call.args ?? {});
+          return { call, safeResult: sanitizeToolOutput(result.content) };
+        }),
+      );
+    } catch (err) {
+      yield { type: "error", text: String(err) };
+      return;
+    }
 
     for (const { call, safeResult } of results) {
       yield { type: "tool_result", toolName: call.name, toolResult: safeResult };

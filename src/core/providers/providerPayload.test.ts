@@ -90,6 +90,77 @@ describe("provider payloads", () => {
     expect(body.thinking).toEqual({ type: "enabled", budget_tokens: 1024 });
   });
 
+  it("sends stop sequences to OpenAI-compatible providers when supplied", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(sseResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new OpenAIProvider({
+      id: "openai",
+      label: "OpenAI",
+      kind: "openai",
+      baseUrl: "https://api.openai.com/v1",
+      defaultModel: "test-model",
+      enabled: true,
+    });
+    for await (const _chunk of provider.streamChat({
+      model: "test-model",
+      messages: [{ role: "user", content: "hello" }],
+      stop: ["</tool_call>", "</tool_calls>"],
+    })) {
+      // drain stream
+    }
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.stop).toEqual(["</tool_call>", "</tool_calls>"]);
+  });
+
+  it("omits the stop field for OpenAI-compatible providers when not supplied", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(sseResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new OpenAIProvider({
+      id: "openai",
+      label: "OpenAI",
+      kind: "openai",
+      baseUrl: "https://api.openai.com/v1",
+      defaultModel: "test-model",
+      enabled: true,
+    });
+    for await (const _chunk of provider.streamChat({
+      model: "test-model",
+      messages: [{ role: "user", content: "hello" }],
+    })) {
+      // drain stream
+    }
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.stop).toBeUndefined();
+  });
+
+  it("sends stop_sequences to the Anthropic API when supplied", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(sseResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new AnthropicProvider({
+      id: "anthropic",
+      label: "Anthropic",
+      kind: "anthropic",
+      baseUrl: "https://api.anthropic.com",
+      defaultModel: "test-model",
+      enabled: true,
+    });
+    for await (const _chunk of provider.streamChat({
+      model: "test-model",
+      messages: [{ role: "user", content: "hello" }],
+      stop: ["</tool_call>", "</tool_calls>"],
+    })) {
+      // drain stream
+    }
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.stop_sequences).toEqual(["</tool_call>", "</tool_calls>"]);
+  });
+
   it("maps image parts to OpenAI chat content arrays", async () => {
     const fetchMock = vi.fn().mockResolvedValue(sseResponse());
     vi.stubGlobal("fetch", fetchMock);

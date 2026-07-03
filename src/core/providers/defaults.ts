@@ -70,13 +70,13 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
   },
   {
     id: "wman-local-proxy",
-    label: "Rush Local Proxy (Rust)",
+    label: "Rush Local Proxy (leech-rs)",
     kind: "custom",
     baseUrl: "http://127.0.0.1:8000/v1",
     defaultModel: "gpt-5-4",
     supportsThinking: true,
-    supportsImageChatEndpoint: true,
+    supportsImageChatEndpoint: false,
     supportsFileChatEndpoint: false,
-    enabled: false,
+    enabled: true,
   },
 ];

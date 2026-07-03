@@ -30,7 +30,9 @@
     "resources": [
       "../local-proxy/leech-rs.exe",
       "../local-proxy/config.toml",
-      "../local-proxy/tor/tor.exe"
+      "../local-proxy/tor/tor.exe",
+      "../local-proxy/frontend/dist/index.html",
+      "../local-proxy/frontend/dist/main.js"
     ],
     "icon": [
       "icons/32x32.png",

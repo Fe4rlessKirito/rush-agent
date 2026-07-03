@@ -122,6 +122,7 @@ export class AnthropicProvider implements Provider {
         max_tokens: req.maxTokens ?? 4096,
         temperature: req.temperature ?? 0.2,
         stream: true,
+        ...(req.stop && req.stop.length ? { stop_sequences: req.stop } : {}),
         ...(this.config.supportsThinking && req.thinking ? { thinking: req.thinking } : {}),
         // Anthropic tool schema: top-level array with input_schema (JSON Schema).
         ...(req.tools && req.tools.length

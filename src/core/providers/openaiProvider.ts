@@ -64,6 +64,7 @@ export class OpenAIProvider implements Provider {
         temperature: req.temperature ?? 0.2,
         max_tokens: req.maxTokens,
         stream: true,
+        ...(req.stop && req.stop.length ? { stop: req.stop } : {}),
         ...(this.config.supportsThinking && req.thinking ? { thinking: req.thinking } : {}),
         // Advertise tools in OpenAI function-calling format when present.
         ...(req.tools && req.tools.length

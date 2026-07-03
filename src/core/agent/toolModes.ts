@@ -25,6 +25,7 @@ const CHAT_APP_TOOLS = new Set([
   "app_library_read",
   "app_research_search",
   "app_research_read",
+  "suggest_mode_switch",
 ]);
 
 export const TOOL_CATALOG: ToolCatalogItem[] = [
@@ -33,7 +34,14 @@ export const TOOL_CATALOG: ToolCatalogItem[] = [
     label: "Chat app context",
     category: "Chat",
     description: "Search Brain memories, Library chats, and saved Deep Research from Chat mode.",
-    tools: [...CHAT_APP_TOOLS],
+    tools: [...CHAT_APP_TOOLS].filter((name) => name !== "suggest_mode_switch"),
+  },
+  {
+    id: "mode-switch",
+    label: "Suggest mode switch",
+    category: "Chat",
+    description: "Propose switching the conversation between Chat and Code mode. Always requires the user's confirmation before anything actually changes.",
+    tools: ["suggest_mode_switch"],
   },
   {
     id: "files-read",

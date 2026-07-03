@@ -12,6 +12,7 @@ const CATEGORY_ORDER = [
   "Llama",
   "Mistral",
   "Grok",
+  "GLM",
   "Local",
   "Other",
 ] as const;
@@ -26,6 +27,7 @@ function categoryFor(model: string): string {
   if (m.includes("llama") || m.includes("codellama") || m.includes("meta-")) return "Llama";
   if (m.includes("mistral") || m.includes("mixtral") || m.includes("codestral")) return "Mistral";
   if (m.includes("grok") || m.includes("xai") || m.includes("x-ai")) return "Grok";
+  if (m.includes("glm")) return "GLM";
   if (m.includes("local") || m.includes("ollama")) return "Local";
   return "Other";
 }

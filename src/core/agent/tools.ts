@@ -66,6 +66,7 @@ const READ_TOOLS = new Set([
   "ToolSearch",
   "TodoWrite",
   "WaitForMcpServers",
+  "suggest_mode_switch",
   "read_file",
   "read_file_range",
   "read_many_files",
@@ -141,7 +142,7 @@ export function riskOf(name: string, args: Record<string, unknown>): ToolRisk {
     return args.dryRun === false ? "write" : "read";
   }
   if (name === "format_files") {
-    return args.check === true ? "destructive" : "destructive";
+    return args.check === true ? "read" : "destructive";
   }
   // Executing terminal commands and committing run real side effects.
   if (

@@ -67,6 +67,14 @@ export interface ChatRequest {
   // When present, the provider advertises these tools to the model using its
   // native tool-calling protocol instead of the XML-tag convention.
   tools?: ToolSchema[];
+  // Hard stop sequences. Used for the XML-tag tool-call convention: without
+  // these, nothing stops the model from continuing to generate additional
+  // <thinking>/<tool_call> cycles past the first one in a single completion,
+  // none of which have real tool results interleaved (tool execution can only
+  // happen once a full call's JSON args are known). The model is instructed
+  // to stop after one call, but that's a request, not a guarantee — a stop
+  // sequence makes it one.
+  stop?: string[];
 }
 
 export interface ChatChunk {
