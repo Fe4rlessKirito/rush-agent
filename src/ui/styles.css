@@ -6356,6 +6356,9 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   border-right: 1px solid var(--border-soft);
   min-width: 0;
 }
+.app-titlebar.sidebar-collapsed .titlebar-left {
+  background: #1f1f20;
+}
 .app-titlebar .titlebar-session {
   min-width: 0;
   gap: 6px;
@@ -6418,32 +6421,6 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   display: none;
 }
 .app-body.sidebar-collapsed .app-sidebar {
-  display: flex;
-  width: 116px;
-  flex-basis: 116px;
-  min-width: 116px;
-  max-width: 116px;
-  padding-left: 8px;
-  padding-right: 8px;
-  overflow: hidden;
-}
-.app-body.sidebar-collapsed .sb-recents,
-.app-body.sidebar-collapsed .sb-status-line,
-.app-body.sidebar-collapsed .sb-project-groups,
-.app-body.sidebar-collapsed .sb-project-root,
-.app-body.sidebar-collapsed .sb-footer {
-  display: none;
-}
-.app-body.sidebar-collapsed .sb-nav {
-  align-items: center;
-}
-.app-body.sidebar-collapsed .sb-item {
-  width: 40px;
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
-}
-.app-body.sidebar-collapsed .sb-item > span:not(.sb-ico) {
   display: none;
 }
 @media (max-width: 900px) {
