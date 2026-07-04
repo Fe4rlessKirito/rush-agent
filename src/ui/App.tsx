@@ -292,6 +292,8 @@ export function App() {
         <Sidebar
           view={view}
           onSelectView={setView}
+          onOpenProject={enterProject}
+          onOpenRoot={leaveProject}
           projectContext={inProject && activeProject ? {
             projectId: activeProject.id,
             projectRoot: normalizeProjectRoot(activeProject.path),

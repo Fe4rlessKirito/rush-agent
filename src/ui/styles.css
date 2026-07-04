@@ -100,6 +100,73 @@ body {
 }
 
 .sb-recents { margin-top: 20px; display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.sb-project-groups { gap: 6px; }
+.sb-project-groups-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sb-project-groups-head button {
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
+}
+.sb-project-groups-head button:hover:not(:disabled) {
+  filter: none;
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+}
+.sb-project-groups-head button:disabled { opacity: 0.5; cursor: wait; }
+.sb-project-group { display: flex; flex-direction: column; gap: 3px; }
+.sb-project-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-faint);
+  text-align: left;
+}
+.sb-project-head:hover,
+.sb-project-head.active {
+  filter: none;
+  background: var(--panel-2);
+  color: var(--text);
+}
+.sb-project-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  display: grid;
+  place-items: center;
+}
+.sb-project-icon svg { width: 15px; height: 15px; }
+.sb-project-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sb-project-conversations {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 20px;
+}
 .sb-recents-head {
   padding: 4px 10px 8px; color: var(--text-faint);
   font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
@@ -1970,6 +2037,62 @@ body {
 .composer {
   display: flex; flex-direction: column; gap: 8px; padding: 10px;
   border-top: 1px solid var(--border);
+}
+.composer-context-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.composer-project-chip,
+.composer-branch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.composer-project-chip {
+  max-width: min(260px, 58%);
+  cursor: default;
+}
+.composer-project-chip:hover,
+.composer-branch-chip:hover {
+  filter: none;
+  background: var(--panel-2);
+  color: var(--text);
+  border-color: var(--border-soft);
+}
+.composer-project-chip svg,
+.composer-branch-chip svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.composer-project-chip span,
+.composer-branch-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-project-chip .composer-chip-caret {
+  width: 12px;
+  height: 12px;
+  flex-basis: 12px;
+  opacity: 0.7;
 }
 .composer textarea {
     resize: none; min-height: 44px; max-height: 180px; background: var(--bg); color: var(--text);

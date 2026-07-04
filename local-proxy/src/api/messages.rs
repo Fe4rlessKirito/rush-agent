@@ -27,22 +27,30 @@ const THINKING_LEVELS: &[(&str, usize)] = &[
 
 const TOOL_PROMPT: &str = r#"You may be given tools.
 
-When tools are available and the task requires reading, searching, creating, editing, patching, or inspecting files, respond with one or more tool calls and nothing else.
+When tools are available and the task requires reading, searching, creating, editing, patching, or inspecting files, respond with one or more tool calls.
 
 Rules:
-- Output only tool calls.
-- Do not output prose.
-- Do not explain what you are doing.
+- Output tool calls using the supported format below.
+- You may include one short user-visible status line before the thinking/tool call sequence only when it adds meaningful progress, an assumption, or a blocker.
+- Do not narrate routine reads, searches, edits, or obvious next steps.
 - Do not say you lack tool access.
 - Do not describe limitations.
 - Do not wrap the tool call in markdown fences.
-- Do not include any text before or after the tool call.
+- Do not include any prose after a tool call.
 - The tool call must be valid JSON.
 - Escape backslashes in Windows paths.
 - Escape quotes and newlines correctly in JSON strings.
 
-Use exactly this format:
+Use this exact tool-call format:
 
+<tool_use>
+{"name":"tool_name","input":{"key":"value"}}
+</tool_use>
+
+If you need to communicate before continuing to tool calls, use this supported pattern:
+
+Short user-visible status line.
+<thinking>brief private reasoning about the next tool step</thinking>
 <tool_use>
 {"name":"tool_name","input":{"key":"value"}}
 </tool_use>
@@ -1338,5 +1346,22 @@ mod tests {
         );
 
         assert!(looks_like_tool_prompt(&system));
+    }
+
+    #[test]
+    fn anthropic_tool_prompt_allows_status_before_thinking_and_tool_use() {
+        let prompt = tools_prompt(
+            &[serde_json::json!({
+                "name": "read_file",
+                "input_schema": {"type": "object"}
+            })],
+            None,
+        );
+
+        assert!(prompt.contains("one short user-visible status line"));
+        assert!(prompt.contains("Short user-visible status line."));
+        assert!(prompt.contains("<thinking>brief private reasoning about the next tool step</thinking>"));
+        assert!(prompt.contains("<tool_use>"));
+        assert!(!prompt.contains("Do not include any text before or after the tool call"));
     }
 }

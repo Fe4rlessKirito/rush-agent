@@ -220,6 +220,8 @@ describe("buildSystemPrompt", () => {
     ]);
 
     expect(prompt).toContain("Always use the exact tool names and argument shapes");
+    expect(prompt).toContain("write that normal text before the <thinking> block");
+    expect(prompt).toContain("visible status text");
     expect(prompt).toContain("If the user explicitly corrects the next tool call");
     expect(prompt).toContain("Filesystem read/write/edit tools take workspace-relative paths");
     expect(prompt).toContain("list_dir tool may also inspect an explicit");
@@ -815,6 +817,57 @@ describe("runAgent native tool calls", () => {
     expect(events.findIndex((event) => event.type === "text")).toBeLessThan(
       events.findIndex((event) => event.type === "tool_call"),
     );
+    expect(events.map((event) => event.text ?? "").join("")).not.toContain("<tool_call>");
+  });
+
+  it("streams visible status text before XML thinking and tool calls", async () => {
+    class MixedXmlProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "xml",
+        label: "XML",
+        kind: "custom",
+        baseUrl: "http://localhost",
+        defaultModel: "xml-model",
+        enabled: true,
+      };
+      requests = 0;
+
+      async listModels(): Promise<string[]> {
+        return ["xml-model"];
+      }
+
+      async *streamChat(_req: ChatRequest): AsyncGenerator<ChatChunk> {
+        this.requests += 1;
+        if (this.requests === 1) {
+          yield { delta: "I will inspect package.json first.\n", done: false };
+          yield { delta: '<thinking>Need the package metadata before deciding.</thinking>', done: false };
+          yield { delta: '<tool_call>{"name":"read_file","args":{"path":"package.json"}}</tool_call>', done: false };
+        } else {
+          yield { delta: "Done after inspection.", done: false };
+        }
+        yield { delta: "", done: true };
+      }
+    }
+
+    const events = [];
+    for await (const event of runAgent(
+      new MixedXmlProvider(),
+      "xml-model",
+      registryWithReadFile(),
+      [{ role: "user", content: "Inspect package.json" }],
+    )) {
+      events.push(event);
+    }
+
+    expect(events[0]).toEqual(expect.objectContaining({ type: "text", text: "I will inspect package.json first.\n" }));
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "thinking", text: "Need the package metadata before deciding." }),
+        expect.objectContaining({ type: "tool_call", toolName: "read_file", toolArgs: { path: "package.json" } }),
+        expect.objectContaining({ type: "text", text: "Done after inspection." }),
+      ]),
+    );
+    expect(events.map((event) => event.text ?? "").join("")).not.toContain("<thinking>");
     expect(events.map((event) => event.text ?? "").join("")).not.toContain("<tool_call>");
   });
 
