@@ -2361,7 +2361,13 @@ body {
   gap: 8px;
   width: 100%;
 }
-.composer-bar .send-btn { margin-left: auto; }
+.composer-right-controls {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; padding: 0; border-radius: 9px; flex: 0 0 auto;
@@ -2385,17 +2391,131 @@ body {
   opacity: 0.32;
   transform: scale(1);
 }
+.permission-menu-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+.permission-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 700;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    transform 0.14s ease;
+}
+.permission-mode-btn.full { color: #ff8a2b; }
+.permission-mode-btn:hover,
+.permission-mode-btn[aria-expanded="true"] {
+  filter: none;
+  background: var(--panel-2);
+  border-color: var(--border-soft);
+  color: var(--text);
+}
+.permission-mode-btn.full:hover,
+.permission-mode-btn.full[aria-expanded="true"] { color: #ff9a3d; }
+.permission-mode-icon,
+.permission-menu-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  display: grid;
+  place-items: center;
+}
+.permission-mode-icon svg,
+.permission-menu-icon svg,
+.permission-mode-caret {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.permission-mode-caret {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+}
+.permission-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 70;
+  width: 284px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #2a2a2d;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.45);
+}
+.permission-menu button {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 58px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  text-align: left;
+}
+.permission-menu button:hover,
+.permission-menu button.active {
+  filter: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+.permission-menu-icon.full { color: #ff8a2b; }
+.permission-menu button span:nth-child(2) {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.permission-menu strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.permission-menu small {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.permission-menu-check {
+  color: var(--text-dim);
+  font-size: 14px;
+  text-align: center;
+}
 .model-select {
-    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
-    border-radius: 9px; padding: 0 10px; height: 34px; font-size: 12.5px; outline: none;
-    max-width: 220px;
-    cursor: pointer;
-    transition:
-      border-color 0.14s ease,
-      background 0.14s ease,
-      box-shadow 0.14s ease,
-      transform 0.14s ease;
-  }
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 9px; padding: 0 10px; height: 34px; font-size: 12.5px; outline: none;
+  max-width: 220px;
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease,
+    box-shadow 0.14s ease,
+    transform 0.14s ease;
+}
 .model-select:hover:not(:disabled) {
     background: color-mix(in srgb, var(--panel-2) 88%, var(--accent));
     border-color: color-mix(in srgb, var(--accent) 62%, var(--border));

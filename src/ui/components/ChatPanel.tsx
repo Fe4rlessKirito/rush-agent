@@ -50,6 +50,83 @@ import type { ChatContentPart, ChatMessage } from "../../core/providers/types";
 import { Markdown } from "./Markdown";
 import "highlight.js/styles/github-dark.css";
 
+const SENSITIVE_DENY_RULES = ["Read(secrets/**)", "Read(.env*)", "Read(**/*.key)"];
+
+type PermissionPresetId = "ask" | "edit" | "plan" | "full";
+
+interface PermissionPreset {
+  id: PermissionPresetId;
+  label: string;
+  description: string;
+  allow: string[];
+  ask: string[];
+  deny: string[];
+}
+
+const PERMISSION_PRESETS: PermissionPreset[] = [
+  {
+    id: "ask",
+    label: "Ask before changes",
+    description: "Ask before file changes.",
+    allow: [],
+    ask: ["Write(**)", "Edit(**)", "Bash(*)", "PowerShell(*)", "background_start(*)"],
+    deny: SENSITIVE_DENY_RULES,
+  },
+  {
+    id: "edit",
+    label: "Edit automatically",
+    description: "Edit files automatically.",
+    allow: ["Write(**)", "Edit(**)", "create_dir(**)", "move_file(**)"],
+    ask: ["delete_file(**)", "Bash(*)", "PowerShell(*)", "background_start(*)", "git_commit", "git_push", "git_pull", "git_reset"],
+    deny: SENSITIVE_DENY_RULES,
+  },
+  {
+    id: "plan",
+    label: "Plan mode",
+    description: "Plan before editing.",
+    allow: [],
+    ask: [],
+    deny: [
+      ...SENSITIVE_DENY_RULES,
+      "Write(**)",
+      "Edit(**)",
+      "create_dir(**)",
+      "delete_file(**)",
+      "move_file(**)",
+      "Bash(*)",
+      "PowerShell(*)",
+      "background_start(*)",
+      "git_commit",
+      "git_push",
+      "git_pull",
+      "git_reset",
+      "npm_install",
+      "pip_install",
+    ],
+  },
+  {
+    id: "full",
+    label: "Full access",
+    description: "Run with fewer confirmations.",
+    allow: ["Write(**)", "Edit(**)", "create_dir(**)", "move_file(**)", "delete_file(**)", "Bash(*)", "PowerShell(*)", "background_start(*)", "git_commit", "git_push", "git_pull", "git_reset", "npm_install", "pip_install"],
+    ask: [],
+    deny: SENSITIVE_DENY_RULES,
+  },
+];
+
+function sameRules(a: string[] | undefined, b: string[]): boolean {
+  return JSON.stringify([...(a ?? [])].sort()) === JSON.stringify([...b].sort());
+}
+
+function presetFromPermissions(permissions: { allow?: string[]; ask?: string[]; deny?: string[] }): PermissionPreset {
+  return PERMISSION_PRESETS.find((preset) =>
+    sameRules(permissions.allow, preset.allow) &&
+    sameRules(permissions.ask, preset.ask) &&
+    sameRules(permissions.deny, preset.deny)
+  ) ?? PERMISSION_PRESETS[0];
+}
+
+
 const fs = isTauriRuntime() ? createTauriFs() : createDevFs();
 
 function registerCodeToolset(registry: ToolRegistry, mode: "code" | "flow") {
@@ -317,6 +394,7 @@ export function ChatPanel({ mode }: Props) {
     activeConversationId,
     conversationProjectContext,
     toolPermissions,
+    setToolPermissions,
   } = useAppStore();
   const researchRuns = useResearchStore((s) => s.runs);
   const isFlow = mode === "flow";
@@ -363,6 +441,7 @@ export function ChatPanel({ mode }: Props) {
   const [busy, setBusy] = useState(false);
   const [pendingModeSwitch, setPendingModeSwitch] = useState<{ mode: "plain" | "agent"; reason: string } | null>(null);
   const [effort, setEffort] = useState(1);
+  const [showPermissionMenu, setShowPermissionMenu] = useState(false);
   // Models offered by the active provider, for the composer's model selector.
   // Falls back to just the active model if the list can't be fetched.
   const [models, setModels] = useState<string[]>([]);
@@ -455,6 +534,7 @@ export function ChatPanel({ mode }: Props) {
   const showProjectSelector = !conversationProjectContext?.projectRoot;
   const projectChipLabel = activeProject?.name || "Rush Agent";
   const projectChipTitle = activeProject?.path || "Select a project";
+  const permissionPreset = presetFromPermissions(toolPermissions);
   const modelOptions = Array.from(new Set([...(activeModelAllowed ? [activeModelAllowed] : []), ...models]));
   const modelGroups = groupModels(modelOptions);
   const packCommandSuggestions = useMemo(
@@ -572,6 +652,15 @@ export function ChatPanel({ mode }: Props) {
         `Context ${i + 1} (${item.kind === "chat" ? "chat" : "deep research"}): ${item.title}\n${item.text}`
       )),
     ].join("\n\n");
+  }
+
+  function applyPermissionPreset(preset: PermissionPreset) {
+    setToolPermissions({
+      allow: preset.allow,
+      ask: preset.ask,
+      deny: preset.deny,
+    });
+    setShowPermissionMenu(false);
   }
 
   function userTextWithLibraryContext(userText: string, selectedLibraryContext: string): string {
@@ -1536,43 +1625,67 @@ export function ChatPanel({ mode }: Props) {
             onChange={onPickFile}
           />
 
-          <select
-            className="model-select"
-            value={activeModel ?? ""}
-            disabled={!activeProviderId}
-            onChange={(e) => activeProviderId && setActive(activeProviderId, e.target.value)}
-          >
-            {modelGroups.length === 0 ? (
-              <option value="">No model</option>
-            ) : (
-              modelGroups.map((group) => (
-                <optgroup key={group.label} label={group.label}>
-                  {group.models.map((m) => (
-                    <option key={m} value={m}>{modelDisplayName(m)}</option>
-                  ))}
-                </optgroup>
-              ))
-            )}
-          </select>
-
-          <label className="effort-control" title={`Effort: ${EFFORT_TIERS[effort]}`}>
-            <span className="effort-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M8 3 5 7l3 4 3-4-3-4Z" />
-                <path d="M16 3l-3 4 3 4 3-4-3-4Z" />
-                <path d="M12 13l-3 4 3 4 3-4-3-4Z" />
-              </svg>
-            </span>
-            <select
-              value={effort}
-              aria-label="Effort"
-              onChange={(e) => setEffort(Number(e.target.value))}
+          <div className="permission-menu-wrap">
+            <button
+              type="button"
+              className={`permission-mode-btn ${permissionPreset.id}`}
+              onClick={() => setShowPermissionMenu((open) => !open)}
+              title={permissionPreset.description}
+              aria-label={`Permission mode: ${permissionPreset.label}`}
+              aria-expanded={showPermissionMenu}
             >
-              {EFFORT_TIERS.map((tier, index) => (
-                <option key={tier} value={index}>{tier}</option>
-              ))}
-            </select>
-          </label>
+              <span className="permission-mode-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  {permissionPreset.id === "ask" ? (
+                    <path d="M8 11V7a2 2 0 1 1 4 0v4M12 10V6a2 2 0 1 1 4 0v6M16 11V8a2 2 0 1 1 4 0v5a7 7 0 0 1-7 7h-1a6 6 0 0 1-6-6v-2a2 2 0 1 1 4 0v1" />
+                  ) : permissionPreset.id === "edit" ? (
+                    <path d="M12 3 5 6v5c0 4.5 3 7.6 7 9 4-1.4 7-4.5 7-9V6l-7-3ZM9 12l2 2 4-5" />
+                  ) : permissionPreset.id === "plan" ? (
+                    <path d="M7 4h10v16H7zM9 8h6M9 12h6M9 16h4" />
+                  ) : (
+                    <path d="M12 3 5 6v5c0 4.5 3 7.6 7 9 4-1.4 7-4.5 7-9V6l-7-3ZM12 8v5M12 16h.01" />
+                  )}
+                </svg>
+              </span>
+              <span>{permissionPreset.label}</span>
+              <svg className="permission-mode-caret" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+
+            {showPermissionMenu && (
+              <div className="permission-menu" role="menu">
+                {PERMISSION_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className={preset.id === permissionPreset.id ? "active" : ""}
+                    onClick={() => applyPermissionPreset(preset)}
+                    role="menuitem"
+                  >
+                    <span className={`permission-menu-icon ${preset.id}`} aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        {preset.id === "ask" ? (
+                          <path d="M8 11V7a2 2 0 1 1 4 0v4M12 10V6a2 2 0 1 1 4 0v6M16 11V8a2 2 0 1 1 4 0v5a7 7 0 0 1-7 7h-1a6 6 0 0 1-6-6v-2a2 2 0 1 1 4 0v1" />
+                        ) : preset.id === "edit" ? (
+                          <path d="M12 3 5 6v5c0 4.5 3 7.6 7 9 4-1.4 7-4.5 7-9V6l-7-3ZM9 12l2 2 4-5" />
+                        ) : preset.id === "plan" ? (
+                          <path d="M7 4h10v16H7zM9 8h6M9 12h6M9 16h4" />
+                        ) : (
+                          <path d="M12 3 5 6v5c0 4.5 3 7.6 7 9 4-1.4 7-4.5 7-9V6l-7-3ZM12 8v5M12 16h.01" />
+                        )}
+                      </svg>
+                    </span>
+                    <span>
+                      <strong>{preset.label}</strong>
+                      <small>{preset.description}</small>
+                    </span>
+                    {preset.id === permissionPreset.id && <span className="permission-menu-check">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="library-context-actions" aria-label="Add Library context">
             <button
@@ -1588,6 +1701,46 @@ export function ChatPanel({ mode }: Props) {
               </svg>
               <span>Deep Research</span>
             </button>
+          </div>
+
+          <div className="composer-right-controls">
+            <select
+              className="model-select"
+              value={activeModel ?? ""}
+              disabled={!activeProviderId}
+              onChange={(e) => activeProviderId && setActive(activeProviderId, e.target.value)}
+            >
+              {modelGroups.length === 0 ? (
+                <option value="">No model</option>
+              ) : (
+                modelGroups.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.models.map((m) => (
+                      <option key={m} value={m}>{modelDisplayName(m)}</option>
+                    ))}
+                  </optgroup>
+                ))
+              )}
+            </select>
+
+            <label className="effort-control" title={`Effort: ${EFFORT_TIERS[effort]}`}>
+              <span className="effort-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M8 3 5 7l3 4 3-4-3-4Z" />
+                  <path d="M16 3l-3 4 3 4 3-4-3-4Z" />
+                  <path d="M12 13l-3 4 3 4 3-4-3-4Z" />
+                </svg>
+              </span>
+              <select
+                value={effort}
+                aria-label="Effort"
+                onChange={(e) => setEffort(Number(e.target.value))}
+              >
+                {EFFORT_TIERS.map((tier, index) => (
+                  <option key={tier} value={index}>{tier}</option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <button className="send-btn" onClick={send} disabled={busy} aria-label="Send">
