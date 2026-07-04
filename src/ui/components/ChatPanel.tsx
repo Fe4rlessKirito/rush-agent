@@ -148,11 +148,11 @@ flowTools.registerAll(createFlowTools({
 }));
 
 type ChatMode = "plain" | "agent" | "flow";
-type LibraryContextKind = "chat" | "research";
+type LibraryContextPicker = "deepResearch";
 
 interface LibraryContextItem {
   id: string;
-  kind: LibraryContextKind;
+  kind: "chat" | "research";
   title: string;
   text: string;
 }
@@ -358,7 +358,7 @@ export function ChatPanel({ mode }: Props) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const [contextItems, setContextItems] = useState<LibraryContextItem[]>([]);
-  const [contextPicker, setContextPicker] = useState<LibraryContextKind | null>(null);
+  const [contextPicker, setContextPicker] = useState<LibraryContextPicker | null>(null);
   const [contextQuery, setContextQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [pendingModeSwitch, setPendingModeSwitch] = useState<{ mode: "plain" | "agent"; reason: string } | null>(null);
@@ -452,8 +452,9 @@ export function ChatPanel({ mode }: Props) {
     activeModel && (!activeProviderId || filterProviderModels(activeProviderId, [activeModel]).length > 0)
       ? activeModel
       : null;
-  const projectChipLabel = conversationProjectContext?.projectName || activeProject?.name || "rush-agent";
-  const projectChipTitle = conversationProjectContext?.projectRoot || activeProject?.path || "Application root";
+  const showProjectSelector = !conversationProjectContext?.projectRoot;
+  const projectChipLabel = activeProject?.name || "Rush Agent";
+  const projectChipTitle = activeProject?.path || "Select a project";
   const modelOptions = Array.from(new Set([...(activeModelAllowed ? [activeModelAllowed] : []), ...models]));
   const modelGroups = groupModels(modelOptions);
   const packCommandSuggestions = useMemo(
@@ -1316,28 +1317,6 @@ export function ChatPanel({ mode }: Props) {
 
   return (
     <div className="chat-panel">
-      {!isFlow && (
-        <div className="chat-mode-switcher" role="tablist" aria-label="Conversation mode">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={chatMode === "plain"}
-            className={`chat-mode-tab ${chatMode === "plain" ? "active" : ""}`}
-            onClick={() => setChatMode("plain")}
-          >
-            Chat
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={chatMode === "agent"}
-            className={`chat-mode-tab ${chatMode === "agent" ? "active" : ""}`}
-            onClick={() => setChatMode("agent")}
-          >
-            Code
-          </button>
-        </div>
-      )}
       {pendingModeSwitch && (
         <div className="mode-switch-banner" role="alert">
           <span>
@@ -1408,28 +1387,32 @@ export function ChatPanel({ mode }: Props) {
         })}
       </div>
       <div className="composer">
-        <div className="composer-context-bar">
-          <button type="button" className="composer-project-chip" title={projectChipTitle}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M3 7V6a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            </svg>
-            <span>{projectChipLabel}</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="composer-chip-caret">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </button>
-          {currentBranch && (
-            <span className="composer-branch-chip" title={`Current branch: ${currentBranch}`}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 3v12" />
-                <circle cx="6" cy="18" r="3" />
-                <circle cx="18" cy="6" r="3" />
-                <path d="M9 18h3a6 6 0 0 0 6-6V9" />
-              </svg>
-              <span>{currentBranch}</span>
-            </span>
-          )}
-        </div>
+        {(showProjectSelector || currentBranch) && (
+          <div className="composer-context-bar">
+            {showProjectSelector && (
+              <button type="button" className="composer-project-chip" title={projectChipTitle}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 7V6a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                </svg>
+                <span>{projectChipLabel}</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="composer-chip-caret">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+            )}
+            {currentBranch && (
+              <span className="composer-branch-chip" title={`Current branch: ${currentBranch}`}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 3v12" />
+                  <circle cx="6" cy="18" r="3" />
+                  <circle cx="18" cy="6" r="3" />
+                  <path d="M9 18h3a6 6 0 0 0 6-6V9" />
+                </svg>
+                <span>{currentBranch}</span>
+              </span>
+            )}
+          </div>
+        )}
         {attachments.length > 0 && (
           <div className="attachment-tray" aria-label="Attachments">
             {attachments.map((item) => (
@@ -1572,44 +1555,38 @@ export function ChatPanel({ mode }: Props) {
             )}
           </select>
 
-          <label className="effort-control" data-effort={EFFORT_TIERS[effort].toLowerCase()} title={`Effort: ${EFFORT_TIERS[effort]}`}>
-            <span className="effort-label">Effort</span>
-            <input
-              type="range"
-              min="0"
-              max="3"
-              step="1"
+          <label className="effort-control" title={`Effort: ${EFFORT_TIERS[effort]}`}>
+            <span className="effort-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M8 3 5 7l3 4 3-4-3-4Z" />
+                <path d="M16 3l-3 4 3 4 3-4-3-4Z" />
+                <path d="M12 13l-3 4 3 4 3-4-3-4Z" />
+              </svg>
+            </span>
+            <select
               value={effort}
               aria-label="Effort"
               onChange={(e) => setEffort(Number(e.target.value))}
-            />
-            <span className="effort-value">{EFFORT_TIERS[effort]}</span>
+            >
+              {EFFORT_TIERS.map((tier, index) => (
+                <option key={tier} value={index}>{tier}</option>
+              ))}
+            </select>
           </label>
 
           <div className="library-context-actions" aria-label="Add Library context">
             <button
               type="button"
-              onClick={() => setContextPicker("chat")}
-              title="Add chat from Library"
-              aria-label="Add chat from Library"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M21 11.5a8.5 8.5 0 0 1-9.5 8.4L7 21l1-3.2A8.5 8.5 0 1 1 21 11.5z" />
-              </svg>
-              <span>Chats</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setContextPicker("research")}
-              title="Add deep research from Library"
-              aria-label="Add deep research from Library"
+              onClick={() => setContextPicker("deepResearch")}
+              title="Add chat or deep research from Library"
+              aria-label="Add chat or deep research from Library"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="10.5" cy="10.5" r="5.5" />
                 <path d="m15 15 4 4" />
                 <path d="M10.5 8v5M8 10.5h5" />
               </svg>
-              <span>Research</span>
+              <span>Deep Research</span>
             </button>
           </div>
 
@@ -1665,8 +1642,8 @@ export function ChatPanel({ mode }: Props) {
           <div className="context-picker" onMouseDown={(e) => e.stopPropagation()}>
             <div className="context-picker-head">
               <div>
-                <strong>{contextPicker === "chat" ? "Add Chat Context" : "Add Deep Research Context"}</strong>
-                <span>Pick one Library item to attach to this turn.</span>
+                <strong>Add Deep Research Context</strong>
+                <span>Pick one Library chat or deep research run to attach to this turn.</span>
               </div>
               <button onClick={() => setContextPicker(null)} aria-label="Close context picker">x</button>
             </div>
@@ -1678,33 +1655,33 @@ export function ChatPanel({ mode }: Props) {
               <input
                 value={contextQuery}
                 onChange={(e) => setContextQuery(e.target.value)}
-                placeholder={contextPicker === "chat" ? "Search chats..." : "Search deep research..."}
+                placeholder="Search chats and deep research..."
                 autoFocus
               />
             </label>
-            {contextPicker === "chat" ? (
-              <div className="context-picker-list">
-                {pickerConversations.length > 0 ? pickerConversations.map((conversation) => (
-                  <button key={conversation.id} onClick={() => addConversationContext(conversation)}>
-                    <strong>{conversation.title}</strong>
-                    <span>{conversation.lines.length} messages</span>
-                  </button>
-                )) : (
-                  <div className="context-picker-empty">No saved chats match this search.</div>
-                )}
-              </div>
-            ) : pickerResearchRuns.length > 0 ? (
-              <div className="context-picker-list">
-                {pickerResearchRuns.map((run) => (
-                  <button key={run.id} onClick={() => addResearchContext(run)}>
-                    <strong>{run.title}</strong>
-                    <span>{run.status} · {run.content ? `${run.content.length} chars` : "No report yet"}</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="context-picker-empty">No saved deep research runs match this search.</div>
-            )}
+            <div className="context-picker-list">
+              {pickerConversations.length > 0 && (
+                <div className="context-picker-section-label">Chats</div>
+              )}
+              {pickerConversations.map((conversation) => (
+                <button key={`chat-${conversation.id}`} onClick={() => addConversationContext(conversation)}>
+                  <strong>{conversation.title}</strong>
+                  <span>{conversation.lines.length} messages</span>
+                </button>
+              ))}
+              {pickerResearchRuns.length > 0 && (
+                <div className="context-picker-section-label">Deep Research</div>
+              )}
+              {pickerResearchRuns.map((run) => (
+                <button key={`research-${run.id}`} onClick={() => addResearchContext(run)}>
+                  <strong>{run.title}</strong>
+                  <span>{run.status} · {run.content ? `${run.content.length} chars` : "No report yet"}</span>
+                </button>
+              ))}
+              {pickerConversations.length === 0 && pickerResearchRuns.length === 0 && (
+                <div className="context-picker-empty">No saved chats or deep research runs match this search.</div>
+              )}
+            </div>
           </div>
         </div>
       )}

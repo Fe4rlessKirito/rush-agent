@@ -157,20 +157,6 @@ export function Sidebar({ view, onSelectView, projectContext = null, onOpenProje
         </button>
 
         <button
-          className={"sb-item" + (view === "projects" ? " active" : "")}
-          onClick={() => onSelectView("projects")}
-          title="Projects"
-        >
-          <span className="sb-ico sb-ico-projects">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path className="folder-lid" d="M3 7V6a2 2 0 0 1 2-2h4l2 3" />
-              <rect x="3" y="7" width="18" height="13" rx="2" />
-            </svg>
-          </span>
-          <span className="sb-label">Projects</span>
-        </button>
-
-        <button
           className={"sb-item" + (view === "library" ? " active" : "")}
           onClick={() => onSelectView("library")}
           title="Library"
