@@ -476,7 +476,6 @@ export function ChatPanel({ mode }: Props) {
     conversations,
     subagentRuns,
     activeSubagentRunId,
-    selectSubagentRun,
     activeConversationId,
     conversationProjectContext,
     toolPermissions,
@@ -1508,14 +1507,17 @@ export function ChatPanel({ mode }: Props) {
   const attachmentAccept = isAgentMode || activeProviderConfig?.supportsFileChatEndpoint
     ? undefined
     : "image/*";
-  const renderedChatStart = showAllMessages ? 0 : Math.max(0, chat.length - MAX_RENDERED_MESSAGES);
-  const renderedChat = chat.slice(renderedChatStart);
-  const renderedItems = groupRenderedChat(renderedChat, renderedChatStart);
-  const hiddenMessageCount = renderedChatStart;
   const conversationSubagents = subagentRuns
     .filter((run) => run.parentConversationId === activeConversationId)
     .sort((a, b) => b.createdAt - a.createdAt);
-  const activeSubagent = conversationSubagents.find((run) => run.id === activeSubagentRunId) ?? conversationSubagents[0] ?? null;
+  const activeSubagent = activeSubagentRunId
+    ? conversationSubagents.find((run) => run.id === activeSubagentRunId) ?? null
+    : null;
+  const visibleLines = activeSubagent ? activeSubagent.lines : chat;
+  const renderedChatStart = showAllMessages ? 0 : Math.max(0, visibleLines.length - MAX_RENDERED_MESSAGES);
+  const renderedChat = visibleLines.slice(renderedChatStart);
+  const renderedItems = groupRenderedChat(renderedChat, renderedChatStart);
+  const hiddenMessageCount = renderedChatStart;
 
   return (
     <div className="chat-panel">
@@ -1541,49 +1543,16 @@ export function ChatPanel({ mode }: Props) {
           </div>
         </div>
       )}
-      {conversationSubagents.length > 0 && (
-        <div className="subagent-panel">
-          <div className="subagent-panel-head">
-            <span>Subagents</span>
-            <span>{conversationSubagents.length}</span>
-          </div>
-          <div className="subagent-list">
-            {conversationSubagents.map((run) => (
-              <button
-                key={run.id}
-                type="button"
-                className={"subagent-card" + (activeSubagent?.id === run.id ? " active" : "")}
-                onClick={() => selectSubagentRun(run.id)}
-                title={run.task}
-              >
-                <span className={"subagent-status " + run.status}>{run.status}</span>
-                <span className="subagent-title">{run.title}</span>
-                {run.toolNames.length > 0 && <span className="subagent-tools">{run.toolNames.join(", ")}</span>}
-              </button>
-            ))}
-          </div>
-          {activeSubagent && (
-            <details className="subagent-transcript">
-              <summary>{activeSubagent.title}</summary>
-              <div className="subagent-task">{activeSubagent.task}</div>
-              {activeSubagent.lines.length === 0 ? (
-                <div className="subagent-empty">Subagent is starting...</div>
-              ) : (
-                activeSubagent.lines.map((line, index) => {
-                  if (line.role === "agent" && !line.text.trim() && !line.thinking?.trim()) return null;
-                  return (
-                    <div key={index} className={`subagent-line ${line.role}`}>
-                      {line.thinking?.trim() && <div className="subagent-thinking">{line.thinking}</div>}
-                      {line.role === "tool" ? line.text : <Markdown>{line.text}</Markdown>}
-                    </div>
-                  );
-                })
-              )}
-            </details>
-          )}
-        </div>
-      )}
       <div className="messages">
+        {activeSubagent && (
+          <div className="subagent-chat-banner">
+            <div>
+              <span className={"subagent-status " + activeSubagent.status} aria-hidden="true" />
+              <strong>Subagent: {activeSubagent.title}</strong>
+            </div>
+            <span>{activeSubagent.task}</span>
+          </div>
+        )}
         {hiddenMessageCount > 0 && (
           <button className="messages-window-notice" onClick={() => setShowAllMessages(true)}>
             Show {hiddenMessageCount} older message{hiddenMessageCount === 1 ? "" : "s"}

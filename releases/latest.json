@@ -1,11 +1,11 @@
 {
-  "version": "1.7.26",
-  "notes": "Attach subagents to the active parent conversation and make subagent activity labels clearer.",
+  "version": "1.7.27",
+  "notes": "Remove the inline subagent panel and render selected subagents as the main chat transcript.",
   "pub_date": "2026-07-04T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0wzWUhEWkFaRUgyekl6Tnk2ME45SkxjL053UGo4Zm8yQXFlRHFxUk51VmlWWHJuTHdKbnhKbHYwRG40SzBReUNxRE5SRmFBN200MitJSjFNb0g1dmdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjA2NDc1CWZpbGU6UnVzaF8xLjcuMjZfeDY0LXNldHVwLmV4ZQpjVURhdzhreTdrQ2o1VFl5THZZUE9odUkrVElzWHEvSWFrYk05NGJMdjc0M21Lbmp3WEl6QnNCTkFycDAwVnArSi9SbnNFZUg2Q1pURzRLRzRvRjZCZz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.26/Rush_1.7.26_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na05FN21rNFA2WTRsZjNXNUd1a2E4YWVWejIweWJXVHdYUTl3QjhaQno2TUxVNStHekdwVmpxdlY2dkJlZTdBbFFBcDZHN0M1cW5HNnV2NmRYTG5mVVFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjA5NDEwCWZpbGU6UnVzaF8xLjcuMjdfeDY0LXNldHVwLmV4ZQp2c0pUWnBneEZSMWNVbjVZb3E2RmwrcmhlRHFETFNNSWpCZ1N4QXo3YXNPTExpSnlXVzNPbDcrUW1CS0FNMmlqYm9IK2wzVXpJWHM0YnRXcHhTbHBBQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.27/Rush_1.7.27_x64-setup.exe"
     }
   }
 }

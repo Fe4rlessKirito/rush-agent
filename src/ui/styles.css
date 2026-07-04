@@ -6623,3 +6623,35 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .agent-run-message + .agent-run-message {
   margin-top: 12px;
 }
+
+/* Selected subagent renders as the main chat, not as a top inline panel. */
+.subagent-chat-banner {
+  align-self: stretch;
+  max-width: min(900px, 92%);
+  display: grid;
+  gap: 4px;
+  padding: 8px 4px 2px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.subagent-chat-banner > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.subagent-chat-banner strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.subagent-chat-banner > span {
+  max-width: 760px;
+  overflow: hidden;
+  color: var(--text-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
