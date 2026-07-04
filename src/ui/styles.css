@@ -2035,8 +2035,15 @@ body {
 }
 
 .composer {
-  display: flex; flex-direction: column; gap: 8px; padding: 10px;
-  border-top: 1px solid var(--border);
+  width: min(760px, calc(100% - 28px));
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
 }
 .composer-context-bar {
   display: flex;
@@ -2095,12 +2102,20 @@ body {
   opacity: 0.7;
 }
 .composer textarea {
-    resize: none; min-height: 44px; max-height: 180px; background: var(--bg); color: var(--text);
-    border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px;
-    font-family: inherit; font-size: 13.5px; outline: none; transition: border-color 0.12s;
-    line-height: 1.4;
-  }
-.composer textarea:focus { border-color: var(--accent); }
+  resize: none;
+  min-height: 44px;
+  max-height: 180px;
+  background: transparent;
+  color: var(--text);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 2px;
+  font-family: inherit;
+  font-size: 13.5px;
+  outline: none;
+  line-height: 1.4;
+}
+.composer textarea:focus { border-color: transparent; }
 .pack-command-suggestions {
   display: grid;
   gap: 6px;
@@ -2394,6 +2409,13 @@ body {
 .permission-menu-wrap {
   position: relative;
   flex: 0 0 auto;
+}
+.permission-mode-btn,
+.library-context-actions button,
+.model-select,
+.effort-control {
+  border-color: var(--border);
+  background: var(--panel-2);
 }
 .permission-mode-btn {
   display: inline-flex;
