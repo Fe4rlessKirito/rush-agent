@@ -1,11 +1,11 @@
 {
-  "version": "1.7.22",
-  "notes": "Fully hide the sidebar body when collapsed and switch the collapsed topbar strip to the normal titlebar color.",
+  "version": "1.7.23",
+  "notes": "Increase window control icon size and fix agent loop abort listener cleanup.",
   "pub_date": "2026-07-04T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na00yN1B4ZjBXOHpiQkJ6eVEwckdHWFlQTG1NenZaNVAxMVRRRWdxdko4bHEyOWF0TEFydzZobTdVNkJtb29qOUNxajVoUjFwaFJvaFVkK2lPVzhVRWdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTk5Nzg3CWZpbGU6UnVzaF8xLjcuMjJfeDY0LXNldHVwLmV4ZQpWNlMxcWJSajczV2RtZGFPRVF4WGpPSmpoL1c2Q21Dc0RrR3RxZGVvUE1uRVZadGwydFJtclUwaGJxM2FId2NDV3V5NUFENnk0V3c2MDhocnV0T0dDUT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.22/Rush_1.7.22_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0dOMFBSbmJuZ2lrRmU2WDJ4WjM3b21HSWxsWjNFaStGRE4zMGd0NnRsZUR5Znk5MjM5VVY3N2FySlNnYXFPVXRBTGswRFBmd21PQWpEcVNQRi9NNFFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjAwNTQ5CWZpbGU6UnVzaF8xLjcuMjNfeDY0LXNldHVwLmV4ZQovWERaeklhUmhCTXkzZ3hVZnhLNTIyWEdOdHQzNXA4azlUbkFpd29nejArSGQ2c0lQcVU3Rzg3V1FpellWdHVEUEpoS2tSK21BaXhqN1gwWEtqQ1lEUT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.23/Rush_1.7.23_x64-setup.exe"
     }
   }
 }

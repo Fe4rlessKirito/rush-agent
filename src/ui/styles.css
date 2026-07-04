@@ -6428,3 +6428,13 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
     grid-template-columns: var(--titlebar-rail-width) minmax(0, auto) minmax(0, 1fr) auto;
   }
 }
+
+/* Make custom window-control glyphs easier to see without changing hit targets. */
+.app-titlebar .window-controls button {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 40px;
+}
+.app-titlebar .window-controls button.close {
+  font-size: 17px;
+}

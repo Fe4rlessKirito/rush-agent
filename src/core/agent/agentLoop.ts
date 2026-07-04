@@ -626,9 +626,15 @@ export async function* runAgent(
     // (so the underlying fetch actually tears down) while still honoring the
     // caller's own abort (the UI's stop button) the same as before.
     const stepController = new AbortController();
+    let removeAbortListener: (() => void) | undefined;
     if (signal) {
-      if (signal.aborted) stepController.abort();
-      else signal.addEventListener("abort", () => stepController.abort(), { once: true });
+      if (signal.aborted) {
+        stepController.abort();
+      } else {
+        const abortStep = () => stepController.abort();
+        signal.addEventListener("abort", abortStep, { once: true });
+        removeAbortListener = () => signal.removeEventListener("abort", abortStep);
+      }
     }
     try {
       for await (const chunk of withIdleTimeout(
@@ -676,6 +682,8 @@ export async function* runAgent(
     } catch (err) {
       yield { type: "error", text: String(err) };
       return;
+    } finally {
+      removeAbortListener?.();
     }
 
     let parsedCalls: ParsedToolCall[] | null;

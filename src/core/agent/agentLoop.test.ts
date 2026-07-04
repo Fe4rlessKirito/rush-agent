@@ -1052,6 +1052,66 @@ describe("withIdleTimeout", () => {
     expect(seen).toEqual(["0", "1", "2", ""]);
     expect(controller.signal.aborted).toBe(false);
   });
+
+  it("removes per-step abort listeners after each model request", async () => {
+    class TwoStepProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "test",
+        label: "Test",
+        kind: "custom",
+        baseUrl: "http://localhost",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      requests = 0;
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(_req: ChatRequest): AsyncGenerator<ChatChunk> {
+        this.requests += 1;
+        if (this.requests === 1) {
+          yield { delta: '<tool_call>{"name":"read_file","args":{"path":"package.json"}}</tool_call>', done: false };
+        } else {
+          yield { delta: "Done.", done: false };
+        }
+        yield { delta: "", done: true };
+      }
+    }
+
+    const controller = new AbortController();
+    const addSpy = vi.spyOn(controller.signal, "addEventListener");
+    const removeSpy = vi.spyOn(controller.signal, "removeEventListener");
+    const tools = new ToolRegistry();
+    tools.register({
+      definition: {
+        name: "read_file",
+        description: "Read a file.",
+        inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      },
+      execute: async () => ({ ok: true, content: "file contents" }),
+    });
+
+    for await (const _event of runAgentUnbounded(
+      new TwoStepProvider(),
+      "test-model",
+      tools,
+      [{ role: "user", content: "Read package.json" }],
+      controller.signal,
+      4,
+    )) {
+      // Drain the generator.
+    }
+
+    expect(addSpy).toHaveBeenCalledTimes(2);
+    expect(removeSpy).toHaveBeenCalledTimes(2);
+    for (let i = 0; i < addSpy.mock.calls.length; i++) {
+      expect(removeSpy.mock.calls[i][0]).toBe("abort");
+      expect(removeSpy.mock.calls[i][1]).toBe(addSpy.mock.calls[i][1]);
+    }
+  });
+
 });
 
 describe("runAgent tool execution timeout", () => {
