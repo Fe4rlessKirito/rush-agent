@@ -1,5 +1,6 @@
 import type { MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import rushLogoSrc from "../../../Rush-app-logo.png";
 
 type View = "chat" | "projects" | "library" | "flow" | "webProbing";
 
@@ -23,7 +24,6 @@ interface Props {
 }
 
 const appWindow = getCurrentWindow();
-const rushLogoSrc = "/Rush-app-logo.png";
 
 function startTitlebarDrag(event: MouseEvent<HTMLElement>) {
   if (event.button !== 0) return;
@@ -65,15 +65,15 @@ export function AppTitlebar({
         >
           <img className="titlebar-app-logo" src={rushLogoSrc} alt="" draggable={false} />
         </button>
+      </div>
+
+      <div className="titlebar-session" data-tauri-drag-region>
         <button type="button" className="titlebar-nav-btn" onClick={onBack} disabled={!canGoBack} title="Back" aria-label="Back">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18 9 12l6-6" /></svg>
         </button>
         <button type="button" className="titlebar-nav-btn" onClick={onForward} disabled={!canGoForward} title="Forward" aria-label="Forward">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
         </button>
-      </div>
-
-      <div className="titlebar-session" data-tauri-drag-region>
         <span className="titlebar-session-title" title={sessionTitle}>{sessionTitle}</span>
         <span className="titlebar-chip project" title={projectName || "rush-agent"}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V6a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>

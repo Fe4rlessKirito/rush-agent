@@ -6405,3 +6405,40 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
     grid-template-columns: var(--titlebar-rail-width) minmax(120px, 1fr) auto auto;
   }
 }
+
+/* Follow-up titlebar fixes: keep sidebar header clean and collapsed rail compact. */
+.app-titlebar .titlebar-left {
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0 14px;
+}
+.app-titlebar .titlebar-session {
+  gap: 8px;
+}
+.app-body.sidebar-collapsed .app-sidebar {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.app-body.sidebar-collapsed .sb-item,
+.app-body.sidebar-collapsed .sb-project-head,
+.app-body.sidebar-collapsed .sb-chat-row,
+.app-body.sidebar-collapsed .sb-project-remove,
+.app-body.sidebar-collapsed .sb-row-remove {
+  width: 40px;
+  min-width: 40px;
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.app-body.sidebar-collapsed .sb-item > span:not(.sb-ico),
+.app-body.sidebar-collapsed .sb-project-head > span:not(.sb-project-icon),
+.app-body.sidebar-collapsed .sb-chat-title,
+.app-body.sidebar-collapsed .sb-chat-mode,
+.app-body.sidebar-collapsed .sb-project-remove,
+.app-body.sidebar-collapsed .sb-row-remove {
+  display: none;
+}
+.app-body.sidebar-collapsed .sb-project-conversations {
+  padding-left: 0;
+  align-items: center;
+}
