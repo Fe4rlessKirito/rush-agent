@@ -1,11 +1,11 @@
 {
-  "version": "1.7.19",
-  "notes": "Fix custom titlebar dragging permission, bundle the Rush logo correctly, and clean up the sidebar topbar layout.",
+  "version": "1.7.20",
+  "notes": "Restore titlebar arrows beside the app icon and fix stray sidebar controls around New chat.",
   "pub_date": "2026-07-04T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0N6Qk1qdjU5U2ZmZmQrTlhYcUZrTit0dFp2aUpDNU05eTFUbUEyZ3FxcjBZekg1M3oxN1pGblhCQm5lcm5Qa2M0MWtZWm5NSGhrZ2wxZjk4b2lXaWdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTk3NjQ4CWZpbGU6UnVzaF8xLjcuMTlfeDY0LXNldHVwLmV4ZQpIT3hvdjh4VVo1V3RtUjJjd0h5bXprSldVZGVRS25XaXYvSk9iMFdPTzNKUXVDM3VwU1Z0aWlVbWJRbEwrVXVJV0FPdFpwT01ScWV3b2tBR3ZKblREUT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.19/Rush_1.7.19_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0U4TlVzcHE3WFB1ejlKcGJDbFBuMTJlbE1rMHVIK0RxUkxxSzlGNVlHNnZoak1IbDNNc2Q4RU9hVmd1WldITEo0N1krM0M4MEE4TGh4TDVIV1RFdlFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTk4Mjc1CWZpbGU6UnVzaF8xLjcuMjBfeDY0LXNldHVwLmV4ZQp5a3IyNCtoeDFtNm53ZlkvYXJ0MjFJN0Izb0VEcGVVT0hFTUpHcDBsZ1ZJWjZIT2NRaWdBK1RqcGp2WXF6eElESXN4K1pWQnYzOGhJQTFCY2x0elhCdz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.20/Rush_1.7.20_x64-setup.exe"
     }
   }
 }

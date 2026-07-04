@@ -6329,7 +6329,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   }
 }
 
-/* Topbar/sidebar alignment fixes for custom window chrome. */
+/* Final custom titlebar/sidebar alignment. */
 .app-titlebar {
   --titlebar-sidebar-width: 250px;
   --titlebar-rail-width: 116px;
@@ -6364,81 +6364,56 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   object-fit: contain;
   pointer-events: none;
 }
+.sb-project-remove,
+.sb-row-remove {
+  opacity: 0;
+  pointer-events: none;
+  flex: 0 0 auto;
+}
+.sb-project-head:hover .sb-project-remove,
+.sb-project-head.active .sb-project-remove,
+.sb-chat-row:hover .sb-row-remove,
+.sb-chat-row.active .sb-row-remove {
+  opacity: 1;
+  pointer-events: auto;
+}
+.sb-item .sb-row-remove,
+.sb-item .sb-project-remove,
+.sb-nav .sb-row-remove,
+.sb-nav .sb-project-remove {
+  display: none;
+}
 .app-body.sidebar-collapsed .app-sidebar {
   display: flex;
   width: 116px;
   flex-basis: 116px;
   min-width: 116px;
   max-width: 116px;
+  padding-left: 8px;
+  padding-right: 8px;
   overflow: hidden;
 }
-.app-body.sidebar-collapsed .sb-section,
-.app-body.sidebar-collapsed .sb-project-list,
-.app-body.sidebar-collapsed .sb-chat-list,
-.app-body.sidebar-collapsed .sb-project-root,
-.app-body.sidebar-collapsed .sb-footer,
-.app-body.sidebar-collapsed .sb-projects-title,
-.app-body.sidebar-collapsed .sb-brand-text,
 .app-body.sidebar-collapsed .sb-recents,
-.app-body.sidebar-collapsed .sb-status-line {
+.app-body.sidebar-collapsed .sb-status-line,
+.app-body.sidebar-collapsed .sb-project-groups,
+.app-body.sidebar-collapsed .sb-project-root,
+.app-body.sidebar-collapsed .sb-footer {
   display: none;
-}
-.app-body.sidebar-collapsed .sb-header {
-  justify-content: center;
 }
 .app-body.sidebar-collapsed .sb-nav {
   align-items: center;
 }
-.app-body.sidebar-collapsed .sb-nav-btn,
 .app-body.sidebar-collapsed .sb-item {
   width: 40px;
   justify-content: center;
   padding-left: 0;
   padding-right: 0;
 }
-.app-body.sidebar-collapsed .sb-nav-btn span:not(.sb-icon),
-.app-body.sidebar-collapsed .sb-item span:not(.sb-ico) {
+.app-body.sidebar-collapsed .sb-item > span:not(.sb-ico) {
   display: none;
 }
 @media (max-width: 900px) {
   .app-titlebar {
     grid-template-columns: var(--titlebar-rail-width) minmax(120px, 1fr) auto auto;
   }
-}
-
-/* Follow-up titlebar fixes: keep sidebar header clean and collapsed rail compact. */
-.app-titlebar .titlebar-left {
-  justify-content: flex-start;
-  gap: 0;
-  padding: 0 14px;
-}
-.app-titlebar .titlebar-session {
-  gap: 8px;
-}
-.app-body.sidebar-collapsed .app-sidebar {
-  padding-left: 8px;
-  padding-right: 8px;
-}
-.app-body.sidebar-collapsed .sb-item,
-.app-body.sidebar-collapsed .sb-project-head,
-.app-body.sidebar-collapsed .sb-chat-row,
-.app-body.sidebar-collapsed .sb-project-remove,
-.app-body.sidebar-collapsed .sb-row-remove {
-  width: 40px;
-  min-width: 40px;
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
-}
-.app-body.sidebar-collapsed .sb-item > span:not(.sb-ico),
-.app-body.sidebar-collapsed .sb-project-head > span:not(.sb-project-icon),
-.app-body.sidebar-collapsed .sb-chat-title,
-.app-body.sidebar-collapsed .sb-chat-mode,
-.app-body.sidebar-collapsed .sb-project-remove,
-.app-body.sidebar-collapsed .sb-row-remove {
-  display: none;
-}
-.app-body.sidebar-collapsed .sb-project-conversations {
-  padding-left: 0;
-  align-items: center;
 }
