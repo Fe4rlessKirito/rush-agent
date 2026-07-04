@@ -14,6 +14,10 @@ interface MemoryNode {
   isFile: boolean;
 }
 
+interface Props {
+  onClose?: () => void;
+}
+
 function entryName(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts[parts.length - 1] ?? path;
@@ -56,7 +60,32 @@ function buildMemoryTree(paths: string[]): MemoryNode {
   return root;
 }
 
-export function FileTree() {
+function FolderIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 7V6a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 3h7l4 4v14H7z" />
+      <path d="M14 3v5h5" />
+    </svg>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d={open ? "m7 9 5 5 5-5" : "m9 7 5 5-5 5"} />
+    </svg>
+  );
+}
+
+export function FileTree({ onClose }: Props) {
   const tree = useFileStore((s) => s.tree);
   const activeFile = useFileStore((s) => s.activeFile);
   const open = useFileStore((s) => s.open);
@@ -69,6 +98,7 @@ export function FileTree() {
   const [failed, setFailed] = useState<Record<string, string>>({});
 
   const memoryTree = useMemo(() => buildMemoryTree(tree), [tree]);
+  const rootLabel = root ? entryName(root) : "Workspace";
 
   useEffect(() => {
     setExpanded(new Set());
@@ -133,28 +163,34 @@ export function FileTree() {
     });
   }
 
+  function treeRow(entry: TreeEntry, depth: number, isOpen: boolean, onSelect: () => void) {
+    return (
+      <button
+        key={entry.path}
+        className={"tree-item tree-row" + (!entry.isDir && entry.path === activeFile ? " active" : "")}
+        style={{ paddingLeft: 8 + depth * 12 }}
+        onClick={onSelect}
+        title={entry.path}
+      >
+        <span className="tree-caret">{entry.isDir && <Chevron open={isOpen} />}</span>
+        <span className={"tree-icon" + (entry.isDir ? " folder" : " file")} aria-hidden="true">
+          {entry.isDir ? <FolderIcon /> : <FileIcon />}
+        </span>
+        <span className="tree-label">{entry.name}</span>
+      </button>
+    );
+  }
+
   function renderDiskEntries(path = "", depth = 0): JSX.Element[] {
     const entries = children[path] ?? [];
     return entries.flatMap((entry) => {
       const isOpen = expanded.has(entry.path);
-      const row = (
-        <button
-          key={entry.path}
-          className={"tree-item tree-row" + (!entry.isDir && entry.path === activeFile ? " active" : "")}
-          style={{ paddingLeft: 8 + depth * 14 }}
-          onClick={() => entry.isDir ? toggleDiskDir(entry.path) : open(entry.path)}
-          title={entry.path}
-        >
-          <span className="tree-caret">{entry.isDir ? (isOpen ? "v" : ">") : ""}</span>
-          <span className="tree-icon" aria-hidden="true">{entry.isDir ? "[D]" : "[F]"}</span>
-          <span className="tree-label">{entry.name}</span>
-        </button>
-      );
+      const row = treeRow(entry, depth, isOpen, () => entry.isDir ? toggleDiskDir(entry.path) : open(entry.path));
       if (!entry.isDir || !isOpen) return [row];
       const status = loading.has(entry.path)
-        ? [<div key={`${entry.path}:loading`} className="tree-status" style={{ paddingLeft: 22 + (depth + 1) * 14 }}>Loading...</div>]
+        ? [<div key={`${entry.path}:loading`} className="tree-status" style={{ paddingLeft: 28 + (depth + 1) * 12 }}>Loading...</div>]
         : failed[entry.path]
-          ? [<div key={`${entry.path}:error`} className="tree-status error" style={{ paddingLeft: 22 + (depth + 1) * 14 }}>Could not load folder</div>]
+          ? [<div key={`${entry.path}:error`} className="tree-status error" style={{ paddingLeft: 28 + (depth + 1) * 12 }}>Could not load folder</div>]
           : [];
       return [row, ...status, ...renderDiskEntries(entry.path, depth + 1)];
     });
@@ -171,18 +207,11 @@ export function FileTree() {
     return entries.flatMap((entry) => {
       const isDir = entry.children.size > 0;
       const isOpen = expanded.has(entry.path);
-      const row = (
-        <button
-          key={entry.path}
-          className={"tree-item tree-row" + (!isDir && entry.path === activeFile ? " active" : "")}
-          style={{ paddingLeft: 8 + depth * 14 }}
-          onClick={() => isDir ? toggleMemoryDir(entry.path) : open(entry.path)}
-          title={entry.path}
-        >
-          <span className="tree-caret">{isDir ? (isOpen ? "v" : ">") : ""}</span>
-          <span className="tree-icon" aria-hidden="true">{isDir ? "[D]" : "[F]"}</span>
-          <span className="tree-label">{entry.name}</span>
-        </button>
+      const row = treeRow(
+        { path: entry.path, name: entry.name, isDir },
+        depth,
+        isOpen,
+        () => isDir ? toggleMemoryDir(entry.path) : open(entry.path),
       );
       return isDir && isOpen ? [row, ...renderMemoryNode(entry, depth + 1)] : [row];
     });
@@ -194,7 +223,15 @@ export function FileTree() {
 
   return (
     <div className="file-tree">
-      <div className="tree-header">Workspace</div>
+      <div className="tree-project-header" title={root || rootLabel}>
+        <span className="tree-project-icon"><FolderIcon /></span>
+        <span className="tree-project-title">{rootLabel}</span>
+        {onClose && (
+          <button type="button" className="tree-project-close" onClick={onClose} title="Remove from viewer" aria-label="Remove file explorer from viewer">
+            x
+          </button>
+        )}
+      </div>
       {mode === "disk" ? (
         <>
           {isRootLoading && <div className="tree-status">Loading...</div>}

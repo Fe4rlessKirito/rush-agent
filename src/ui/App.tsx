@@ -21,6 +21,7 @@ const FlowView = lazy(() => import("./components/FlowView").then((m) => ({ defau
 const ProjectSettings = lazy(() => import("./components/ProjectSettings").then((m) => ({ default: m.ProjectSettings })));
 const EditorTabs = lazy(() => import("./components/EditorTabs").then((m) => ({ default: m.EditorTabs })));
 const EditorPane = lazy(() => import("./components/EditorPane").then((m) => ({ default: m.EditorPane })));
+const FileTree = lazy(() => import("./components/FileTree").then((m) => ({ default: m.FileTree })));
 const TerminalPanel = lazy(() => import("./components/TerminalPanel").then((m) => ({ default: m.TerminalPanel })));
 
 type View = "chat" | "projects" | "library" | "flow" | "webProbing";
@@ -50,6 +51,7 @@ export function App() {
   });
   const [projectAiMode, setProjectAiMode] = useState<ProjectAiMode>("agent");
   const [projectEditorMinimized, setProjectEditorMinimized] = useState(false);
+  const [showProjectExplorer, setShowProjectExplorer] = useState(true);
   const [lspToast, setLspToast] = useState<LspToast | null>(null);
   const [dismissedLspToasts, setDismissedLspToasts] = useState<Set<string>>(() => new Set());
   const autoUpdateEnabled = useAppStore((s) => s.autoUpdateEnabled);
@@ -334,6 +336,13 @@ export function App() {
 
         {view === "projects" && inProject && (
           <div className="workspace project-workspace">
+            {showProjectExplorer && (
+              <aside className="project-explorer">
+                <Suspense fallback={null}>
+                  <FileTree onClose={() => setShowProjectExplorer(false)} />
+                </Suspense>
+              </aside>
+            )}
             <section
               className="project-ai-pane"
               style={{

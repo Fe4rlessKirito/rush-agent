@@ -45,6 +45,7 @@ export function Sidebar({ view, onSelectView, projectContext = null, onOpenProje
   const createProject = useProjectStore((s) => s.createProject);
   const renameProject = useProjectStore((s) => s.renameProject);
   const setProjectPath = useProjectStore((s) => s.setProjectPath);
+  const deleteProject = useProjectStore((s) => s.deleteProject);
   const newMode = view === "flow" ? "flow" : projectContext ? "agent" : "plain";
   const newLabel = newMode === "agent" ? "New task" : newMode === "flow" ? "New flow" : "New chat";
   const [memory, setMemory] = useState<ProcessMemoryReport | null>(null);
@@ -140,16 +141,18 @@ export function Sidebar({ view, onSelectView, projectContext = null, onOpenProje
           <span className={"sb-chat-mode " + c.mode}>
             {c.mode === "agent" ? "Code" : c.mode === "flow" ? "Flow" : "Chat"}
           </span>
-          <span
-            className="sb-row-menu"
+          <button
+            type="button"
+            className="sb-row-remove"
             onClick={(e) => {
               e.stopPropagation();
               deleteConversation(c.id);
             }}
             title="Delete chat"
+            aria-label={`Delete ${c.title}`}
           >
             x
-          </span>
+          </button>
         </div>
         {expanded && children.length > 0 && (
           <div className="sb-subagent-list">
@@ -273,6 +276,22 @@ export function Sidebar({ view, onSelectView, projectContext = null, onOpenProje
               >
                 <span className="sb-project-icon">{folderIcon}</span>
                 <span className="sb-project-name">{project.name}</span>
+                <button
+                  type="button"
+                  className="sb-project-remove"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteProject(project.id);
+                    if (projectContext?.projectId === project.id) {
+                      onOpenRoot?.();
+                      onSelectView("chat");
+                    }
+                  }}
+                  title="Remove project from viewer"
+                  aria-label={`Remove ${project.name} from viewer`}
+                >
+                  x
+                </button>
               </button>
               <div className="sb-project-conversations">
                 {conversations.map(renderConversation)}

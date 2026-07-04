@@ -5975,3 +5975,141 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   color: #9fb7ff;
   border-color: rgba(79, 140, 255, 0.35);
 }
+
+
+/* ZCode-style project/file explorer polish. */
+.sb-project-head {
+  min-height: 28px;
+  padding: 5px 7px;
+  background: transparent;
+}
+.sb-project-name {
+  flex: 1 1 auto;
+}
+.sb-row-remove,
+.sb-project-remove,
+.tree-project-close {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 20px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0;
+  font-size: 13px;
+  line-height: 1;
+}
+.sb-chat-row:hover .sb-row-remove,
+.sb-chat-row.active .sb-row-remove,
+.sb-project-head:hover .sb-project-remove,
+.sb-project-head.active .sb-project-remove,
+.tree-project-header:hover .tree-project-close {
+  opacity: 1;
+}
+.sb-row-remove:hover,
+.sb-project-remove:hover,
+.tree-project-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+.file-tree {
+  height: 100%;
+  padding: 8px 7px;
+  overflow: auto;
+  background: var(--panel);
+}
+.tree-project-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin: 0 0 8px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  color: var(--text-dim);
+}
+.tree-project-header:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.tree-project-icon,
+.tree-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+.tree-project-icon,
+.tree-project-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.tree-project-icon svg,
+.tree-icon svg,
+.tree-caret svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tree-project-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 650;
+}
+.tree-item {
+  background: transparent;
+  padding: 4px 7px;
+  border-radius: 7px;
+}
+.tree-item.active {
+  background: color-mix(in srgb, var(--panel-2) 82%, var(--accent));
+  box-shadow: none;
+}
+.tree-row {
+  grid-template-columns: 14px 17px minmax(0, 1fr);
+  gap: 5px;
+  min-height: 26px;
+}
+.tree-caret {
+  width: 14px;
+  height: 14px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+.tree-caret svg {
+  width: 13px;
+  height: 13px;
+}
+.tree-icon,
+.tree-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.tree-icon.file {
+  color: color-mix(in srgb, var(--text-faint) 78%, var(--text));
+}
+.project-explorer {
+  width: 252px;
+  flex: 0 0 252px;
+  min-width: 190px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+@media (max-width: 980px) {
+  .project-workspace .project-explorer {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+}
