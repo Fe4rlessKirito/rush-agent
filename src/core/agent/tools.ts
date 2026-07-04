@@ -102,6 +102,10 @@ const READ_TOOLS = new Set([
   "website_environment",
   "ui_inspect",
   "screenshot_url",
+  "browser_get_text",
+  "browser_get_html",
+  "browser_screenshot",
+  "browser_links",
   "release_prepare",
   "release_verify",
   "dependency_audit",
@@ -135,6 +139,17 @@ export function riskOf(name: string, args: Record<string, unknown>): ToolRisk {
   if (name.startsWith("mcp__")) return "destructive";
   if (name === "ExitWorktree") return args.remove === true ? "destructive" : "write";
   if (READ_TOOLS.has(name)) return "read";
+  if (name === "browser_eval") return "destructive";
+  if (
+    name === "browser_open" ||
+    name === "browser_navigate" ||
+    name === "browser_click" ||
+    name === "browser_fill" ||
+    name === "browser_press" ||
+    name === "browser_close"
+  ) {
+    return "write";
+  }
   if (DESTRUCTIVE_TOOLS.has(name)) return "destructive";
   if (name === "git_reset") {
     return String(args.mode ?? "").toLowerCase() === "hard" ? "destructive" : "write";

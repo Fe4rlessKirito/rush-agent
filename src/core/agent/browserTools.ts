@@ -1,10 +1,13 @@
+import { invoke } from "@tauri-apps/api/core";
 import type { Tool } from "./tools";
 
 type ScreenshotBackend = (url: string, args: Record<string, unknown>) => Promise<string>;
+type BrowserAutomationBackend = (command: string, args: Record<string, unknown>) => Promise<string>;
 
 export interface BrowserToolOptions {
   fetcher?: typeof fetch;
   screenshot?: ScreenshotBackend | null;
+  automation?: BrowserAutomationBackend | null;
 }
 
 function clean(value: string): string {
@@ -111,8 +114,36 @@ function summarizeWebsiteEnvironment(url: string, response: Response, html: stri
   ].join("\n");
 }
 
+function defaultAutomation(command: string, args: Record<string, unknown>): Promise<string> {
+  return invoke<{ content: string }>(command, { args }).then((result) => result.content);
+}
+
+function browserTool(
+  name: string,
+  description: string,
+  properties: Record<string, unknown>,
+  required: string[],
+  automation: BrowserAutomationBackend,
+): Tool {
+  return {
+    definition: {
+      name,
+      description,
+      inputSchema: {
+        type: "object",
+        properties,
+        required,
+      },
+    },
+    async execute(args) {
+      return { ok: true, content: await automation(name, args) };
+    },
+  };
+}
+
 export function createBrowserTools(options: BrowserToolOptions = {}): Tool[] {
   const fetcher = options.fetcher ?? fetch;
+  const automation = options.automation ?? defaultAutomation;
   return [
     {
       definition: {
@@ -177,15 +208,87 @@ export function createBrowserTools(options: BrowserToolOptions = {}): Tool[] {
         const url = String(args.url ?? "").trim();
         if (!/^https?:\/\//i.test(url)) return { ok: false, isError: true, content: `Invalid URL: ${url}` };
         if (!options.screenshot) {
-          return {
-            ok: false,
-            isError: true,
-            content:
-              "screenshot_url is registered, but no browser screenshot backend is installed in this build. Add a Playwright/WebView capture backend to enable pixel screenshots.",
-          };
+          return { ok: true, content: await automation("browser_screenshot", { ...args, url }) };
         }
         return { ok: true, content: await options.screenshot(url, args) };
       },
     },
+    browserTool(
+      "browser_open",
+      "Open a URL in a persistent visible browser session. Adds https:// if no scheme is provided.",
+      { url: { type: "string" }, sessionId: { type: "string" }, headless: { type: "boolean" }, width: { type: "number" }, height: { type: "number" } },
+      ["url"],
+      automation,
+    ),
+    browserTool(
+      "browser_navigate",
+      "Navigate the persistent browser session to a URL.",
+      { url: { type: "string" }, sessionId: { type: "string" } },
+      ["url"],
+      automation,
+    ),
+    browserTool(
+      "browser_click",
+      "Click an element in the browser by CSS selector or visible text. Do not use for irreversible actions without user approval.",
+      { selector: { type: "string", description: "CSS selector or visible text to click." }, sessionId: { type: "string" } },
+      ["selector"],
+      automation,
+    ),
+    browserTool(
+      "browser_fill",
+      "Fill an input or textarea matched by CSS selector.",
+      { selector: { type: "string" }, text: { type: "string" }, sessionId: { type: "string" } },
+      ["selector", "text"],
+      automation,
+    ),
+    browserTool(
+      "browser_press",
+      "Press a keyboard key in the browser, optionally focused on a selector.",
+      { key: { type: "string" }, selector: { type: "string" }, sessionId: { type: "string" } },
+      ["key"],
+      automation,
+    ),
+    browserTool(
+      "browser_get_text",
+      "Get visible text from the current browser page or a CSS selector.",
+      { selector: { type: "string" }, sessionId: { type: "string" } },
+      [],
+      automation,
+    ),
+    browserTool(
+      "browser_get_html",
+      "Get rendered HTML from the current browser page or a CSS selector.",
+      { selector: { type: "string" }, sessionId: { type: "string" } },
+      [],
+      automation,
+    ),
+    browserTool(
+      "browser_eval",
+      "Run JavaScript in the current browser page and return the result. Requires confirmation by default.",
+      { script: { type: "string" }, sessionId: { type: "string" } },
+      ["script"],
+      automation,
+    ),
+    browserTool(
+      "browser_screenshot",
+      "Capture a screenshot of the current browser page and return a screenshot marker path.",
+      { destination: { type: "string" }, fullPage: { type: "boolean" }, sessionId: { type: "string" } },
+      [],
+      automation,
+    ),
+    browserTool(
+      "browser_links",
+      "List links from the current rendered browser page.",
+      { sessionId: { type: "string" } },
+      [],
+      automation,
+    ),
+    browserTool(
+      "browser_close",
+      "Close the persistent browser session.",
+      { sessionId: { type: "string" } },
+      [],
+      automation,
+    ),
   ];
 }

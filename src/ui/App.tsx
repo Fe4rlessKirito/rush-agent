@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ChatPanel } from "./components/ChatPanel";
+import { AppTitlebar } from "./components/AppTitlebar";
 import { Sidebar } from "./components/Sidebar";
 import type { LibraryFilter } from "./components/LibraryView";
 import { ToastHost } from "./components/ToastHost";
@@ -43,7 +44,10 @@ export function App() {
   const [showBrain, setShowBrain] = useState(false);
   const [showResearch, setShowResearch] = useState(false);
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("chats");
-  const [view, setView] = useState<View>("chat");
+  const [view, setViewState] = useState<View>("chat");
+  const [viewHistory, setViewHistory] = useState<View[]>(["chat"]);
+  const [viewHistoryIndex, setViewHistoryIndex] = useState(0);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [inProject, setInProject] = useState(false);
   const [showProjectSettings, setShowProjectSettings] = useState(false);
   const [projectPaneWidths, setProjectPaneWidths] = useState({
@@ -53,8 +57,12 @@ export function App() {
   const [projectEditorMinimized, setProjectEditorMinimized] = useState(false);
   const [showProjectExplorer, setShowProjectExplorer] = useState(true);
   const [lspToast, setLspToast] = useState<LspToast | null>(null);
+  const [currentBranch, setCurrentBranch] = useState("");
   const [dismissedLspToasts, setDismissedLspToasts] = useState<Set<string>>(() => new Set());
   const autoUpdateEnabled = useAppStore((s) => s.autoUpdateEnabled);
+  const activeConversationId = useAppStore((s) => s.activeConversationId);
+  const conversations = useAppStore((s) => s.conversations);
+  const conversationProjectContext = useAppStore((s) => s.conversationProjectContext);
   const selectConversation = useAppStore((s) => s.selectConversation);
   const setConversationProjectContext = useAppStore((s) => s.setConversationProjectContext);
   const chatMode = useAppStore((s) => s.chatMode);
@@ -63,12 +71,47 @@ export function App() {
   const activeProject = useProjectStore((s) =>
     s.projects.find((p) => p.id === s.activeProjectId),
   );
-  const topbarLabel =
-    view === "library"
+  const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId);
+  const sessionTitle = activeConversation?.title && !activeConversation.title.startsWith("New ")
+    ? activeConversation.title
+    : view === "library"
       ? "Library"
       : view === "projects"
         ? "Projects"
-        : "";
+        : view === "webProbing"
+          ? "Web Probing"
+          : view === "flow"
+            ? "Flow"
+            : "Untitled session";
+  const titlebarProjectName = activeProject?.name || conversationProjectContext?.projectName || activeConversation?.projectName || "rush-agent";
+
+  const navigateView = (next: View) => {
+    setViewState((current) => {
+      if (current === next) return current;
+      setViewHistory((history) => {
+        const trimmed = history.slice(0, viewHistoryIndex + 1);
+        setViewHistoryIndex(trimmed.length);
+        return [...trimmed, next];
+      });
+      return next;
+    });
+  };
+
+  const goBack = () => {
+    setViewHistoryIndex((index) => {
+      const next = Math.max(0, index - 1);
+      setViewState(viewHistory[next] ?? "chat");
+      return next;
+    });
+  };
+
+  const goForward = () => {
+    setViewHistoryIndex((index) => {
+      const next = Math.min(viewHistory.length - 1, index + 1);
+      setViewState(viewHistory[next] ?? "chat");
+      return next;
+    });
+  };
 
   const enterProject = async (id: string) => {
     openProject(id);
@@ -99,12 +142,12 @@ export function App() {
 
   const openLibraryConversation = (id: string, mode: ConversationMode) => {
     const selectedMode = selectConversation(id) ?? mode;
-    setView(selectedMode === "flow" ? "flow" : "chat");
+    navigateView(selectedMode === "flow" ? "flow" : "chat");
   };
 
   const openResearchLibrary = () => {
     setLibraryFilter("research");
-    setView("library");
+    navigateView("library");
     setShowResearch(false);
   };
 
@@ -181,6 +224,25 @@ export function App() {
   }, [activeProject?.path]);
 
   useEffect(() => {
+    const root = normalizeProjectRoot(activeProject?.path ?? conversationProjectContext?.projectRoot ?? "");
+    if (!root) {
+      setCurrentBranch("");
+      return;
+    }
+    let cancelled = false;
+    invoke<string>("git_current_branch")
+      .then((branch) => {
+        if (!cancelled) setCurrentBranch(branch.trim());
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentBranch("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProject?.path, conversationProjectContext?.projectRoot]);
+
+  useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ language?: string; message?: string }>).detail;
       const language = detail?.language === "rust" ? "rust" : "typescript";
@@ -222,79 +284,32 @@ export function App() {
 
   return (
     <div className="app">
-      <header className="titlebar">
-        <nav className="top-mode-tabs" aria-label="AI modes">
-          <button
-            className={"top-mode-tab" + (view === "chat" ? " active" : "")}
-            onClick={() => setView("chat")}
-            title="Chat"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 6.5h14v9H9l-4 3.5z" />
-            </svg>
-            <span>Chat</span>
-          </button>
-          <button
-            className={"top-mode-tab" + (view === "flow" ? " active" : "")}
-            onClick={() => setView("flow")}
-            title="Flow"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="7" cy="12" r="2.2" />
-              <circle cx="17" cy="7" r="2.2" />
-              <circle cx="17" cy="17" r="2.2" />
-              <path d="M9 11.2 15 8M9 12.8 15 16" />
-            </svg>
-            <span>Flow</span>
-          </button>
-        </nav>
-        {topbarLabel && <div className="titlebar-view-title">{topbarLabel}</div>}
-        <div className="titlebar-actions">
-          <button
-            className={"settings-cog-btn research-topbar-btn" + (showResearch ? " active" : "")}
-            onClick={() => setShowResearch((s) => !s)}
-            title={showResearch ? "Close Deep Research" : "Deep Research"}
-            aria-label={showResearch ? "Close Deep Research" : "Deep Research"}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="10.5" cy="10.5" r="5.5" />
-              <path d="m15 15 4 4" />
-              <path d="M10.5 8v5M8 10.5h5" />
-            </svg>
-          </button>
-          <button
-            className={"settings-cog-btn brain-topbar-btn" + (showBrain ? " active" : "")}
-            onClick={() => setShowBrain((s) => !s)}
-            title={showBrain ? "Close Brain" : "Brain"}
-            aria-label={showBrain ? "Close Brain" : "Brain"}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 4.5a3.5 3.5 0 0 0-4 3.45A3.8 3.8 0 0 0 3.5 11a3.7 3.7 0 0 0 1.1 2.63A3.5 3.5 0 0 0 8 19.5" />
-              <path d="M15 4.5a3.5 3.5 0 0 1 4 3.45A3.8 3.8 0 0 1 20.5 11a3.7 3.7 0 0 1-1.1 2.63A3.5 3.5 0 0 1 16 19.5" />
-              <path d="M9 4.5v15M15 4.5v15M9 9h6M9 14h6" />
-            </svg>
-          </button>
-          <button
-            className={"settings-cog-btn" + (showSettings ? " active" : "")}
-            onClick={() => {
-              setSettingsTab("general");
-              setShowSettings((s) => !s);
-            }}
-            title={showSettings ? "Close settings" : "Settings"}
-            aria-label={showSettings ? "Close settings" : "Settings"}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-              <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05a2.1 2.1 0 0 1-2.97 2.97l-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V21.3a2.1 2.1 0 0 1-4.2 0v-.07a1.8 1.8 0 0 0-1.09-1.65 1.8 1.8 0 0 0-1.98.36l-.05.05a2.1 2.1 0 1 1-2.97-2.97l.05-.05A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.09H2.7a2.1 2.1 0 0 1 0-4.2h.25A1.8 1.8 0 0 0 4.6 8.62a1.8 1.8 0 0 0-.36-1.98l-.05-.05A2.1 2.1 0 0 1 7.16 3.6l.05.05a1.8 1.8 0 0 0 1.98.36A1.8 1.8 0 0 0 10.28 2.36V2.3a2.1 2.1 0 0 1 4.2 0v.07a1.8 1.8 0 0 0 1.09 1.65 1.8 1.8 0 0 0 1.98-.36l.05-.05a2.1 2.1 0 0 1 2.97 2.97l-.05.05a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.09h.19a2.1 2.1 0 0 1 0 4.2h-.19A1.8 1.8 0 0 0 19.4 15Z" />
-            </svg>
-          </button>
-        </div>
-      </header>
+      <AppTitlebar
+        view={view}
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
+        sessionTitle={sessionTitle}
+        projectName={titlebarProjectName}
+        branchName={currentBranch}
+        canGoBack={viewHistoryIndex > 0}
+        canGoForward={viewHistoryIndex < viewHistory.length - 1}
+        onBack={goBack}
+        onForward={goForward}
+        showResearch={showResearch}
+        onToggleResearch={() => setShowResearch((s) => !s)}
+        showBrain={showBrain}
+        onToggleBrain={() => setShowBrain((s) => !s)}
+        showSettings={showSettings}
+        onToggleSettings={() => {
+          setSettingsTab("general");
+          setShowSettings((s) => !s);
+        }}
+      />
 
-      <div className="app-body">
+      <div className={"app-body" + (sidebarCollapsed ? " sidebar-collapsed" : "")}>
         <Sidebar
           view={view}
-          onSelectView={setView}
+          onSelectView={navigateView}
           onOpenProject={enterProject}
           onOpenRoot={leaveProject}
           projectContext={inProject && activeProject ? {

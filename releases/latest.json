@@ -1,12 +1,12 @@
 {
-  "version": "1.7.16",
-  "notes": "ZCode-style project/file explorer polish with compact rows, file tree pane, and X remove controls.",
+  "version": "1.7.17",
+  "notes": "Custom ZCode-style topbar with sidebar toggle, navigation chips, branch context, and custom window controls.",
   "pub_date": "2026-07-04T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0ZjSmhkQm11ZGZvSTBqbWlTeExONmJUREx6SGEzSDNYQm9YOXo5bWpuNEo3WFhNRGFVTEdWL1VraVlBbmZBVXJhd0VSbC9RTm1KY0Jwa0xLdjdJYXdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTkzMDY0CWZpbGU6UnVzaF8xLjcuMTZfeDY0LXNldHVwLmV4ZQpRUWFML1V4NDhhRUo4a1lmT3d2TUVTZHpIQy9NNUVkRWt6eE5HS1ZwVTBGeTNEYzk0RVJ2blEvZFBDUkUzaGx0RVJZS2s5aDRocmxNcDRKbzJRbVlBQT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.16/Rush_1.7.16_x64-setup.exe",
-      "sha256": "b9e2cc2d034c573eae7588ecde967e488d40671001d22a9382b0ab38ab6f2438"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na01zN3J2b0lSd3NZOHdrRWNwRHc3ODhiOW1yMUJIMWlRUVYzNjllTS9lWlFjanVnajAxaDZwUm9vb25OaEFvOHB2TVZWOTJoQkhJSzRERFhvaGlFc2dnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTk1ODIwCWZpbGU6UnVzaF8xLjcuMTdfeDY0LXNldHVwLmV4ZQp1MXZTWWR3bkRvMkt6ajJ5VnBHUllSU0dsVlpqeUs1dGNsWFJVNXYwa2dyL0FRMUoxOTJSRFhraXNFOEk5WEFHWHU1OFBmVytOcHkrVzJvSVpTYUNEQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.17/Rush_1.7.17_x64-setup.exe",
+      "sha256": "4a200297b6f2f477395325b6f73394a5c54cde6be7730f57fc064b7817583778"
     }
   }
 }

@@ -1,7 +1,7 @@
 {
   "name": "rush-agent",
   "private": true,
-  "version": "1.7.16",
+  "version": "1.7.17",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -32,5 +32,8 @@
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
     "vitest": "^4.1.9"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.49.1"
   }
 }

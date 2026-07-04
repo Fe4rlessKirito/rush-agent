@@ -3,6 +3,7 @@
 // managers) will register here as they're built on top of this spine.
 
 mod background_commands;
+mod browser_commands;
 mod code_commands;
 mod fs_commands;
 mod git_commands;
@@ -16,6 +17,7 @@ mod terminal_commands;
 mod worktree_commands;
 
 use background_commands::BackgroundState;
+use browser_commands::BrowserState;
 use fs_commands::ProjectRoot;
 use mcp_commands::McpSessionState;
 use terminal_commands::TerminalState;
@@ -30,6 +32,7 @@ pub fn run() {
         .manage(ProjectRoot::default())
         .manage(TerminalState::default())
         .manage(BackgroundState::default())
+        .manage(BrowserState::default())
         .manage(WorktreeState::default())
         .manage(McpSessionState::default())
         .manage(lsp_commands::LspState::default())
@@ -85,6 +88,17 @@ pub fn run() {
             background_commands::background_read,
             background_commands::background_list,
             background_commands::background_stop,
+            browser_commands::browser_open,
+            browser_commands::browser_navigate,
+            browser_commands::browser_click,
+            browser_commands::browser_fill,
+            browser_commands::browser_press,
+            browser_commands::browser_get_text,
+            browser_commands::browser_get_html,
+            browser_commands::browser_eval,
+            browser_commands::browser_screenshot,
+            browser_commands::browser_links,
+            browser_commands::browser_close,
             worktree_commands::enter_worktree,
             worktree_commands::exit_worktree,
             mcp_commands::mcp_probe_stdio,

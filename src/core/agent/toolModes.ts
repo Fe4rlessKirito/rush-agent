@@ -115,6 +115,13 @@ export const TOOL_CATALOG: ToolCatalogItem[] = [
     tools: ["WebSearch", "WebFetch", "deep_research_search", "website_environment", "ui_inspect", "screenshot_url"],
   },
   {
+    id: "browser-automation",
+    label: "Browser automation",
+    category: "Runtime",
+    description: "Open and control a persistent browser session for UI debugging and website inspection.",
+    tools: ["browser_open", "browser_navigate", "browser_click", "browser_fill", "browser_press", "browser_get_text", "browser_get_html", "browser_eval", "browser_screenshot", "browser_links", "browser_close"],
+  },
+  {
     id: "project-context",
     label: "Project context",
     category: "Code",

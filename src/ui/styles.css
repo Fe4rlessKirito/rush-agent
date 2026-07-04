@@ -6113,3 +6113,218 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
     flex: 0 0 auto;
   }
 }
+
+
+/* Hard composer layout guard: keep send outside effort selector. */
+.composer-bar {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+}
+.composer-right-controls {
+  min-width: 0;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.effort-control {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 126px;
+  max-width: 140px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.effort-control select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 92px;
+}
+.send-btn {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 34px;
+  grid-column: 5;
+  justify-self: end;
+}
+
+
+/* Custom ZCode-like titlebar. */
+.app-titlebar {
+  height: 40px;
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: auto auto minmax(120px, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 0 10px;
+  border-bottom: 1px solid var(--border-soft);
+  background: #1f1f20;
+  color: var(--text-dim);
+  user-select: none;
+}
+.titlebar-left,
+.titlebar-session,
+.titlebar-actions,
+.window-controls {
+  display: inline-flex;
+  align-items: center;
+}
+.titlebar-left {
+  gap: 8px;
+}
+.titlebar-session {
+  min-width: 0;
+  gap: 6px;
+}
+.titlebar-spacer {
+  min-width: 0;
+  height: 100%;
+}
+.titlebar-app-btn,
+.titlebar-nav-btn,
+.titlebar-ghost-btn,
+.window-controls button {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+}
+.titlebar-app-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  color: #f2f4f8;
+}
+.titlebar-app-btn:hover,
+.titlebar-app-btn.collapsed {
+  background: rgba(255, 255, 255, 0.08);
+}
+.titlebar-app-mark {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #f2f4f8;
+  border-radius: 3px;
+  color: #f2f4f8;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  transform: skew(-8deg);
+}
+.titlebar-nav-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+.titlebar-nav-btn:hover:not(:disabled),
+.titlebar-ghost-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+.titlebar-nav-btn:disabled {
+  opacity: 0.35;
+}
+.titlebar-nav-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.titlebar-session-title,
+.titlebar-chip {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: 11px;
+  background: #2b2b2d;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.titlebar-session-title {
+  max-width: 220px;
+  padding: 0 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.titlebar-chip {
+  max-width: 210px;
+  gap: 7px;
+  padding: 0 10px;
+  color: #d8dae2;
+}
+.titlebar-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.titlebar-chip svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.titlebar-chip.branch {
+  max-width: 160px;
+}
+.titlebar-caret {
+  width: 12px !important;
+  height: 12px !important;
+  opacity: 0.65;
+}
+.titlebar-ghost-btn {
+  width: 28px;
+  height: 26px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.app-titlebar .titlebar-actions {
+  gap: 7px;
+  padding-right: 8px;
+}
+.window-controls {
+  height: 40px;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+.window-controls button {
+  width: 46px;
+  height: 40px;
+  border-radius: 0;
+  font-size: 13px;
+}
+.window-controls button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+.window-controls button.close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+.app-body.sidebar-collapsed .app-sidebar {
+  display: none;
+}
+@media (max-width: 900px) {
+  .titlebar-session-title {
+    max-width: 150px;
+  }
+  .titlebar-chip.branch {
+    display: none;
+  }
+}
