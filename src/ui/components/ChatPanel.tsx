@@ -519,6 +519,8 @@ export function ChatPanel({ mode }: Props) {
   const [contextPicker, setContextPicker] = useState<LibraryContextPicker | null>(null);
   const [contextQuery, setContextQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const [activeRunStartedAt, setActiveRunStartedAt] = useState<number | null>(null);
+  const [elapsedNow, setElapsedNow] = useState(() => Date.now());
   const [pendingModeSwitch, setPendingModeSwitch] = useState<{ mode: "plain" | "agent"; reason: string } | null>(null);
   const [effort, setEffort] = useState(1);
   const [showPermissionMenu, setShowPermissionMenu] = useState(false);
@@ -604,6 +606,17 @@ export function ChatPanel({ mode }: Props) {
       cancelled = true;
     };
   }, [activeModel, activeProviderId, providers, setActive]);
+
+  useEffect(() => {
+    if (!busy) {
+      setActiveRunStartedAt(null);
+      return;
+    }
+    setActiveRunStartedAt((startedAt) => startedAt ?? Date.now());
+    setElapsedNow(Date.now());
+    const timer = window.setInterval(() => setElapsedNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [busy]);
 
   // Always include the active model in the options even if the fetch failed or
   // hasn't returned, so the selector never shows an empty/blank value.
@@ -1464,6 +1477,14 @@ export function ChatPanel({ mode }: Props) {
     return clean.length > 72 ? `Thinking about ${clean.slice(0, 72)}...` : `Thinking about ${clean}`;
   }
 
+  function formatElapsed(ms: number): string {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes <= 0) return `${seconds}s`;
+    return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+  }
+
   const pickerConversations = conversations
     .filter((conversation) => conversation.id !== activeConversationId)
     .filter((conversation) => {
@@ -1579,13 +1600,16 @@ export function ChatPanel({ mode }: Props) {
             return line.role === "agent" && (line.text.trim() || line.thinking?.trim() || isActiveEmptyAgent);
           });
           const isActiveRun = busy && lines.some(({ index }) => index === chat.length - 1);
+          const runStatusLabel = isActiveRun && activeRunStartedAt
+            ? `Working for ${formatElapsed(elapsedNow - activeRunStartedAt)}`
+            : "Worked";
           if (activityLines.length === 0 && answerLines.length === 0 && !isActiveRun) return null;
 
           return (
             <div key={item.startIndex} className={"agent-run" + (isActiveRun ? " active" : "") }>
               <div className="agent-run-head">
                 <span className="agent-run-model">{activeModel ? modelDisplayName(activeModel) : "Rush"}</span>
-                <span className="agent-run-status">{isActiveRun ? "Working..." : "Completed"}</span>
+                <span className="agent-run-status">{runStatusLabel}</span>
               </div>
 
               {activityLines.length > 0 && (

@@ -6573,3 +6573,53 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   font-size: 21px;
   font-weight: 800;
 }
+
+/* Roomier transcript layout: assistant output blends into the chat background. */
+.agent-run {
+  align-self: stretch;
+  max-width: min(900px, 92%);
+  padding: 10px 4px 18px 4px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.agent-run.active {
+  border-color: transparent;
+}
+.agent-run-head {
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.agent-run-model {
+  font-size: 16px;
+}
+.agent-run-status {
+  padding: 1px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 700;
+}
+.agent-run.active .agent-run-status {
+  color: var(--text-dim);
+  border-color: transparent;
+  background: transparent;
+}
+.agent-activity-list {
+  gap: 7px;
+  margin: 6px 0 14px;
+}
+.agent-activity-row {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.agent-run-message {
+  max-width: 860px;
+  font-size: 14px;
+  line-height: 1.58;
+}
+.agent-run-message + .agent-run-message {
+  margin-top: 12px;
+}

@@ -1,11 +1,11 @@
 {
-  "version": "1.7.24",
-  "notes": "Make custom window control glyphs larger and include the compact agent transcript UI updates.",
+  "version": "1.7.25",
+  "notes": "Make assistant responses blend into the chat background and show active working elapsed time.",
   "pub_date": "2026-07-04T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0htSEhmaU5rSC84a3RrUkwxaHJZR0NzaGN6RG9ua0I0K29HMTMyZVprUUNxaEJaUVhxdkc2YVhzWGYyamxpSjlYa2c2UVptN0RjTU8yVU0ybW56TWdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjAzMDkxCWZpbGU6UnVzaF8xLjcuMjRfeDY0LXNldHVwLmV4ZQpPSlp6UTl1MTVMc3ROYWtDZTYyMzVlUW8vNXhjbStuZUJBcUcrczJ3dENSd3pkVU9CUEtOUTEvNEhqNFc5MEcvYzFmNVVBcUdWSFNXWTBURkVua09EUT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.24/Rush_1.7.24_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0FQalludXYwZ3FnQW41ZVhXSVRiYjh3R1dDSjRqSzArRUV0NVpVcmpuRm1OME5NNnJDU2w0NHhIYnFxTkZWb1VzeVJUNVhnVDloUmNObXpralpYeEFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjA1MTA1CWZpbGU6UnVzaF8xLjcuMjVfeDY0LXNldHVwLmV4ZQpkK3ljenV0eUxGektiMXJQUXNhTFZ3RUI0dXZtUjRlU3lUTFpJbTh4NmJ2ZkEzZElVeVVlam40SjVMSktTdytWYlhib1prbENJZHpjOVBERllZazFEdz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.25/Rush_1.7.25_x64-setup.exe"
     }
   }
 }
