@@ -6438,3 +6438,138 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .app-titlebar .window-controls button.close {
   font-size: 17px;
 }
+
+/* Make titlebar app actions read as ghost icons instead of chunky buttons. */
+.app-titlebar .titlebar-actions {
+  gap: 4px;
+  padding-right: 10px;
+}
+.app-titlebar .titlebar-actions .settings-cog-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  box-shadow: none;
+}
+.app-titlebar .titlebar-actions .settings-cog-btn svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.9;
+}
+.app-titlebar .titlebar-actions .settings-cog-btn:hover {
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+  border-color: transparent;
+  transform: none;
+}
+.app-titlebar .titlebar-actions .settings-cog-btn.active {
+  background: rgba(255, 255, 255, 0.075);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+.app-titlebar .titlebar-actions .settings-cog-btn:active {
+  transform: none;
+}
+
+/* Compact themed assistant activity transcript. */
+.agent-run {
+  align-self: stretch;
+  max-width: 88%;
+  padding: 12px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  border-bottom-left-radius: 5px;
+  background: color-mix(in srgb, var(--panel-2) 86%, #111217);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+.agent-run.active {
+  border-color: rgba(109, 92, 255, 0.28);
+}
+.agent-run-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+.agent-run-model {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-run-status {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+}
+.agent-run.active .agent-run-status {
+  color: #c8d2ff;
+  border-color: rgba(109, 92, 255, 0.22);
+  background: rgba(109, 92, 255, 0.1);
+}
+.agent-activity-list {
+  display: grid;
+  gap: 5px;
+  margin: 4px 0 10px;
+}
+.agent-activity-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.agent-activity-row span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-activity-icon {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 10px;
+  opacity: 0.75;
+}
+.agent-run-message {
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.48;
+}
+.agent-run-message + .agent-run-message {
+  margin-top: 8px;
+}
+.agent-run-message > :first-child {
+  margin-top: 0;
+}
+.agent-run-message > :last-child {
+  margin-bottom: 0;
+}
+
+/* Make native-style window control glyphs more visible. */
+.app-titlebar .window-controls button {
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 40px;
+}
+.app-titlebar .window-controls button.close {
+  font-size: 21px;
+  font-weight: 800;
+}

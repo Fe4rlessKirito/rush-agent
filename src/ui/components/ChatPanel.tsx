@@ -299,6 +299,13 @@ interface Attachment {
   dataUrl?: string;
 }
 
+interface RenderedChatItem {
+  type: "user" | "agent-run";
+  startIndex: number;
+  user?: ChatLine;
+  lines?: Array<{ line: ChatLine; index: number }>;
+}
+
 function displayValue(value: unknown): string {
   return typeof value === "string" && value.trim() ? value.trim() : "";
 }
@@ -380,6 +387,28 @@ function describeToolResult(name: string | undefined, result: string | undefined
     return `${action} did not complete`;
   }
   return `Finished ${action}`;
+}
+
+function groupRenderedChat(lines: ChatLine[], startIndex: number): RenderedChatItem[] {
+  const items: RenderedChatItem[] = [];
+  let current: RenderedChatItem | null = null;
+
+  lines.forEach((line, relativeIndex) => {
+    const index = startIndex + relativeIndex;
+    if (line.role === "user") {
+      current = null;
+      items.push({ type: "user", startIndex: index, user: line });
+      return;
+    }
+
+    if (!current) {
+      current = { type: "agent-run", startIndex: index, lines: [] };
+      items.push(current);
+    }
+    current.lines?.push({ line, index });
+  });
+
+  return items;
 }
 
 function supportsNativeImageContent(cfg: { kind?: string; baseUrl?: string } | undefined): boolean {
@@ -1454,6 +1483,7 @@ export function ChatPanel({ mode }: Props) {
     : "image/*";
   const renderedChatStart = showAllMessages ? 0 : Math.max(0, chat.length - MAX_RENDERED_MESSAGES);
   const renderedChat = chat.slice(renderedChatStart);
+  const renderedItems = groupRenderedChat(renderedChat, renderedChatStart);
   const hiddenMessageCount = renderedChatStart;
   const conversationSubagents = subagentRuns
     .filter((run) => run.parentConversationId === activeConversationId)
@@ -1532,43 +1562,79 @@ export function ChatPanel({ mode }: Props) {
             Show {hiddenMessageCount} older message{hiddenMessageCount === 1 ? "" : "s"}
           </button>
         )}
-        {renderedChat.map((l, relativeIndex) => {
-          const i = renderedChatStart + relativeIndex;
-          const isActiveEmptyAgent =
-            busy && i === chat.length - 1 && l.role === "agent" && !l.text.trim() && !l.thinking?.trim();
-          if (l.role === "agent" && !l.text.trim() && !l.thinking?.trim() && !isActiveEmptyAgent) {
-            return null;
+        {renderedItems.map((item) => {
+          if (item.type === "user" && item.user) {
+            return (
+              <div key={item.startIndex} className="msg user">
+                <Markdown>{item.user.text}</Markdown>
+              </div>
+            );
           }
-          const thinkingOpen = Boolean(l.thinking?.trim()) && isOpen(l, i);
+
+          const lines = item.lines ?? [];
+          const activityLines = lines.filter(({ line }) => line.role === "tool" && line.text.trim());
+          const answerLines = lines.filter(({ line, index }) => {
+            const isActiveEmptyAgent =
+              busy && index === chat.length - 1 && line.role === "agent" && !line.text.trim() && !line.thinking?.trim();
+            return line.role === "agent" && (line.text.trim() || line.thinking?.trim() || isActiveEmptyAgent);
+          });
+          const isActiveRun = busy && lines.some(({ index }) => index === chat.length - 1);
+          if (activityLines.length === 0 && answerLines.length === 0 && !isActiveRun) return null;
+
           return (
-            <div key={i} className={`msg ${l.role}`}>
-              {isActiveEmptyAgent && (
-                <div className="thinking-status">
-                  <span className="thinking-pulse" aria-hidden="true" />
-                  <span>Thinking...</span>
+            <div key={item.startIndex} className={"agent-run" + (isActiveRun ? " active" : "") }>
+              <div className="agent-run-head">
+                <span className="agent-run-model">{activeModel ? modelDisplayName(activeModel) : "Rush"}</span>
+                <span className="agent-run-status">{isActiveRun ? "Working..." : "Completed"}</span>
+              </div>
+
+              {activityLines.length > 0 && (
+                <div className="agent-activity-list">
+                  {activityLines.map(({ line, index }) => (
+                    <div key={index} className="agent-activity-row">
+                      <span className="agent-activity-icon" aria-hidden="true">▸</span>
+                      <span>{line.text}</span>
+                    </div>
+                  ))}
                 </div>
               )}
-              {l.thinking && l.thinking.trim() && (
-                <>
-                  {!l.text.trim() && (
-                    <div className="thinking-status">
-                      <span className="thinking-pulse" aria-hidden="true" />
-                      <span>{thinkingPreview(l.thinking)}</span>
-                    </div>
-                  )}
-                  <details
-                    className="thinking-block"
-                    open={thinkingOpen}
-                    onToggle={(e) =>
-                      setOpenOverride((o) => ({ ...o, [i]: (e.target as HTMLDetailsElement).open }))
-                    }
-                  >
-                    <summary>Thinking</summary>
-                    {thinkingOpen && <Markdown>{l.thinking}</Markdown>}
-                  </details>
-                </>
-              )}
-              {l.role === "tool" ? l.text : <Markdown>{l.text}</Markdown>}
+
+              {answerLines.map(({ line, index }) => {
+                const isActiveEmptyAgent =
+                  busy && index === chat.length - 1 && line.role === "agent" && !line.text.trim() && !line.thinking?.trim();
+                const thinkingOpen = Boolean(line.thinking?.trim()) && isOpen(line, index);
+                return (
+                  <div key={index} className="agent-run-message">
+                    {isActiveEmptyAgent && (
+                      <div className="thinking-status">
+                        <span className="thinking-pulse" aria-hidden="true" />
+                        <span>Thinking...</span>
+                      </div>
+                    )}
+                    {line.thinking && line.thinking.trim() && (
+                      <>
+                        {!line.text.trim() && (
+                          <div className="thinking-status">
+                            <span className="thinking-pulse" aria-hidden="true" />
+                            <span>{thinkingPreview(line.thinking)}</span>
+                          </div>
+                        )}
+                        <details
+                          className="thinking-block"
+                          open={thinkingOpen}
+                          onToggle={(e) =>
+                            setOpenOverride((o) => ({ ...o, [index]: (e.target as HTMLDetailsElement).open }))
+                          }
+                        >
+                          <summary>Thinking</summary>
+                          {thinkingOpen && <Markdown>{line.thinking}</Markdown>}
+                        </details>
+                      </>
+                    )}
+                    {line.text.trim() && <Markdown>{line.text}</Markdown>}
+                  </div>
+                );
+              })}
             </div>
           );
         })}

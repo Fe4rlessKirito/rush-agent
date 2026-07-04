@@ -1,11 +1,11 @@
 {
-  "version": "1.7.23",
-  "notes": "Increase window control icon size and fix agent loop abort listener cleanup.",
+  "version": "1.7.24",
+  "notes": "Make custom window control glyphs larger and include the compact agent transcript UI updates.",
   "pub_date": "2026-07-04T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0dOMFBSbmJuZ2lrRmU2WDJ4WjM3b21HSWxsWjNFaStGRE4zMGd0NnRsZUR5Znk5MjM5VVY3N2FySlNnYXFPVXRBTGswRFBmd21PQWpEcVNQRi9NNFFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjAwNTQ5CWZpbGU6UnVzaF8xLjcuMjNfeDY0LXNldHVwLmV4ZQovWERaeklhUmhCTXkzZ3hVZnhLNTIyWEdOdHQzNXA4azlUbkFpd29nejArSGQ2c0lQcVU3Rzg3V1FpellWdHVEUEpoS2tSK21BaXhqN1gwWEtqQ1lEUT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.23/Rush_1.7.23_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0htSEhmaU5rSC84a3RrUkwxaHJZR0NzaGN6RG9ua0I0K29HMTMyZVprUUNxaEJaUVhxdkc2YVhzWGYyamxpSjlYa2c2UVptN0RjTU8yVU0ybW56TWdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjAzMDkxCWZpbGU6UnVzaF8xLjcuMjRfeDY0LXNldHVwLmV4ZQpPSlp6UTl1MTVMc3ROYWtDZTYyMzVlUW8vNXhjbStuZUJBcUcrczJ3dENSd3pkVU9CUEtOUTEvNEhqNFc5MEcvYzFmNVVBcUdWSFNXWTBURkVua09EUT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.24/Rush_1.7.24_x64-setup.exe"
     }
   }
 }
