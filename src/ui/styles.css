@@ -6328,3 +6328,80 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
     display: none;
   }
 }
+
+/* Topbar/sidebar alignment fixes for custom window chrome. */
+.app-titlebar {
+  --titlebar-sidebar-width: 250px;
+  --titlebar-rail-width: 116px;
+  grid-template-columns: var(--titlebar-sidebar-width) minmax(120px, 1fr) auto auto;
+  gap: 0;
+  padding: 0;
+}
+.app-titlebar.sidebar-collapsed {
+  grid-template-columns: var(--titlebar-rail-width) minmax(120px, 1fr) auto auto;
+}
+.app-titlebar .titlebar-left {
+  height: 40px;
+  gap: 8px;
+  padding: 0 10px;
+  background: var(--panel);
+  border-right: 1px solid var(--border-soft);
+  min-width: 0;
+}
+.app-titlebar .titlebar-session {
+  padding-left: 10px;
+}
+.app-titlebar .titlebar-app-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.app-titlebar .titlebar-app-logo {
+  width: 19px;
+  height: 19px;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+}
+.app-body.sidebar-collapsed .app-sidebar {
+  display: flex;
+  width: 116px;
+  flex-basis: 116px;
+  min-width: 116px;
+  max-width: 116px;
+  overflow: hidden;
+}
+.app-body.sidebar-collapsed .sb-section,
+.app-body.sidebar-collapsed .sb-project-list,
+.app-body.sidebar-collapsed .sb-chat-list,
+.app-body.sidebar-collapsed .sb-project-root,
+.app-body.sidebar-collapsed .sb-footer,
+.app-body.sidebar-collapsed .sb-projects-title,
+.app-body.sidebar-collapsed .sb-brand-text,
+.app-body.sidebar-collapsed .sb-recents,
+.app-body.sidebar-collapsed .sb-status-line {
+  display: none;
+}
+.app-body.sidebar-collapsed .sb-header {
+  justify-content: center;
+}
+.app-body.sidebar-collapsed .sb-nav {
+  align-items: center;
+}
+.app-body.sidebar-collapsed .sb-nav-btn,
+.app-body.sidebar-collapsed .sb-item {
+  width: 40px;
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.app-body.sidebar-collapsed .sb-nav-btn span:not(.sb-icon),
+.app-body.sidebar-collapsed .sb-item span:not(.sb-ico) {
+  display: none;
+}
+@media (max-width: 900px) {
+  .app-titlebar {
+    grid-template-columns: var(--titlebar-rail-width) minmax(120px, 1fr) auto auto;
+  }
+}

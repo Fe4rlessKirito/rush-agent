@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 type View = "chat" | "projects" | "library" | "flow" | "webProbing";
@@ -22,6 +23,14 @@ interface Props {
 }
 
 const appWindow = getCurrentWindow();
+const rushLogoSrc = "/Rush-app-logo.png";
+
+function startTitlebarDrag(event: MouseEvent<HTMLElement>) {
+  if (event.button !== 0) return;
+  const target = event.target as HTMLElement | null;
+  if (target?.closest("button, input, select, textarea, a")) return;
+  void appWindow.startDragging();
+}
 
 export function AppTitlebar({
   sidebarCollapsed,
@@ -41,8 +50,12 @@ export function AppTitlebar({
   onToggleSettings,
 }: Props) {
   return (
-    <header className="titlebar app-titlebar" data-tauri-drag-region>
-      <div className="titlebar-left">
+    <header
+      className={"titlebar app-titlebar" + (sidebarCollapsed ? " sidebar-collapsed" : "")}
+      data-tauri-drag-region
+      onMouseDown={startTitlebarDrag}
+    >
+      <div className="titlebar-left" data-tauri-drag-region>
         <button
           type="button"
           className={"titlebar-app-btn" + (sidebarCollapsed ? " collapsed" : "")}
@@ -50,7 +63,7 @@ export function AppTitlebar({
           title={sidebarCollapsed ? "Show sidebar" : "Minimize sidebar"}
           aria-label={sidebarCollapsed ? "Show sidebar" : "Minimize sidebar"}
         >
-          <span className="titlebar-app-mark">Z</span>
+          <img className="titlebar-app-logo" src={rushLogoSrc} alt="" draggable={false} />
         </button>
         <button type="button" className="titlebar-nav-btn" onClick={onBack} disabled={!canGoBack} title="Back" aria-label="Back">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18 9 12l6-6" /></svg>
