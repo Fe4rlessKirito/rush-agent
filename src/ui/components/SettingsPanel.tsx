@@ -18,7 +18,7 @@ import { checkForUpdates, type UpdateCheckResult } from "../../core/updater";
 import { useDraggable } from "../hooks/useDraggable";
 import { PackManager } from "./PackManager";
 
-type Tab = "general" | "providers" | "proxies" | "tools" | "packs" | "lsp" | "mcp";
+type Tab = "general" | "providers" | "proxies" | "accountPools" | "tools" | "packs" | "lsp" | "mcp";
 const LOCAL_PROXY_BASE_URL = "http://127.0.0.1:8000";
 
 // Per-proxy model-list state. Models are fetched lazily the first time a proxy
@@ -717,6 +717,12 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
             Proxies
           </button>
           <button
+            className={`settings-tab ${tab === "accountPools" ? "active" : ""}`}
+            onClick={() => setTab("accountPools")}
+          >
+            Account Pools
+          </button>
+          <button
             className={`settings-tab ${tab === "tools" ? "active" : ""}`}
             onClick={() => setTab("tools")}
           >
@@ -853,109 +859,6 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
                     <dd>{Number(proxyPoolStatus?.load?.requests_per_second ?? 0).toFixed(1)} / sec</dd>
                   </dl>
                   {proxyPoolMessage && <p className={`proxy-config-message ${proxyPoolMessage.startsWith("Unable") ? "error" : ""}`}>{proxyPoolMessage}</p>}
-                </div>
-
-                <div className="proxy-config-head">
-                  <div>
-                    <strong>Account bank</strong>
-                    <span>Live proxy config from <code>/config</code></span>
-                  </div>
-                  <button
-                    className="ghost small"
-                    onClick={refreshProxyConfig}
-                    disabled={!localProxyEnabled || proxyConfigBusy}
-                  >
-                    Refresh
-                  </button>
-                </div>
-
-                <label className="proxy-config-row">
-                  <span>
-                    <strong>Pool size</strong>
-                    <small>Warm accounts kept ready. Higher values use more RAM.</small>
-                  </span>
-                  <input
-                    type="range"
-                    min="1"
-                    max="20000"
-                    step="1"
-                    value={proxyConfig.pool_size}
-                    disabled={!localProxyEnabled || proxyConfigBusy}
-                    onChange={(e) => editProxyConfig("pool_size", Number(e.target.value))}
-                  />
-                  <input
-                    type="number"
-                    min="1"
-                    max="20000"
-                    value={proxyConfig.pool_size}
-                    disabled={!localProxyEnabled || proxyConfigBusy}
-                    onChange={(e) => editProxyConfig("pool_size", Number(e.target.value))}
-                  />
-                </label>
-                <p className="proxy-config-warning">
-                  Large pools can consume a lot of memory because every warm account has runtime state.
-                </p>
-
-                <label className="proxy-config-row">
-                  <span>
-                    <strong>Signup delay</strong>
-                    <small>Milliseconds between account creation</small>
-                  </span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="10000"
-                    step="100"
-                    value={proxyConfig.signup_delay_ms}
-                    disabled={!localProxyEnabled || proxyConfigBusy}
-                    onChange={(e) => editProxyConfig("signup_delay_ms", Number(e.target.value))}
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    step="100"
-                    value={proxyConfig.signup_delay_ms}
-                    disabled={!localProxyEnabled || proxyConfigBusy}
-                    onChange={(e) => editProxyConfig("signup_delay_ms", Number(e.target.value))}
-                  />
-                </label>
-
-                <label className="proxy-config-row">
-                  <span>
-                    <strong>Account lifetime</strong>
-                    <small>Seconds before rotating bank accounts</small>
-                  </span>
-                  <input
-                    type="range"
-                    min="60"
-                    max="7200"
-                    step="60"
-                    value={proxyConfig.account_ttl_sec}
-                    disabled={!localProxyEnabled || proxyConfigBusy}
-                    onChange={(e) => editProxyConfig("account_ttl_sec", Number(e.target.value))}
-                  />
-                  <input
-                    type="number"
-                    min="60"
-                    step="60"
-                    value={proxyConfig.account_ttl_sec}
-                    disabled={!localProxyEnabled || proxyConfigBusy}
-                    onChange={(e) => editProxyConfig("account_ttl_sec", Number(e.target.value))}
-                  />
-                </label>
-
-                <div className="row">
-                  <button
-                    onClick={saveProxyConfig}
-                    disabled={!localProxyEnabled || proxyConfigBusy}
-                  >
-                    {proxyConfigBusy ? "Saving..." : "Save bank settings"}
-                  </button>
-                  {proxyConfigMessage && (
-                    <span className={`proxy-config-message ${proxyConfigMessage.startsWith("Unable") ? "error" : ""}`}>
-                      {proxyConfigMessage}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
@@ -1120,6 +1023,113 @@ export function SettingsPanel({ onClose, initialTab = "general" }: { onClose: ()
             <p className="hint">
               Active: {activeProviderId ? `${activeProviderId} / ${activeModel}` : "none selected"}
             </p>
+          </div>
+        ) : tab === "accountPools" ? (
+          <div className="settings-body">
+            <div className="settings-section account-pools-section">
+              <div className="proxy-config-head">
+                <div>
+                  <h3>Account Pools</h3>
+                  <span>Warm local-proxy accounts kept ready for model requests.</span>
+                </div>
+                <button
+                  className="ghost small"
+                  onClick={refreshProxyConfig}
+                  disabled={!localProxyEnabled || proxyConfigBusy}
+                >
+                  Refresh
+                </button>
+              </div>
+
+              <label className="proxy-config-row">
+                <span>
+                  <strong>Pool size</strong>
+                  <small>Warm accounts kept ready. Higher values use more RAM.</small>
+                </span>
+                <input
+                  type="range"
+                  min="1"
+                  max="20000"
+                  step="1"
+                  value={proxyConfig.pool_size}
+                  disabled={!localProxyEnabled || proxyConfigBusy}
+                  onChange={(e) => editProxyConfig("pool_size", Number(e.target.value))}
+                />
+                <input
+                  type="number"
+                  min="1"
+                  max="20000"
+                  value={proxyConfig.pool_size}
+                  disabled={!localProxyEnabled || proxyConfigBusy}
+                  onChange={(e) => editProxyConfig("pool_size", Number(e.target.value))}
+                />
+              </label>
+              <p className="proxy-config-warning">
+                Large pools can consume a lot of memory because every warm account has runtime state.
+              </p>
+
+              <label className="proxy-config-row">
+                <span>
+                  <strong>Signup delay</strong>
+                  <small>Milliseconds between account creation.</small>
+                </span>
+                <input
+                  type="range"
+                  min="0"
+                  max="10000"
+                  step="100"
+                  value={proxyConfig.signup_delay_ms}
+                  disabled={!localProxyEnabled || proxyConfigBusy}
+                  onChange={(e) => editProxyConfig("signup_delay_ms", Number(e.target.value))}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="100"
+                  value={proxyConfig.signup_delay_ms}
+                  disabled={!localProxyEnabled || proxyConfigBusy}
+                  onChange={(e) => editProxyConfig("signup_delay_ms", Number(e.target.value))}
+                />
+              </label>
+
+              <label className="proxy-config-row">
+                <span>
+                  <strong>Account lifetime</strong>
+                  <small>Seconds before rotating bank accounts.</small>
+                </span>
+                <input
+                  type="range"
+                  min="60"
+                  max="7200"
+                  step="60"
+                  value={proxyConfig.account_ttl_sec}
+                  disabled={!localProxyEnabled || proxyConfigBusy}
+                  onChange={(e) => editProxyConfig("account_ttl_sec", Number(e.target.value))}
+                />
+                <input
+                  type="number"
+                  min="60"
+                  step="60"
+                  value={proxyConfig.account_ttl_sec}
+                  disabled={!localProxyEnabled || proxyConfigBusy}
+                  onChange={(e) => editProxyConfig("account_ttl_sec", Number(e.target.value))}
+                />
+              </label>
+
+              <div className="row">
+                <button
+                  onClick={saveProxyConfig}
+                  disabled={!localProxyEnabled || proxyConfigBusy}
+                >
+                  {proxyConfigBusy ? "Saving..." : "Save account pool settings"}
+                </button>
+                {proxyConfigMessage && (
+                  <span className={`proxy-config-message ${proxyConfigMessage.startsWith("Unable") ? "error" : ""}`}>
+                    {proxyConfigMessage}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         ) : tab === "tools" ? (
           <div className="settings-body">

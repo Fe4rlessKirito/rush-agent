@@ -51,7 +51,6 @@ import { Markdown } from "./Markdown";
 import "highlight.js/styles/github-dark.css";
 
 const fs = isTauriRuntime() ? createTauriFs() : createDevFs();
-const LOCAL_PROXY_BASE_URL = "http://127.0.0.1:8000";
 
 function registerCodeToolset(registry: ToolRegistry, mode: "code" | "flow") {
   registry.registerAll(createFsTools(fs));
@@ -173,50 +172,6 @@ interface Attachment {
   type: string;
   file: File;
   dataUrl?: string;
-}
-
-interface ProxyBankStatus {
-  warm_accounts?: number;
-  pool_target?: number;
-  status?: string;
-  ready?: number;
-  target?: number;
-  generated?: number;
-  failed?: number;
-  accounts?: {
-    ready?: number;
-    target?: number;
-    total?: number;
-    generated?: number;
-    failed?: number;
-  };
-  provider_pools?: Array<{
-    provider?: string;
-    ready?: number;
-    target?: number;
-    generated?: number;
-    failed?: number;
-  }>;
-}
-
-function normalizeProxyBankStatus(data: Partial<ProxyBankStatus>): ProxyBankStatus {
-  const useAiPool = data.provider_pools?.find((pool) => pool.provider === "use.ai");
-  const ready = Number(data.warm_accounts ?? data.ready ?? data.accounts?.ready ?? useAiPool?.ready ?? 0);
-  const target = Number(data.pool_target ?? data.target ?? data.accounts?.target ?? useAiPool?.target ?? data.accounts?.total ?? 0);
-  return {
-    ...data,
-    warm_accounts: ready,
-    pool_target: target,
-    ready,
-    target,
-    generated: Number(data.generated ?? data.accounts?.generated ?? useAiPool?.generated ?? 0),
-    failed: Number(data.failed ?? data.accounts?.failed ?? useAiPool?.failed ?? 0),
-    status: data.status ?? (ready > 0 ? "ready" : "warming"),
-  };
-}
-
-interface LocalProxyStatus {
-  enabled: boolean;
 }
 
 function displayValue(value: unknown): string {
@@ -405,9 +360,6 @@ export function ChatPanel({ mode }: Props) {
   const [contextItems, setContextItems] = useState<LibraryContextItem[]>([]);
   const [contextPicker, setContextPicker] = useState<LibraryContextKind | null>(null);
   const [contextQuery, setContextQuery] = useState("");
-  const [proxyBank, setProxyBank] = useState<ProxyBankStatus | null>(null);
-  const [proxyBankOnline, setProxyBankOnline] = useState(false);
-  const [proxyBankDisabled, setProxyBankDisabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pendingModeSwitch, setPendingModeSwitch] = useState<{ mode: "plain" | "agent"; reason: string } | null>(null);
   const [effort, setEffort] = useState(1);
@@ -460,47 +412,6 @@ export function ChatPanel({ mode }: Props) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [previewAttachment]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function refreshProxyBank() {
-      try {
-        if (isTauriRuntime()) {
-          const status = await invoke<LocalProxyStatus>("local_proxy_status");
-          if (!status.enabled) {
-            if (!cancelled) {
-              setProxyBank(null);
-              setProxyBankOnline(false);
-              setProxyBankDisabled(true);
-            }
-            return;
-          }
-        }
-        const res = await fetch(`${LOCAL_PROXY_BASE_URL}/bank`, { cache: "no-store" });
-        if (!res.ok) throw new Error(`bank ${res.status}`);
-        const data = normalizeProxyBankStatus(await res.json());
-        if (!cancelled) {
-          setProxyBank(data);
-          setProxyBankOnline(true);
-          setProxyBankDisabled(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setProxyBank(null);
-          setProxyBankOnline(false);
-          setProxyBankDisabled(false);
-        }
-      }
-    }
-
-    void refreshProxyBank();
-    const timer = window.setInterval(refreshProxyBank, 5000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
 
   const resolveConfirm = (ok: boolean) => {
     setConfirm((c) => {
@@ -1427,11 +1338,6 @@ export function ChatPanel({ mode }: Props) {
           </button>
         </div>
       )}
-      {!isFlow && chatMode === "agent" && !conversationProjectContext?.projectRoot && (
-        <div className="mode-switch-banner mode-switch-hint" role="status">
-          <span>Code mode works best with a project open — file, terminal, and Git tools need a project root. Open one from the sidebar.</span>
-        </div>
-      )}
       {pendingModeSwitch && (
         <div className="mode-switch-banner" role="alert">
           <span>
@@ -1705,33 +1611,6 @@ export function ChatPanel({ mode }: Props) {
               </svg>
               <span>Research</span>
             </button>
-          </div>
-
-          <div
-            className={`proxy-pool-badge ${proxyBankDisabled ? "disabled" : proxyBankOnline ? "online" : "offline"}`}
-            title={
-              proxyBankDisabled
-                ? "Proxy pool disabled in Settings"
-                : proxyBankOnline
-                ? `Proxy pool: ${proxyBank?.warm_accounts ?? 0} of ${proxyBank?.pool_target ?? "?"} accounts ready`
-                : "Proxy pool unavailable"
-            }
-            aria-label={
-              proxyBankDisabled
-                ? "Proxy pool disabled"
-                : proxyBankOnline
-                ? `Proxy pool ${proxyBank?.warm_accounts ?? 0} of ${proxyBank?.pool_target ?? "unknown"} accounts ready`
-                : "Proxy pool unavailable"
-            }
-          >
-            <span className="proxy-pool-dot" aria-hidden="true" />
-            <span className="proxy-pool-text">
-              {proxyBankDisabled
-                ? "Pool disabled"
-                : proxyBankOnline
-                ? `${proxyBank?.warm_accounts ?? 0}/${proxyBank?.pool_target ?? "?"} accounts`
-                : "Pool offline"}
-            </span>
           </div>
 
           <button className="send-btn" onClick={send} disabled={busy} aria-label="Send">
