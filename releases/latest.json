@@ -1,11 +1,11 @@
 {
-  "version": "1.7.12",
-  "notes": "Rush Agent v1.7.12 fixes the Web Probing model dropdown styling and restores consistent filled composer controls, including the effort/send button layout.",
+  "version": "1.7.13",
+  "notes": "Rush Agent v1.7.13 restores the composer to the flat transparent-control style, removes the textarea fill, and preserves the effort/send layout fix.",
   "pub_date": "2026-07-04T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na1ArcGlZanNLOG11djhRb3JYd1dORGk2T2QvNU9MOGJVN2dKU3FvZzR5cjNFVHlkdjBKRnNiVjZyOUlKbC91QnJCVDJuajFBWDZQTFZSR0FTK0U1dkE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTgwOTY1CWZpbGU6UnVzaF8xLjcuMTJfeDY0LXNldHVwLmV4ZQpGTzNFcDFDSnR2NGpJSElDaCtGN0RGNG0xam45SEVRYUFtWFdHYkxIRHBFVTEzWm4rQnBlVDBvZGZrUi9sVWdoS253d1FJNWwwaCtsUzZMT0N2K0REZz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.12/Rush-Agent-v1.7.12-x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na1BXOEgzMWVQOWNCY2lTcGRSelNiaGZpRllyRzNZME1yOVNFZ2ZxczZ1bXZNS0czTVBUeUJLNmtySFUyRXNYdTJJVVlZTVREL2p6YldiRHdvSDZZTndnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTgyNTA0CWZpbGU6UnVzaF8xLjcuMTNfeDY0LXNldHVwLmV4ZQozcHZ3dGxmbm1sZXBoRDlNODFSSFI1dGRSMzRNK3o2cDloUm95VE5BZy9SQ3VRZW9hUVlOOERiSDF2OW90SS9zdXhobXJ0ZDNkTjZ3QjB0K0RRRnNBUT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.13/Rush-Agent-v1.7.13-x64-setup.exe"
     }
   }
 }
