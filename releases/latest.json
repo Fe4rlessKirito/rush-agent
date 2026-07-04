@@ -1,11 +1,11 @@
 {
-  "version": "1.7.25",
-  "notes": "Make assistant responses blend into the chat background and show active working elapsed time.",
+  "version": "1.7.26",
+  "notes": "Attach subagents to the active parent conversation and make subagent activity labels clearer.",
   "pub_date": "2026-07-04T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0FQalludXYwZ3FnQW41ZVhXSVRiYjh3R1dDSjRqSzArRUV0NVpVcmpuRm1OME5NNnJDU2w0NHhIYnFxTkZWb1VzeVJUNVhnVDloUmNObXpralpYeEFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjA1MTA1CWZpbGU6UnVzaF8xLjcuMjVfeDY0LXNldHVwLmV4ZQpkK3ljenV0eUxGektiMXJQUXNhTFZ3RUI0dXZtUjRlU3lUTFpJbTh4NmJ2ZkEzZElVeVVlam40SjVMSktTdytWYlhib1prbENJZHpjOVBERllZazFEdz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.25/Rush_1.7.25_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0wzWUhEWkFaRUgyekl6Tnk2ME45SkxjL053UGo4Zm8yQXFlRHFxUk51VmlWWHJuTHdKbnhKbHYwRG40SzBReUNxRE5SRmFBN200MitJSjFNb0g1dmdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjA2NDc1CWZpbGU6UnVzaF8xLjcuMjZfeDY0LXNldHVwLmV4ZQpjVURhdzhreTdrQ2o1VFl5THZZUE9odUkrVElzWHEvSWFrYk05NGJMdjc0M21Lbmp3WEl6QnNCTkFycDAwVnArSi9SbnNFZUg2Q1pURzRLRzRvRjZCZz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.26/Rush_1.7.26_x64-setup.exe"
     }
   }
 }

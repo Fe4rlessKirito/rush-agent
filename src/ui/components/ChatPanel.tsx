@@ -208,7 +208,8 @@ codeTools.registerAll(createFlowTools({
   onSubagentStart: ({ task, title }) => {
     const state = useAppStore.getState();
     return state.startSubagentRun({
-      parentConversationId: state.activeConversationIds.chat || state.activeConversationId || "pending",
+          parentConversationId: state.activeConversationId || state.activeConversationIds.chat || "pending",
+
       task,
       title,
       projectContext: state.conversationProjectContext,
@@ -373,6 +374,10 @@ function friendlyToolName(name: string | undefined): string {
 }
 
 function describeToolCall(name: string | undefined, args: Record<string, unknown> | undefined): string {
+  if (name === "Agent") {
+    const task = toolTarget(args, ["task", "description"]);
+    return task ? `Started subagent: ${task}` : "Started subagent";
+  }
   const target =
     toolTarget(args, ["path", "file_path", "pattern", "query", "command", "url", "task", "description"]) ||
     toolTarget(args, ["src", "from", "dst", "to"]);
@@ -381,6 +386,7 @@ function describeToolCall(name: string | undefined, args: Record<string, unknown
 }
 
 function describeToolResult(name: string | undefined, result: string | undefined): string {
+  if (name === "Agent") return "Finished subagent";
   const action = friendlyToolName(name);
   const text = result ?? "";
   if (/^(Tool .* failed:|Unknown tool:|Tool unavailable|Blocked:|Blocked by permission rule|User denied)/.test(text)) {
