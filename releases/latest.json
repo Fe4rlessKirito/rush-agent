@@ -1,11 +1,11 @@
 {
-  "version": "1.7.10",
-  "notes": "Rush Agent v1.7.10 adds Web Probing, a passive defensive website audit panel that uses the local proxy only and requires authorization before running model reviews.",
+  "version": "1.7.11",
+  "notes": "Rush Agent v1.7.11 moves Web Probing into the sidebar as a full panel, reuses a model picker for probing, excludes Faceb models, raises the composer, and makes composer controls transparent.",
   "pub_date": "2026-07-04T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na1BYb1VvL0xaQkJ6VVhKZklRVkV1THZ2Y3lvZjZwYnBtN0U0NURzemcvTlpHbGhuZW5mdUpEWGMyY3RyVGFFUjRDM3ZKYkU2emlvTzZxZ1FkYlUzc0FzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTc1ODQ4CWZpbGU6UnVzaF8xLjcuMTBfeDY0LXNldHVwLmV4ZQphMjVJTWc4MlJIYVNVRjdNZnRwNTdPQjk0OXJXeHRMQTJHM05UV3l4bXY5cm5PWkQrODBwV1NpTHA2REo1MkNVTFRodzhBUzc1bHlCUG9QRzN6WnREdz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.10/Rush-Agent-v1.7.10-x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0R0VFlGeFZubmtUY1huT1lUMzhrc2Zsb1djeFRYWVJPWndkSy9qNE9IWFRWQW9BY3A0VTdxb0VFSGJZTlo0eUtvZU9HemNPYllPNE1mZ3d1MWp2TWc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTc3NTUwCWZpbGU6UnVzaF8xLjcuMTFfeDY0LXNldHVwLmV4ZQpMOHZmVFdKbk9RQUR4S0NiOHIvUFY0VUxIRUs4WEcyTXNaU1hmRXUvU2h4Q2ZReW1HR1dlWUVueGdzQm5rb1UreGg4ZFo5cHRGNkhxcGVvY05wakdDQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.11/Rush-Agent-v1.7.11-x64-setup.exe"
     }
   }
 }

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useDraggable } from "../hooks/useDraggable";
 
 const LOCAL_PROXY_V1 = "http://127.0.0.1:8000/v1";
 const FOCUS_AREAS = [
@@ -61,14 +60,20 @@ function extractModels(data: unknown): LocalModel[] {
     .filter((item): item is LocalModel => Boolean(item));
 }
 
-function pickModels(models: LocalModel[], filter: string, count: number): string[] {
-  const terms = filter.toLowerCase().split(/[\s,/|]+/).map((term) => term.trim()).filter(Boolean);
-  const preferred = terms.length > 0
-    ? models.filter((model) => terms.some((term) => model.id.toLowerCase().includes(term)))
-    : models;
-  const pool = preferred.length > 0 ? preferred : models;
-  if (pool.length === 0) return [];
-  return Array.from({ length: count }, (_, index) => pool[index % pool.length].id);
+function allowedProbeModels(models: LocalModel[]): LocalModel[] {
+  return models.filter((model) => !model.id.toLowerCase().includes("faceb"));
+}
+
+function preferredProbeModel(models: LocalModel[]): string {
+  const allowed = allowedProbeModels(models);
+  return allowed.find((model) => /mistral|qwen/i.test(model.id))?.id ?? allowed[0]?.id ?? "";
+}
+
+function pickModels(models: LocalModel[], selectedModel: string, count: number): string[] {
+  const allowed = allowedProbeModels(models);
+  const model = allowed.find((item) => item.id === selectedModel)?.id ?? preferredProbeModel(allowed);
+  if (!model) return [];
+  return Array.from({ length: count }, () => model);
 }
 
 function passiveEvidencePrompt(evidence: ProbeEvidence): string {
@@ -172,13 +177,12 @@ async function callLocalProbe(model: string, url: string, focus: string, evidenc
   return String(data.choices?.[0]?.message?.content ?? data.content ?? data.text ?? "").trim() || "No findings returned.";
 }
 
-export function WebProbingView({ onClose }: { onClose: () => void }) {
-  const { onMouseDown, style } = useDraggable(".web-probing-shell");
+export function WebProbingView() {
   const [url, setUrl] = useState("");
   const [authorized, setAuthorized] = useState(false);
   const [agentCount, setAgentCount] = useState(100);
   const [concurrency, setConcurrency] = useState(8);
-  const [modelFilter, setModelFilter] = useState("mistral qwen");
+  const [selectedModel, setSelectedModel] = useState("");
   const [models, setModels] = useState<LocalModel[]>([]);
   const [modelError, setModelError] = useState("");
   const [evidence, setEvidence] = useState<ProbeEvidence | null>(null);
@@ -191,7 +195,10 @@ export function WebProbingView({ onClose }: { onClose: () => void }) {
     fetch(`${LOCAL_PROXY_V1}/models`, { cache: "no-store" })
       .then((res) => res.ok ? res.json() : Promise.reject(new Error(`models ${res.status}`)))
       .then((data) => {
-        if (!cancelled) setModels(extractModels(data));
+        if (cancelled) return;
+        const nextModels = extractModels(data);
+        setModels(nextModels);
+        setSelectedModel((current) => current || preferredProbeModel(nextModels));
       })
       .catch((err) => {
         if (!cancelled) setModelError(String(err));
@@ -201,9 +208,10 @@ export function WebProbingView({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
+  const allowedModels = useMemo(() => allowedProbeModels(models), [models]);
   const selectedModels = useMemo(
-    () => pickModels(models, modelFilter, clampNumber(agentCount, 1, 100)),
-    [agentCount, modelFilter, models],
+    () => pickModels(models, selectedModel, clampNumber(agentCount, 1, 100)),
+    [agentCount, selectedModel, models],
   );
   const summary = useMemo(() => summarizeFindings(findings), [findings]);
   const completed = findings.filter((finding) => finding.status === "done").length;
@@ -214,9 +222,9 @@ export function WebProbingView({ onClose }: { onClose: () => void }) {
     if (!target || !authorized || running) return;
     const count = clampNumber(agentCount, 1, 100);
     const limit = clampNumber(concurrency, 1, 20);
-    const chosen = pickModels(models, modelFilter, count);
+    const chosen = pickModels(models, selectedModel, count);
     if (chosen.length === 0) {
-      setModelError("No local proxy models matched. Try clearing the model filter or confirm /v1/models is available.");
+      setModelError("No local proxy models matched. Confirm /v1/models is available and has non-Faceb models.");
       return;
     }
 
@@ -257,23 +265,22 @@ export function WebProbingView({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="research-overlay web-probing-overlay" role="dialog" aria-modal="true">
-      <div className="research-shell web-probing-shell" style={style}>
-        <div className="research-window-title" onMouseDown={onMouseDown}>
-          <div className="research-brand web-probing-brand">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="8" />
-              <path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16" />
-              <path d="m15.5 15.5 3 3" />
-            </svg>
-            <span>Web Probing</span>
-          </div>
-          <div className="research-window-actions">
-            <button onClick={onClose} aria-label="Close Web Probing">x</button>
+    <main className="web-probing-page">
+      <header className="web-probing-page-head">
+        <div className="web-probing-brand">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="8" />
+            <path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16" />
+            <path d="m15.5 15.5 3 3" />
+          </svg>
+          <div>
+            <h1>Web Probing</h1>
+            <span>Passive local-proxy website review</span>
           </div>
         </div>
+      </header>
 
-        <div className="web-probing-grid">
+      <div className="web-probing-grid">
           <section className="research-card web-probing-card">
             <div className="research-card-head">
               <h2>Passive defensive website audit <small>local proxy only</small></h2>
@@ -292,7 +299,16 @@ export function WebProbingView({ onClose }: { onClose: () => void }) {
             <div className="web-probing-controls">
               <label><span>Agents</span><input type="number" min="1" max="100" value={agentCount} onChange={(e) => setAgentCount(clampNumber(Number(e.target.value), 1, 100))} /></label>
               <label><span>Concurrency</span><input type="number" min="1" max="20" value={concurrency} onChange={(e) => setConcurrency(clampNumber(Number(e.target.value), 1, 20))} /></label>
-              <label><span>Model filter</span><input value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} placeholder="mistral qwen" /></label>
+              <label>
+                <span>Model</span>
+                <select className="model-select web-probing-model-select" value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
+                  {allowedModels.length === 0 ? (
+                    <option value="">No local models</option>
+                  ) : allowedModels.map((model) => (
+                    <option key={model.id} value={model.id}>{model.id}</option>
+                  ))}
+                </select>
+              </label>
             </div>
             <div className="web-probing-actions">
               <button className="research-start" onClick={startProbe} disabled={running || !authorized || !url.trim()}>Start probe</button>
@@ -343,8 +359,7 @@ export function WebProbingView({ onClose }: { onClose: () => void }) {
               </article>
             ))}
           </div>
-        </section>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

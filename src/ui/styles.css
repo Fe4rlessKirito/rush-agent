@@ -114,7 +114,7 @@ body {
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   font-size: 15px;
   line-height: 1;
@@ -142,7 +142,7 @@ body {
 .sb-project-head:hover,
 .sb-project-head.active {
   filter: none;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text);
 }
 .sb-project-icon {
@@ -295,7 +295,7 @@ body {
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 .top-mode-tab:hover {
-  background: var(--panel-2); color: var(--text); filter: none;
+  background: transparent; color: var(--text); filter: none;
   transform: translateY(-1px);
 }
 .top-mode-tab:hover::before,
@@ -355,7 +355,7 @@ body {
   transition: transform 0.28s ease, color 0.16s ease;
 }
 .settings-cog-btn:hover {
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text);
   filter: none;
 }
@@ -494,7 +494,7 @@ body {
 }
 .research-card textarea:hover,
 .research-card textarea:focus {
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.48);
   transform: translateY(-1px) scale(1.005);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
@@ -531,7 +531,7 @@ body {
 }
 .research-settings-head:hover {
   filter: none;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text);
 }
 .research-grid {
@@ -597,7 +597,7 @@ body {
 }
 .research-search-config input:hover,
 .research-search-config input:focus {
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.48);
   transform: translateY(-1px) scale(1.005);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
@@ -632,7 +632,7 @@ body {
 .research-select:hover,
 .research-select.open {
   filter: none;
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.62);
   transform: translateY(-1px) scale(1.01);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
@@ -719,7 +719,7 @@ body {
 }
 .research-queue:hover {
   border-color: rgba(109, 92, 255, 0.48);
-  background: var(--panel-2);
+  background: transparent;
 }
 .research-start {
   margin-left: auto;
@@ -775,7 +775,7 @@ body {
 }
 .brain-window-actions button:hover {
   filter: none;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text);
   border-color: rgba(255, 255, 255, 0.14);
   transform: translateY(-1px);
@@ -896,7 +896,7 @@ body {
 .brain-toolbar button:hover:not(:disabled), .brain-action-row button:hover,
 .brain-inline-form button:hover:not(:disabled), .brain-skill-form button:hover:not(:disabled) {
   filter: none; border-color: var(--accent);
-  background: var(--panel-2);
+  background: transparent;
   transform: translateY(-1px);
   box-shadow: 0 5px 14px rgba(0, 0, 0, 0.18);
 }
@@ -914,7 +914,7 @@ body {
 .brain-toolbar select { min-width: 150px; }
 .brain-toolbar select:hover,
 .brain-toolbar select:focus {
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.48);
   transform: translateY(-1px) scale(1.01);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
@@ -934,7 +934,7 @@ body {
 }
 .brain-search:hover,
 .brain-search:focus-within {
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.48);
   color: var(--text);
   transform: translateY(-1px) scale(1.01);
@@ -971,7 +971,7 @@ body {
   transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
 }
 .brain-row:hover {
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
@@ -1031,7 +1031,7 @@ body {
 .brain-skill-form input:focus,
 .brain-skill-form textarea:hover,
 .brain-skill-form textarea:focus {
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.48);
   transform: translateY(-1px) scale(1.01);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
@@ -1081,7 +1081,7 @@ body {
 }
 .brain-percent-input:hover,
 .brain-percent-input:focus {
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.48);
   transform: translateY(-1px) scale(1.01);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
@@ -1218,7 +1218,7 @@ body {
 .flow-subtabs button:hover {
   filter: none;
   color: var(--text);
-  background: var(--panel-2);
+  background: transparent;
 }
 .flow-subtabs button.active {
   color: var(--text);
@@ -1260,7 +1260,7 @@ body {
 .flow-tag.blocked,
 .flow-tag.cancelled { color: #f0768b; border-color: color-mix(in srgb, #f0768b 45%, var(--border)); }
 .flow-mini-btn {
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -1316,7 +1316,7 @@ body {
 .flow-plan-lanes code {
   padding: 4px 7px;
   border-radius: 999px;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   font-size: 11px;
 }
@@ -1431,7 +1431,7 @@ body {
 }
 .flow-lane-status {
   color: var(--text-faint);
-  background: var(--panel-2);
+  background: transparent;
   border-radius: 999px;
   padding: 2px 7px;
   font-size: 10px;
@@ -1465,7 +1465,7 @@ body {
   padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid var(--border);
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   font-size: 11px;
   font-weight: 700;
@@ -1573,7 +1573,7 @@ body {
 .flow-report-head button:hover {
   filter: none;
   color: var(--text);
-  background: var(--panel-2);
+  background: transparent;
 }
 .flow-report pre {
   flex: 1;
@@ -1596,7 +1596,7 @@ body {
   padding: 12px 14px;
 }
 .flow-report-actions button {
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -1825,7 +1825,7 @@ body {
 .project-ai-mode-tabs button:hover {
   filter: none;
   color: var(--text);
-  background: var(--panel-2);
+  background: transparent;
 }
 .project-ai-mode-tabs button.active {
   color: var(--text);
@@ -1848,7 +1848,7 @@ body {
   width: 30px;
   height: 30px;
   padding: 0;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -1889,7 +1889,7 @@ body {
 /* Floating toggle to show/hide the editor panel. */
 .editor-fab {
   position: absolute; bottom: 16px; z-index: 16;
-  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  background: transparent; color: var(--text); border: 1px solid var(--border);
   border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
@@ -1968,7 +1968,7 @@ body {
 .tab.preview-tab.active { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
 .side-toggle {
   margin-left: auto; align-self: center; flex: 0 0 auto;
-  background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border);
+  background: transparent; color: var(--text-dim); border: 1px solid var(--border);
   border-radius: 7px; padding: 4px 10px; margin-right: 8px; font-size: 12px; font-weight: 500;
 }
 .side-toggle:hover { background: var(--border); color: var(--text); filter: none; }
@@ -1981,7 +1981,7 @@ body {
 .chat-mode-switcher {
   display: inline-flex; gap: 4px; align-self: flex-start;
   margin: 10px 14px 0; padding: 3px;
-  background: var(--panel-2); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px;
+  background: transparent; border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px;
 }
 .chat-mode-tab {
   border: none; background: transparent; color: var(--text-faint);
@@ -1993,7 +1993,7 @@ body {
 .mode-switch-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin: 10px 14px 0; padding: 8px 12px;
-  background: var(--panel-2); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px;
+  background: transparent; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px;
   font-size: 12.5px; color: var(--text);
 }
 .mode-switch-hint { color: var(--text-faint); }
@@ -2044,6 +2044,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--panel);
+  transform: translateY(-18px);
 }
 .composer-context-bar {
   display: flex;
@@ -2073,7 +2074,7 @@ body {
 .composer-project-chip:hover,
 .composer-branch-chip:hover {
   filter: none;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text);
   border-color: var(--border-soft);
 }
@@ -2143,7 +2144,7 @@ body {
 .pack-command-suggestions button:hover,
 .pack-command-suggestions button.active {
   filter: none;
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.42);
   color: var(--text);
 }
@@ -2190,7 +2191,7 @@ body {
   padding: 6px 28px 6px 6px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--panel-2);
+  background: transparent;
 }
 .attachment-preview-media {
   width: 46px;
@@ -2386,9 +2387,9 @@ body {
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; padding: 0; border-radius: 9px; flex: 0 0 auto;
-  background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border);
+  background: transparent; color: var(--text-dim); border: 1px solid var(--border);
 }
-.icon-btn:hover { background: var(--border); color: var(--text); filter: none; }
+.icon-btn:hover { background: transparent; color: var(--text); filter: none; }
 .icon-btn svg { display: block; transition: transform 0.2s ease, color 0.2s ease; }
 .attach-btn { position: relative; overflow: hidden; }
 .attach-btn::after {
@@ -2415,7 +2416,7 @@ body {
 .model-select,
 .effort-control {
   border-color: var(--border);
-  background: var(--panel-2);
+  background: transparent;
 }
 .permission-mode-btn {
   display: inline-flex;
@@ -2439,7 +2440,7 @@ body {
 .permission-mode-btn:hover,
 .permission-mode-btn[aria-expanded="true"] {
   filter: none;
-  background: var(--panel-2);
+  background: transparent;
   border-color: var(--border-soft);
   color: var(--text);
 }
@@ -2528,7 +2529,7 @@ body {
   text-align: center;
 }
 .model-select {
-  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  background: transparent; color: var(--text); border: 1px solid var(--border);
   border-radius: 9px; padding: 0 10px; height: 34px; font-size: 12.5px; outline: none;
   max-width: 220px;
   cursor: pointer;
@@ -2539,9 +2540,9 @@ body {
     transform 0.14s ease;
 }
 .model-select:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--panel-2) 88%, var(--accent));
+    background: transparent;
     border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
-    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    box-shadow: none;
     transform: translateY(-1px);
   }
 .model-select:focus {
@@ -2559,7 +2560,7 @@ body {
   padding: 0 8px;
   border-radius: 9px;
   border: 1px solid var(--border);
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   transition:
     border-color 0.14s ease,
@@ -2571,9 +2572,9 @@ body {
 .effort-control:hover {
   filter: none;
   color: var(--text);
-  background: color-mix(in srgb, var(--panel-2) 88%, var(--accent));
+  background: transparent;
   border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  box-shadow: none;
   transform: translateY(-1px);
 }
 .effort-control:focus-within {
@@ -2626,7 +2627,7 @@ body {
   pointer-events: none;
 }
 .effort-control select option {
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text);
 }
 .library-context-actions {
@@ -2644,7 +2645,7 @@ body {
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   font-size: 12px;
   font-weight: 700;
@@ -2668,9 +2669,9 @@ body {
 .library-context-actions button:hover {
   filter: none;
   color: var(--text);
-  background: color-mix(in srgb, var(--panel-2) 88%, var(--accent));
+  background: transparent;
   border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  box-shadow: none;
   transform: translateY(-1px);
 }
 .library-context-actions button:hover svg {
@@ -2690,7 +2691,7 @@ body {
   padding: 0 10px;
   border-radius: 9px;
   border: 1px solid var(--border);
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   font-size: 12px;
   font-weight: 700;
@@ -2742,10 +2743,10 @@ body {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; padding: 0; border-radius: 9px; flex: 0 0 auto;
   margin-left: 0;
-  background: var(--panel-2); color: var(--accent); border: 1px solid var(--border);
+  background: transparent; color: var(--accent); border: 1px solid var(--border);
 }
 .send-btn:hover:not(:disabled) {
-  background: var(--border);
+  background: transparent;
   color: var(--text);
   filter: none;
 }
@@ -2893,7 +2894,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 .proxy-config-head code {
   color: var(--text-dim);
-  background: var(--panel-2);
+  background: transparent;
   border: 1px solid var(--border-soft);
   border-radius: 5px;
   padding: 1px 5px;
@@ -3147,7 +3148,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 .pack-recommendations button:hover {
   filter: none;
-  background: var(--panel-2);
+  background: transparent;
   border-color: var(--accent);
 }
 .pack-recommendations strong {
@@ -3347,7 +3348,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 .pack-item-browser button:hover,
 .pack-item-browser button.active {
-  background: var(--panel-2);
+  background: transparent;
   filter: none;
 }
 .pack-item-browser button.active {
@@ -3546,7 +3547,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .tool-search:hover,
 .tool-search:focus-within {
   border-color: rgba(109, 92, 255, 0.5);
-  background: var(--panel-2);
+  background: transparent;
   transform: translateY(-1px) scale(1.005);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
 }
@@ -3650,7 +3651,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 .tool-toggle-item:hover {
   border-color: rgba(109, 92, 255, 0.46);
-  background: var(--panel-2);
+  background: transparent;
   transform: translateY(-1px);
 }
 .tool-toggle-item.open {
@@ -3932,7 +3933,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   flex: 0 0 auto;
   border-radius: 999px;
   padding: 4px 9px;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   font-size: 11px;
 }
@@ -4039,7 +4040,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 .lsp-toast-close:hover {
   color: var(--text);
-  background: var(--panel-2);
+  background: transparent;
 }
 
 .app-toast-host {
@@ -4093,7 +4094,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
 }
 
@@ -4151,7 +4152,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 
 .app-toast-close:hover {
   color: var(--text);
-  background: var(--panel-2);
+  background: transparent;
   filter: none;
 }
 
@@ -4225,7 +4226,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .mcp-risk {
   flex: 0 0 auto;
   border-radius: 999px;
-  background: var(--panel-2);
+  background: transparent;
   padding: 3px 8px;
   font-size: 11px;
   text-transform: capitalize;
@@ -4347,7 +4348,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   flex: 0 0 auto;
   padding: 3px 8px;
   border-radius: 999px;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   font-size: 11px;
   text-transform: capitalize;
@@ -4409,7 +4410,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   text-overflow: ellipsis;
   padding: 4px 6px;
   border-radius: 6px;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text);
   font-size: 11px;
 }
@@ -4606,7 +4607,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 
 .projects-sort {
   display: flex; align-items: center; gap: 6px;
-  background: var(--panel-2); color: var(--text-faint); border: 1px solid var(--border);
+  background: transparent; color: var(--text-faint); border: 1px solid var(--border);
   border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer;
 }
 .projects-sort:hover { color: var(--text); }
@@ -4619,13 +4620,13 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 .projects-new:hover { filter: brightness(1.08); }
 .projects-open-folder {
-  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  background: transparent; color: var(--text); border: 1px solid var(--border);
   border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .projects-open-folder:hover:not(:disabled) { background: var(--border); }
 .projects-open-folder:disabled { opacity: 0.6; cursor: default; }
 .projects-new.ghost-fill {
-  background: var(--panel-2); color: var(--text); border: 1px solid var(--border); padding: 10px 22px;
+  background: transparent; color: var(--text); border: 1px solid var(--border); padding: 10px 22px;
 }
 .projects-new.ghost-fill:hover { background: var(--border); filter: none; }
 
@@ -4648,7 +4649,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .projects-search input::placeholder { color: var(--text-faint); }
 .projects-search:hover input,
 .projects-search input:focus {
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.48);
   transform: translateY(-1px) scale(1.005);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
@@ -4713,7 +4714,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .library-actions { display: flex; align-items: center; gap: 10px; }
 .library-sort {
   display: flex; align-items: center; gap: 6px;
-  background: var(--panel-2); color: var(--text-faint); border: 1px solid var(--border);
+  background: transparent; color: var(--text-faint); border: 1px solid var(--border);
   border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer;
   transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
 }
@@ -4747,7 +4748,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .library-search input::placeholder { color: var(--text-faint); }
 .library-search:hover input,
 .library-search input:focus {
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.48);
   transform: translateY(-1px) scale(1.005);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
@@ -4805,7 +4806,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 .library-card:hover {
   border-color: var(--accent);
-  background: var(--panel-2);
+  background: transparent;
   transform: translateY(-2px);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
@@ -4882,7 +4883,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 .library-preview-head button:hover {
   filter: none;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text);
   transform: translateY(-1px);
 }
@@ -4956,7 +4957,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .project-link {
   min-width: 0;
   padding: 7px 8px;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -5028,7 +5029,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .drawer-field { display: flex; flex-direction: column; gap: 7px; }
 .drawer-field > span { font-size: 13px; font-weight: 600; color: var(--text); }
 .drawer-field input, .drawer-field textarea {
-  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  background: transparent; border: 1px solid var(--border); border-radius: 8px;
   padding: 10px 12px; color: var(--text); font-size: 13px; font-family: inherit; resize: vertical;
 }
 .drawer-field input:focus, .drawer-field textarea:focus { outline: none; border-color: var(--accent); }
@@ -5050,7 +5051,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .confirm-modal {
   width: 420px;
   max-width: calc(100vw - 48px);
-  background: var(--panel-2);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
@@ -5176,7 +5177,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 .context-picker-head button:hover {
   filter: none;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text);
   transform: translateY(-1px);
 }
@@ -5194,7 +5195,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 .context-picker-search:hover,
 .context-picker-search:focus-within {
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.48);
   transform: translateY(-1px) scale(1.01);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
@@ -5251,7 +5252,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 .context-picker-list button:hover {
   filter: none;
-  background: var(--panel-2);
+  background: transparent;
   border-color: rgba(109, 92, 255, 0.48);
   transform: translateY(-1px);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
@@ -5320,7 +5321,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .terminal-collapse:hover {
   filter: none;
   color: var(--text);
-  background: var(--panel-2);
+  background: transparent;
 }
 .terminal-caret {
   display: inline-block;
@@ -5342,7 +5343,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   font-size: 12px;
   border-radius: 6px;
   border: 1px solid var(--border);
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-dim);
   cursor: pointer;
 }
@@ -5414,7 +5415,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 
 /* Web Probing */
-.web-probing-topbar-btn svg,
+.sb-ico-web-probing svg,
 .web-probing-brand svg {
   fill: none;
   stroke: currentColor;
@@ -5423,14 +5424,44 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   stroke-linejoin: round;
 }
 
-.web-probing-overlay {
-  z-index: 36;
+.web-probing-page {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+  background: var(--bg);
 }
 
-.web-probing-shell {
-  width: min(1100px, calc(100vw - 48px));
-  max-height: calc(100vh - 56px);
-  overflow: hidden;
+.web-probing-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 auto 14px;
+  max-width: 1180px;
+}
+
+.web-probing-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.web-probing-brand svg {
+  width: 28px;
+  height: 28px;
+  color: var(--accent);
+}
+
+.web-probing-brand h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 22px;
+}
+
+.web-probing-brand span {
+  color: var(--text-faint);
+  font-size: 12px;
 }
 
 .web-probing-grid {
@@ -5474,7 +5505,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text);
   padding: 9px 10px;
   outline: none;
@@ -5528,7 +5559,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-faint);
   font-size: 11px;
   text-transform: uppercase;
@@ -5575,7 +5606,8 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 
 .web-probing-results {
-  margin: 0 14px 14px;
+  max-width: 1180px;
+  margin: 14px auto 0;
 }
 
 .web-probing-notes {
@@ -5628,7 +5660,7 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   width: fit-content;
   padding: 2px 7px;
   border-radius: 999px;
-  background: var(--panel-2);
+  background: transparent;
   color: var(--text-faint);
   font-size: 10px;
   font-style: normal;

@@ -23,7 +23,7 @@ const EditorTabs = lazy(() => import("./components/EditorTabs").then((m) => ({ d
 const EditorPane = lazy(() => import("./components/EditorPane").then((m) => ({ default: m.EditorPane })));
 const TerminalPanel = lazy(() => import("./components/TerminalPanel").then((m) => ({ default: m.TerminalPanel })));
 
-type View = "chat" | "projects" | "library" | "flow";
+type View = "chat" | "projects" | "library" | "flow" | "webProbing";
 type ProjectAiMode = "agent" | "flow";
 type SettingsTab = "general" | "providers" | "proxies" | "tools" | "packs" | "lsp" | "mcp";
 type LspToast = {
@@ -41,7 +41,6 @@ export function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const [showBrain, setShowBrain] = useState(false);
   const [showResearch, setShowResearch] = useState(false);
-  const [showWebProbing, setShowWebProbing] = useState(false);
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("chats");
   const [view, setView] = useState<View>("chat");
   const [inProject, setInProject] = useState(false);
@@ -262,18 +261,6 @@ export function App() {
             </svg>
           </button>
           <button
-            className={"settings-cog-btn web-probing-topbar-btn" + (showWebProbing ? " active" : "")}
-            onClick={() => setShowWebProbing((s) => !s)}
-            title={showWebProbing ? "Close Web Probing" : "Web Probing"}
-            aria-label={showWebProbing ? "Close Web Probing" : "Web Probing"}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="8" />
-              <path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16" />
-              <path d="m15.5 15.5 3 3" />
-            </svg>
-          </button>
-          <button
             className={"settings-cog-btn brain-topbar-btn" + (showBrain ? " active" : "")}
             onClick={() => setShowBrain((s) => !s)}
             title={showBrain ? "Close Brain" : "Brain"}
@@ -336,6 +323,12 @@ export function App() {
               onFilterChange={setLibraryFilter}
               onOpenConversation={openLibraryConversation}
             />
+          </Suspense>
+        )}
+
+        {view === "webProbing" && (
+          <Suspense fallback={null}>
+            <WebProbingView />
           </Suspense>
         )}
 
@@ -488,11 +481,6 @@ export function App() {
       {showResearch && (
         <Suspense fallback={null}>
           <DeepResearchView onClose={() => setShowResearch(false)} onOpenLibrary={openResearchLibrary} />
-        </Suspense>
-      )}
-      {showWebProbing && (
-        <Suspense fallback={null}>
-          <WebProbingView onClose={() => setShowWebProbing(false)} />
         </Suspense>
       )}
       {showProjectSettings && (

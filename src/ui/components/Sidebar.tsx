@@ -6,7 +6,7 @@ import { useProjectStore } from "../../core/projectStore";
 import { chooseAndSetProjectRoot } from "../../core/projectRoot";
 import { isTauriRuntime } from "../../core/agent/tauriFs";
 
-type View = "chat" | "projects" | "library" | "flow";
+type View = "chat" | "projects" | "library" | "flow" | "webProbing";
 
 interface Props {
   view: View;
@@ -169,6 +169,21 @@ export function Sidebar({ view, onSelectView, projectContext = null, onOpenProje
             </svg>
           </span>
           <span className="sb-label">Library</span>
+        </button>
+
+        <button
+          className={"sb-item" + (view === "webProbing" ? " active" : "")}
+          onClick={() => onSelectView("webProbing")}
+          title="Web Probing"
+        >
+          <span className="sb-ico sb-ico-web-probing">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="8" />
+              <path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16" />
+              <path d="m15.5 15.5 3 3" />
+            </svg>
+          </span>
+          <span className="sb-label">Web Probing</span>
         </button>
       </nav>
 
