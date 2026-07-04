@@ -99,6 +99,7 @@ const READ_TOOLS = new Set([
   "winget_search",
   "project_context",
   "deep_research_search",
+  "website_environment",
   "ui_inspect",
   "screenshot_url",
   "release_prepare",

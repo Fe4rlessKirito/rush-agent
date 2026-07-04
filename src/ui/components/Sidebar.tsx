@@ -34,6 +34,9 @@ function formatBytes(bytes: number): string {
 
 export function Sidebar({ view, onSelectView, projectContext = null, onOpenProject, onOpenRoot }: Props) {
   const conversations = useAppStore((s) => s.conversations);
+  const subagentRuns = useAppStore((s) => s.subagentRuns);
+  const activeSubagentRunId = useAppStore((s) => s.activeSubagentRunId);
+  const selectSubagentRun = useAppStore((s) => s.selectSubagentRun);
   const activeId = useAppStore((s) => s.activeConversationId);
   const newConversation = useAppStore((s) => s.newConversation);
   const selectConversation = useAppStore((s) => s.selectConversation);
@@ -46,6 +49,7 @@ export function Sidebar({ view, onSelectView, projectContext = null, onOpenProje
   const newLabel = newMode === "agent" ? "New task" : newMode === "flow" ? "New flow" : "New chat";
   const [memory, setMemory] = useState<ProcessMemoryReport | null>(null);
   const [openingFolder, setOpeningFolder] = useState(false);
+  const [openSubagentParents, setOpenSubagentParents] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -103,32 +107,74 @@ export function Sidebar({ view, onSelectView, projectContext = null, onOpenProje
     }
   };
 
-  const renderConversation = (c: Conversation) => (
-    <div
-      key={c.id}
-      className={"sb-chat-row" + (c.id === activeId ? " active" : "")}
-      onClick={() => {
-        const mode = selectConversation(c.id);
-        onSelectView(mode === "flow" ? "flow" : "chat");
-      }}
-      title={c.title}
-    >
-      <span className="sb-chat-title">{c.title}</span>
-      <span className={"sb-chat-mode " + c.mode}>
-        {c.mode === "agent" ? "Code" : c.mode === "flow" ? "Flow" : "Chat"}
-      </span>
-      <span
-        className="sb-row-menu"
-        onClick={(e) => {
-          e.stopPropagation();
-          deleteConversation(c.id);
-        }}
-        title="Delete chat"
-      >
-        x
-      </span>
-    </div>
-  );
+  const renderConversation = (c: Conversation) => {
+    const children = subagentRuns
+      .filter((run) => run.parentConversationId === c.id)
+      .sort((a, b) => b.createdAt - a.createdAt);
+    const expanded = openSubagentParents[c.id] ?? children.length > 0;
+    return (
+      <div key={c.id} className="sb-chat-wrap">
+        <div
+          className={"sb-chat-row" + (c.id === activeId ? " active" : "")}
+          onClick={() => {
+            const mode = selectConversation(c.id);
+            selectSubagentRun(null);
+            onSelectView(mode === "flow" ? "flow" : "chat");
+          }}
+          title={c.title}
+        >
+          {children.length > 0 && (
+            <button
+              type="button"
+              className="sb-subagent-toggle"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenSubagentParents((items) => ({ ...items, [c.id]: !expanded }));
+              }}
+              title="Show subagents"
+            >
+              {expanded ? "v" : ">"}
+            </button>
+          )}
+          <span className="sb-chat-title">{c.title}</span>
+          <span className={"sb-chat-mode " + c.mode}>
+            {c.mode === "agent" ? "Code" : c.mode === "flow" ? "Flow" : "Chat"}
+          </span>
+          <span
+            className="sb-row-menu"
+            onClick={(e) => {
+              e.stopPropagation();
+              deleteConversation(c.id);
+            }}
+            title="Delete chat"
+          >
+            x
+          </span>
+        </div>
+        {expanded && children.length > 0 && (
+          <div className="sb-subagent-list">
+            {children.map((run) => (
+              <button
+                key={run.id}
+                type="button"
+                className={"sb-subagent-row" + (run.id === activeSubagentRunId ? " active" : "")}
+                onClick={() => {
+                  selectConversation(c.id);
+                  selectSubagentRun(run.id);
+                  onSelectView("chat");
+                }}
+                title={run.task}
+              >
+                <span className={"sb-subagent-dot " + run.status} />
+                <span className="sb-subagent-title">{run.title}</span>
+                <span className="sb-chat-mode subagent">Subagent</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const folderIcon = (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

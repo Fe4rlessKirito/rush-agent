@@ -1,11 +1,12 @@
 {
-  "version": "1.7.14",
-  "notes": "Rush Agent v1.7.14 makes the composer project chip match the flat transparent composer controls while preserving the textarea and effort/send layout polish.",
+  "version": "1.7.15",
+  "notes": "Code-mode subagents, chat-accessible Website Environment, and sidebar subagent history.",
   "pub_date": "2026-07-04T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na01aVm1Ra3ozaG5NQldBclJpN1pPMjRQV2hmTUpUVW05VUFBdGtjSWlBZURDb0F2V3VmOFN2TFQ2cnZMbGJ2NGN3WnVLOHBsWmZ2TXlxQmpWV25ORVFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTgzODQ3CWZpbGU6UnVzaF8xLjcuMTRfeDY0LXNldHVwLmV4ZQpoeHAyeWhHcXJvNU9CMDgxSmpOZ2E0UGlFeVBKckE1Q083aXo3U1p1NzhaRm9DNGdiUXZHU1kvOHN1ZHY4TnpRY1ZxUXpxeTF4SDBQSTBBUnJteEtDUT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.14/Rush-Agent-v1.7.14-x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0h2NmV1eFJGTkdTU01JcXlHMldxK1c3TnJWOXIwRS9qRmtiUGhsdGhMcFBqUXVtK3ZGMWdrQ01LMEpqMUNFWmJJdlg3NUdSc0VUUUFBNTh4MWtuQVFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTkxNzQwCWZpbGU6UnVzaF8xLjcuMTVfeDY0LXNldHVwLmV4ZQpCSVg5Y1pvMkd5b2lXd1N5T1J0bkFMTCtmRjRVcTdRRHp1Z1NMWjA5eHZpaDdLK1l5YnhMbHh6UHVJamQ1Sk1Fa1kramM4MnV6OG1XMmJjNVJnRkhEdz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.15/Rush_1.7.15_x64-setup.exe",
+      "sha256": "f7bfb68bfcab734a25bfa625aeea3634403283a544cdbdf425242d33d147ab24"
     }
   }
 }

@@ -60,6 +60,23 @@ export interface ConversationProjectContext {
   projectName: string;
 }
 
+export type SubagentRunStatus = "running" | "completed" | "blocked" | "cancelled";
+
+export interface SubagentRun {
+  id: string;
+  parentConversationId: string;
+  title: string;
+  task: string;
+  status: SubagentRunStatus;
+  lines: ChatLine[];
+  toolNames: string[];
+  createdAt: number;
+  updatedAt: number;
+  projectId?: string;
+  projectRoot?: string;
+  projectName?: string;
+}
+
 function newId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
@@ -86,6 +103,8 @@ export interface AppState {
   languageServerSettings: LanguageServerSettings;
 
   conversations: Conversation[];
+  subagentRuns: SubagentRun[];
+  activeSubagentRunId: string | null;
   activeConversationId: string;
   // Chat and Code used to be entirely separate conversation spaces (separate
   // ids, separate line/message arrays). They're now one shared space that the
@@ -131,6 +150,12 @@ export interface AppState {
   newConversation: (mode?: ConversationMode) => void;
   selectConversation: (id: string) => ConversationMode | undefined;
   deleteConversation: (id: string) => void;
+  startSubagentRun: (args: { parentConversationId: string; task: string; title?: string; projectContext?: ConversationProjectContext | null }) => string;
+  appendSubagentLine: (id: string, line: ChatLine) => void;
+  appendSubagentText: (id: string, patch: Partial<Pick<ChatLine, "text" | "thinking">>) => void;
+  addSubagentToolName: (id: string, toolName: string) => void;
+  completeSubagentRun: (id: string, status: SubagentRunStatus) => void;
+  selectSubagentRun: (id: string | null) => void;
 }
 
 function mergeDefaultProviders(providers: ProviderConfig[] | undefined): ProviderConfig[] {
@@ -182,6 +207,8 @@ function normalizeLanguageServerSettings(
 
 function normalizeConversations(state: Partial<AppState>): {
   conversations: Conversation[];
+  subagentRuns: SubagentRun[];
+  activeSubagentRunId: string | null;
   activeConversationId: string;
   activeConversationIds: { chat: string; flow: string };
   chatMode: "plain" | "agent";
@@ -234,6 +261,8 @@ function normalizeConversations(state: Partial<AppState>): {
 
   return {
     conversations,
+    subagentRuns: state.subagentRuns ?? [],
+    activeSubagentRunId: state.activeSubagentRunId ?? null,
     activeConversationId: active?.id ?? "",
     activeConversationIds: {
       chat: activeChat?.id ?? "",
@@ -324,6 +353,8 @@ export const useAppStore = create<AppState>()(
       languageServerSettings: DEFAULT_LANGUAGE_SERVER_SETTINGS,
 
       conversations: [],
+      subagentRuns: [],
+      activeSubagentRunId: null,
       activeConversationId: "",
       activeConversationIds: {
         chat: "",
@@ -398,6 +429,8 @@ export const useAppStore = create<AppState>()(
             conversations: activeId
               ? s.conversations.filter((c) => c.id !== activeId)
               : s.conversations,
+            subagentRuns: activeId ? s.subagentRuns.filter((run) => run.parentConversationId !== activeId) : s.subagentRuns,
+            activeSubagentRunId: s.activeSubagentRunId && activeId && s.subagentRuns.find((run) => run.id === s.activeSubagentRunId)?.parentConversationId === activeId ? null : s.activeSubagentRunId,
             activeConversationId: s.activeConversationId === activeId ? "" : s.activeConversationId,
             activeConversationIds: { ...s.activeConversationIds, chat: "" },
           };
@@ -452,6 +485,8 @@ export const useAppStore = create<AppState>()(
             conversations: activeId
               ? s.conversations.filter((c) => c.id !== activeId)
               : s.conversations,
+            subagentRuns: activeId ? s.subagentRuns.filter((run) => run.parentConversationId !== activeId) : s.subagentRuns,
+            activeSubagentRunId: s.activeSubagentRunId && activeId && s.subagentRuns.find((run) => run.id === s.activeSubagentRunId)?.parentConversationId === activeId ? null : s.activeSubagentRunId,
             activeConversationId: s.activeConversationId === activeId ? "" : s.activeConversationId,
             activeConversationIds: { ...s.activeConversationIds, flow: "" },
           };
@@ -571,6 +606,8 @@ export const useAppStore = create<AppState>()(
             s.activeConversationId === id ? replacement?.id ?? "" : s.activeConversationId;
           return {
             conversations: remaining,
+            subagentRuns: s.subagentRuns.filter((run) => run.parentConversationId !== id),
+            activeSubagentRunId: s.activeSubagentRunId && s.subagentRuns.find((run) => run.id === s.activeSubagentRunId)?.parentConversationId === id ? null : s.activeSubagentRunId,
             activeConversationId,
             activeConversationIds,
             ...(deletedSlot === "flow"
@@ -582,6 +619,79 @@ export const useAppStore = create<AppState>()(
                 }),
           };
         }),
+
+      startSubagentRun: ({ parentConversationId, task, title, projectContext }) => {
+        const id = newId();
+        const trimmedTask = task.trim() || "Subagent task";
+        const now = Date.now();
+        const shortTitle = (title?.trim() || trimmedTask).replace(/\s+/g, " ");
+        const run: SubagentRun = {
+          id,
+          parentConversationId,
+          title: shortTitle.length > 52 ? `${shortTitle.slice(0, 52)}...` : shortTitle,
+          task: trimmedTask,
+          status: "running",
+          lines: [],
+          toolNames: [],
+          createdAt: now,
+          updatedAt: now,
+          ...(projectContext
+            ? {
+                projectId: projectContext.projectId,
+                projectRoot: projectContext.projectRoot,
+                projectName: projectContext.projectName,
+              }
+            : {}),
+        };
+        set((s) => ({
+          subagentRuns: [run, ...s.subagentRuns],
+          activeSubagentRunId: id,
+        }));
+        return id;
+      },
+
+      appendSubagentLine: (id, line) =>
+        set((s) => ({
+          subagentRuns: s.subagentRuns.map((run) =>
+            run.id === id
+              ? { ...run, lines: [...run.lines, line], updatedAt: Date.now() }
+              : run,
+          ),
+        })),
+
+      appendSubagentText: (id, patch) =>
+        set((s) => ({
+          subagentRuns: s.subagentRuns.map((run) => {
+            if (run.id !== id) return run;
+            const lines = run.lines.slice();
+            const cur = lines[lines.length - 1] ?? { role: "agent" as const, text: "" };
+            lines[lines.length - 1] = {
+              ...cur,
+              role: "agent",
+              text: patch.text === undefined ? cur.text : cur.text + patch.text,
+              thinking: patch.thinking === undefined ? cur.thinking : (cur.thinking ?? "") + patch.thinking,
+            };
+            return { ...run, lines, updatedAt: Date.now() };
+          }),
+        })),
+
+      addSubagentToolName: (id, toolName) =>
+        set((s) => ({
+          subagentRuns: s.subagentRuns.map((run) =>
+            run.id === id
+              ? { ...run, toolNames: Array.from(new Set([...run.toolNames, toolName])), updatedAt: Date.now() }
+              : run,
+          ),
+        })),
+
+      completeSubagentRun: (id, status) =>
+        set((s) => ({
+          subagentRuns: s.subagentRuns.map((run) =>
+            run.id === id ? { ...run, status, updatedAt: Date.now() } : run,
+          ),
+        })),
+
+      selectSubagentRun: (id) => set({ activeSubagentRunId: id }),
     }),
     {
       name: "rush-agent-settings",

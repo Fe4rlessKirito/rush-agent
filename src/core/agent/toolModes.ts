@@ -25,6 +25,7 @@ const CHAT_APP_TOOLS = new Set([
   "app_library_read",
   "app_research_search",
   "app_research_read",
+  "website_environment",
   "suggest_mode_switch",
 ]);
 
@@ -111,7 +112,7 @@ export const TOOL_CATALOG: ToolCatalogItem[] = [
     label: "Web search and fetch",
     category: "Research",
     description: "Search the web and fetch pages.",
-    tools: ["WebSearch", "WebFetch", "deep_research_search", "ui_inspect", "screenshot_url"],
+    tools: ["WebSearch", "WebFetch", "deep_research_search", "website_environment", "ui_inspect", "screenshot_url"],
   },
   {
     id: "project-context",
@@ -173,7 +174,7 @@ export const TOOL_CATALOG: ToolCatalogItem[] = [
 
 export function isToolAvailableInMode(mode: AgentToolMode, name: string): boolean {
   if (mode === "chat") return CHAT_APP_TOOLS.has(name);
-  if (mode === "code") return !FLOW_COORDINATION_TOOLS.has(name);
+  if (mode === "code") return !FLOW_COORDINATION_TOOLS.has(name) || name === "Agent";
   return true;
 }
 

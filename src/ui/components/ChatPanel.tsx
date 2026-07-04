@@ -189,6 +189,53 @@ export const codeTools = new ToolRegistry({
   isToolEnabled: (name) => isToolAvailableInMode("code", name),
 });
 registerCodeToolset(codeTools, "code");
+codeTools.registerAll(createFlowTools({
+  getProvider: () => {
+    const state = useAppStore.getState();
+    if (!state.activeProviderId) throw new Error("No active provider selected.");
+    return new ProviderRegistry(state.providers).get(state.activeProviderId);
+  },
+  getModel: () => {
+    const state = useAppStore.getState();
+    if (!state.activeModel) throw new Error("No active model selected.");
+    return state.activeModel;
+  },
+  getTools: () => codeTools,
+  getProjectInstructions: () => {
+    const state = useProjectStore.getState();
+    return state.projects.find((p) => p.id === state.activeProjectId)?.instructions ?? "";
+  },
+  onSubagentStart: ({ task, title }) => {
+    const state = useAppStore.getState();
+    return state.startSubagentRun({
+      parentConversationId: state.activeConversationIds.chat || state.activeConversationId || "pending",
+      task,
+      title,
+      projectContext: state.conversationProjectContext,
+    });
+  },
+  onSubagentEvent: (id, event) => {
+    if (!id) return;
+    const state = useAppStore.getState();
+    if (event.type === "text" && event.text) {
+      state.appendSubagentText(id, { text: event.text });
+    } else if (event.type === "thinking" && event.text) {
+      state.appendSubagentText(id, { thinking: event.text });
+    } else if (event.type === "tool_call") {
+      if (event.toolName) state.addSubagentToolName(id, event.toolName);
+      state.appendSubagentLine(id, { role: "tool", text: describeToolCall(event.toolName, event.toolArgs) });
+      state.appendSubagentLine(id, { role: "agent", text: "" });
+    } else if (event.type === "tool_result") {
+      state.appendSubagentLine(id, { role: "tool", text: describeToolResult(event.toolName, event.toolResult) });
+      state.appendSubagentLine(id, { role: "agent", text: "" });
+    } else if (event.type === "error") {
+      state.appendSubagentLine(id, { role: "tool", text: `Error: ${event.text ?? "Subagent failed."}` });
+    }
+  },
+  onSubagentDone: (id, status) => {
+    if (id) useAppStore.getState().completeSubagentRun(id, status);
+  },
+}));
 codeTools.register(suggestModeSwitchTool);
 
 export const chatTools = new ToolRegistry({
@@ -200,6 +247,7 @@ chatTools.registerAll(createChatTools({
   getConversations: () => useAppStore.getState().conversations,
   getResearchRuns: () => useResearchStore.getState().runs,
 }));
+chatTools.registerAll(createBrowserTools());
 chatTools.register(suggestModeSwitchTool);
 
 export const flowTools = new ToolRegistry({
@@ -391,6 +439,9 @@ export function ChatPanel({ mode }: Props) {
     chatMode,
     setChatMode,
     conversations,
+    subagentRuns,
+    activeSubagentRunId,
+    selectSubagentRun,
     activeConversationId,
     conversationProjectContext,
     toolPermissions,
@@ -1024,6 +1075,7 @@ export function ChatPanel({ mode }: Props) {
         useFlowStore.getState().setLaneStatus(flowRun.id, "worker", "completed", "Scheduled worker lanes finished.");
         const schedulerContext = formatSchedulerResults(schedulerResults);
         flowContext = [
+          "You are Rush in Code mode. You may use workspace tools directly and may call Agent whenever a focused subagent would help with independent investigation, verification, or parallelizable work. Batch independent Agent calls with <tool_calls> when useful, keep subagent tasks concrete, and synthesize their results before answering. Do tightly coupled or sequential edits yourself instead of delegating everything.",
           flowContext,
           "# Deterministic Flow plan",
           `Summary: ${plan.summary}`,
@@ -1073,7 +1125,7 @@ export function ChatPanel({ mode }: Props) {
             8,
             [
               projectRuntimeContext,
-              "You are Rush in Chat mode. You may answer, explain, plan, use Brain memories, search saved Library chats, read saved Deep Research, and analyze images attached directly to the current message. You do not have filesystem, terminal, Git, package-manager, MCP, or Flow-agent access in Chat. Do not claim to inspect workspace files, run commands, edit projects, save files, or view the user's screen from Chat. Attached images are visible message content, not filesystem or screen access.",
+              "You are Rush in Chat mode. You may answer, explain, plan, use Brain memories, search saved Library chats, read saved Deep Research, inspect websites with the passive Website Environment tool, and analyze images attached directly to the current message. You do not have filesystem, terminal, Git, package-manager, MCP, or Flow-agent access in Chat. Do not claim to inspect workspace files, run commands, edit projects, save files, or view the user's screen from Chat. Attached images are visible message content, not filesystem or screen access. Website Environment is passive fetch only: do not run exploit payloads, credential attacks, brute force, load tests, stealth, or destructive checks.",
               brainContext,
             ].filter(Boolean).join("\n\n"),
             effortThinking,
@@ -1403,6 +1455,10 @@ export function ChatPanel({ mode }: Props) {
   const renderedChatStart = showAllMessages ? 0 : Math.max(0, chat.length - MAX_RENDERED_MESSAGES);
   const renderedChat = chat.slice(renderedChatStart);
   const hiddenMessageCount = renderedChatStart;
+  const conversationSubagents = subagentRuns
+    .filter((run) => run.parentConversationId === activeConversationId)
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const activeSubagent = conversationSubagents.find((run) => run.id === activeSubagentRunId) ?? conversationSubagents[0] ?? null;
 
   return (
     <div className="chat-panel">
@@ -1426,6 +1482,48 @@ export function ChatPanel({ mode }: Props) {
               Dismiss
             </button>
           </div>
+        </div>
+      )}
+      {conversationSubagents.length > 0 && (
+        <div className="subagent-panel">
+          <div className="subagent-panel-head">
+            <span>Subagents</span>
+            <span>{conversationSubagents.length}</span>
+          </div>
+          <div className="subagent-list">
+            {conversationSubagents.map((run) => (
+              <button
+                key={run.id}
+                type="button"
+                className={"subagent-card" + (activeSubagent?.id === run.id ? " active" : "")}
+                onClick={() => selectSubagentRun(run.id)}
+                title={run.task}
+              >
+                <span className={"subagent-status " + run.status}>{run.status}</span>
+                <span className="subagent-title">{run.title}</span>
+                {run.toolNames.length > 0 && <span className="subagent-tools">{run.toolNames.join(", ")}</span>}
+              </button>
+            ))}
+          </div>
+          {activeSubagent && (
+            <details className="subagent-transcript">
+              <summary>{activeSubagent.title}</summary>
+              <div className="subagent-task">{activeSubagent.task}</div>
+              {activeSubagent.lines.length === 0 ? (
+                <div className="subagent-empty">Subagent is starting...</div>
+              ) : (
+                activeSubagent.lines.map((line, index) => {
+                  if (line.role === "agent" && !line.text.trim() && !line.thinking?.trim()) return null;
+                  return (
+                    <div key={index} className={`subagent-line ${line.role}`}>
+                      {line.thinking?.trim() && <div className="subagent-thinking">{line.thinking}</div>}
+                      {line.role === "tool" ? line.text : <Markdown>{line.text}</Markdown>}
+                    </div>
+                  );
+                })
+              )}
+            </details>
+          )}
         </div>
       )}
       <div className="messages">
