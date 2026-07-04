@@ -6333,12 +6333,20 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .app-titlebar {
   --titlebar-sidebar-width: 250px;
   --titlebar-rail-width: 116px;
-  grid-template-columns: var(--titlebar-sidebar-width) minmax(120px, 1fr) auto auto;
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  height: 40px;
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: var(--titlebar-sidebar-width) minmax(0, auto) minmax(0, 1fr) auto;
+  align-items: center;
   gap: 0;
-  padding: 0;
+  padding: 0 138px 0 0;
+  overflow: hidden;
 }
 .app-titlebar.sidebar-collapsed {
-  grid-template-columns: var(--titlebar-rail-width) minmax(120px, 1fr) auto auto;
+  grid-template-columns: var(--titlebar-rail-width) minmax(0, auto) minmax(0, 1fr) auto;
 }
 .app-titlebar .titlebar-left {
   height: 40px;
@@ -6349,7 +6357,33 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   min-width: 0;
 }
 .app-titlebar .titlebar-session {
+  min-width: 0;
+  gap: 6px;
   padding-left: 10px;
+}
+.app-titlebar .titlebar-spacer {
+  min-width: 0;
+  height: 40px;
+}
+.app-titlebar .titlebar-actions {
+  gap: 7px;
+  padding-right: 8px;
+}
+.app-titlebar .window-controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 20;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  background: #1f1f20;
+}
+.app-titlebar .window-controls button {
+  width: 46px;
+  height: 40px;
+  border-radius: 0;
 }
 .app-titlebar .titlebar-app-btn {
   width: 24px;
@@ -6414,6 +6448,6 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 }
 @media (max-width: 900px) {
   .app-titlebar {
-    grid-template-columns: var(--titlebar-rail-width) minmax(120px, 1fr) auto auto;
+    grid-template-columns: var(--titlebar-rail-width) minmax(0, auto) minmax(0, 1fr) auto;
   }
 }

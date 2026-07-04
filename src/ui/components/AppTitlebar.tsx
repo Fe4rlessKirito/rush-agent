@@ -32,6 +32,12 @@ function startTitlebarDrag(event: MouseEvent<HTMLElement>) {
   void appWindow.startDragging();
 }
 
+function toggleTitlebarMaximize(event: MouseEvent<HTMLElement>) {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest("button, input, select, textarea, a")) return;
+  void appWindow.toggleMaximize();
+}
+
 export function AppTitlebar({
   sidebarCollapsed,
   onToggleSidebar,
@@ -54,6 +60,7 @@ export function AppTitlebar({
       className={"titlebar app-titlebar" + (sidebarCollapsed ? " sidebar-collapsed" : "")}
       data-tauri-drag-region
       onMouseDown={startTitlebarDrag}
+      onDoubleClick={toggleTitlebarMaximize}
     >
       <div className="titlebar-left" data-tauri-drag-region>
         <button

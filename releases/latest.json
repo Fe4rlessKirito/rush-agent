@@ -1,11 +1,11 @@
 {
-  "version": "1.7.20",
-  "notes": "Restore titlebar arrows beside the app icon and fix stray sidebar controls around New chat.",
+  "version": "1.7.21",
+  "notes": "Pin custom window controls to the top-right and add explicit window drag/control permissions.",
   "pub_date": "2026-07-04T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0U4TlVzcHE3WFB1ejlKcGJDbFBuMTJlbE1rMHVIK0RxUkxxSzlGNVlHNnZoak1IbDNNc2Q4RU9hVmd1WldITEo0N1krM0M4MEE4TGh4TDVIV1RFdlFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTk4Mjc1CWZpbGU6UnVzaF8xLjcuMjBfeDY0LXNldHVwLmV4ZQp5a3IyNCtoeDFtNm53ZlkvYXJ0MjFJN0Izb0VEcGVVT0hFTUpHcDBsZ1ZJWjZIT2NRaWdBK1RqcGp2WXF6eElESXN4K1pWQnYzOGhJQTFCY2x0elhCdz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.20/Rush_1.7.20_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0c1MDRQMFgwbHhLdGJVZ2ZmYnhlUmRFWnVnUmttckxZb3RaUU1KLzFFUkNtMnZGTnRlZ1FtMVo4ek5lTlc5NkYwNFNFSFZtZHp2aWc5cnNaK1JaZWc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTk4OTgzCWZpbGU6UnVzaF8xLjcuMjFfeDY0LXNldHVwLmV4ZQoxeE9nRzM4WWl2M2p3OHNjT0lqVk4xWTFzQXZLY28wN1VqeXloU2EzSVV5Umh5S0FHQ2VKR3U5b1VjMUdjZE9ETGpRSjFLTE9sOHdKejBwcStjK2ZBdz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.21/Rush_1.7.21_x64-setup.exe"
     }
   }
 }
