@@ -183,6 +183,7 @@ export function WebProbingView() {
   const [agentCount, setAgentCount] = useState(100);
   const [concurrency, setConcurrency] = useState(8);
   const [selectedModel, setSelectedModel] = useState("");
+  const [showModelMenu, setShowModelMenu] = useState(false);
   const [models, setModels] = useState<LocalModel[]>([]);
   const [modelError, setModelError] = useState("");
   const [evidence, setEvidence] = useState<ProbeEvidence | null>(null);
@@ -301,13 +302,37 @@ export function WebProbingView() {
               <label><span>Concurrency</span><input type="number" min="1" max="20" value={concurrency} onChange={(e) => setConcurrency(clampNumber(Number(e.target.value), 1, 20))} /></label>
               <label>
                 <span>Model</span>
-                <select className="model-select web-probing-model-select" value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
-                  {allowedModels.length === 0 ? (
-                    <option value="">No local models</option>
-                  ) : allowedModels.map((model) => (
-                    <option key={model.id} value={model.id}>{model.id}</option>
-                  ))}
-                </select>
+                <div className="web-probing-model-picker">
+                  <button
+                    type="button"
+                    className="web-probing-model-btn"
+                    onClick={() => setShowModelMenu((open) => !open)}
+                    disabled={allowedModels.length === 0}
+                    aria-expanded={showModelMenu}
+                  >
+                    <span>{selectedModel || "No local models"}</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m7 10 5 5 5-5" />
+                    </svg>
+                  </button>
+                  {showModelMenu && allowedModels.length > 0 && (
+                    <div className="web-probing-model-menu">
+                      {allowedModels.map((model) => (
+                        <button
+                          type="button"
+                          key={model.id}
+                          className={model.id === selectedModel ? "active" : ""}
+                          onClick={() => {
+                            setSelectedModel(model.id);
+                            setShowModelMenu(false);
+                          }}
+                        >
+                          {model.id}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </label>
             </div>
             <div className="web-probing-actions">
