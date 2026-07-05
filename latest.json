@@ -1,19 +1,19 @@
 {
-  "version": "1.7.31",
-  "notes": "Fix the context-window indicator styling so the composer shows the compact circular ring with a hover/focus details popover.",
+  "version": "1.7.32",
+  "notes": "Tighten composer control spacing and move the Git branch indicator from the composer to the topbar.",
   "pub_date": "2026-07-05T00:00:00Z",
   "platforms": {
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0FwTjdKcDFLZEtTazJVSW4ybFVDeitkZlR6MDJIY0h5cmhlR2VicDh2SFNhbXh0eTJ3MGVzQ1NpT3J3b2o1QmRCU05iczRqM28vL0EyMi82NGJRN2c0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQwMDczCWZpbGU6UnVzaF8xLjcuMzFfeDY0LXNldHVwLmV4ZQpkcHBwc0FSaTRJdjN2MWlmdWN1NGdDakQyMVdwWnZJV0U0a0dTeWJpN1YvWVJacnpZbHlPUGlrTmNCRUN5TTBEN2xuekFMc2RyRHNZSzVSNHZReFJBQT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.31/Rush_1.7.31_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0RvRDVpcTR4OStiUzJnMXN0T2R4TWcwYzBWeDJJSjlIdEgvVUc2WWxMeWpJSkpFREYrdGE2cjg1WFZtdTFGZWovenRVRSsxL052bElEbG52Q0NWVWdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQwODcyCWZpbGU6UnVzaF8xLjcuMzJfeDY0LXNldHVwLmV4ZQpPRDNIaDdoZTQwNTdoSG1FbUlEMEtqeXc5dUdnZ2tGKyt5Sy9BOStwRXhRNXFmaGQ0aEUzMTRhNjFPY3VGMURiK3NPS0djU2lzeUlwVTNPalZwTzBDZz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.32/Rush_1.7.32_x64-setup.exe"
     },
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0FwTjdKcDFLZEtTazJVSW4ybFVDeitkZlR6MDJIY0h5cmhlR2VicDh2SFNhbXh0eTJ3MGVzQ1NpT3J3b2o1QmRCU05iczRqM28vL0EyMi82NGJRN2c0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQwMDczCWZpbGU6UnVzaF8xLjcuMzFfeDY0LXNldHVwLmV4ZQpkcHBwc0FSaTRJdjN2MWlmdWN1NGdDakQyMVdwWnZJV0U0a0dTeWJpN1YvWVJacnpZbHlPUGlrTmNCRUN5TTBEN2xuekFMc2RyRHNZSzVSNHZReFJBQT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.31/Rush_1.7.31_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0RvRDVpcTR4OStiUzJnMXN0T2R4TWcwYzBWeDJJSjlIdEgvVUc2WWxMeWpJSkpFREYrdGE2cjg1WFZtdTFGZWovenRVRSsxL052bElEbG52Q0NWVWdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQwODcyCWZpbGU6UnVzaF8xLjcuMzJfeDY0LXNldHVwLmV4ZQpPRDNIaDdoZTQwNTdoSG1FbUlEMEtqeXc5dUdnZ2tGKyt5Sy9BOStwRXhRNXFmaGQ0aEUzMTRhNjFPY3VGMURiK3NPS0djU2lzeUlwVTNPalZwTzBDZz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.32/Rush_1.7.32_x64-setup.exe"
     },
     "windows-x86_64-pc-windows-msvc": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0FwTjdKcDFLZEtTazJVSW4ybFVDeitkZlR6MDJIY0h5cmhlR2VicDh2SFNhbXh0eTJ3MGVzQ1NpT3J3b2o1QmRCU05iczRqM28vL0EyMi82NGJRN2c0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQwMDczCWZpbGU6UnVzaF8xLjcuMzFfeDY0LXNldHVwLmV4ZQpkcHBwc0FSaTRJdjN2MWlmdWN1NGdDakQyMVdwWnZJV0U0a0dTeWJpN1YvWVJacnpZbHlPUGlrTmNCRUN5TTBEN2xuekFMc2RyRHNZSzVSNHZReFJBQT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.31/Rush_1.7.31_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0RvRDVpcTR4OStiUzJnMXN0T2R4TWcwYzBWeDJJSjlIdEgvVUc2WWxMeWpJSkpFREYrdGE2cjg1WFZtdTFGZWovenRVRSsxL052bElEbG52Q0NWVWdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQwODcyCWZpbGU6UnVzaF8xLjcuMzJfeDY0LXNldHVwLmV4ZQpPRDNIaDdoZTQwNTdoSG1FbUlEMEtqeXc5dUdnZ2tGKyt5Sy9BOStwRXhRNXFmaGQ0aEUzMTRhNjFPY3VGMURiK3NPS0djU2lzeUlwVTNPalZwTzBDZz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.32/Rush_1.7.32_x64-setup.exe"
     }
   }
 }

@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { flushSync } from "react-dom";
 import { useAppStore, type ChatLine, type Conversation } from "../../core/store";
 import { useProjectStore } from "../../core/projectStore";
@@ -590,7 +589,6 @@ export function ChatPanel({ mode }: Props) {
   // Models offered by the active provider, for the composer's model selector.
   // Falls back to just the active model if the list can't be fetched.
   const [models, setModels] = useState<string[]>([]);
-  const [currentBranch, setCurrentBranch] = useState("");
   const [showAllMessages, setShowAllMessages] = useState(false);
   // Per-line manual override for the thinking disclosure. When a user clicks to
   // open or close a block we honor that choice; otherwise the block follows the
@@ -717,27 +715,6 @@ export function ChatPanel({ mode }: Props) {
     setShowAllMessages(false);
     setPendingModeSwitch(null);
   }, [activeConversationId, effectiveMode]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const root = conversationProjectContext?.projectRoot?.trim();
-    if (!root || !isAgentMode || !isTauriRuntime()) {
-      setCurrentBranch("");
-      return;
-    }
-
-    invoke<string>("git_current_branch")
-      .then((branch) => {
-        if (!cancelled) setCurrentBranch(branch.trim());
-      })
-      .catch(() => {
-        if (!cancelled) setCurrentBranch("");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [conversationProjectContext?.projectRoot, isAgentMode]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -1715,30 +1692,17 @@ export function ChatPanel({ mode }: Props) {
         </div>
       ) : (
       <div className="composer">
-        {(showProjectSelector || currentBranch) && (
+        {showProjectSelector && (
           <div className="composer-context-bar">
-            {showProjectSelector && (
-              <button type="button" className="composer-project-chip" title={projectChipTitle}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 7V6a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                </svg>
-                <span>{projectChipLabel}</span>
-                <svg viewBox="0 0 24 24" aria-hidden="true" className="composer-chip-caret">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-            )}
-            {currentBranch && (
-              <span className="composer-branch-chip" title={`Current branch: ${currentBranch}`}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M6 3v12" />
-                  <circle cx="6" cy="18" r="3" />
-                  <circle cx="18" cy="6" r="3" />
-                  <path d="M9 18h3a6 6 0 0 0 6-6V9" />
-                </svg>
-                <span>{currentBranch}</span>
-              </span>
-            )}
+            <button type="button" className="composer-project-chip" title={projectChipTitle}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 7V6a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              </svg>
+              <span>{projectChipLabel}</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="composer-chip-caret">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
           </div>
         )}
         {attachments.length > 0 && (
