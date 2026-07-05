@@ -12,6 +12,49 @@ export interface JSONSchema {
   required?: string[];
 }
 
+function schemaTypeOf(value: unknown): string {
+  if (Array.isArray(value)) return "array";
+  if (value === null) return "null";
+  return typeof value;
+}
+
+function propertySchemaType(schema: unknown): string | undefined {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return undefined;
+  const type = (schema as { type?: unknown }).type;
+  return typeof type === "string" ? type : undefined;
+}
+
+function propertySchemaEnum(schema: unknown): unknown[] | undefined {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return undefined;
+  const values = (schema as { enum?: unknown }).enum;
+  return Array.isArray(values) ? values : undefined;
+}
+
+function validateToolArgs(name: string, schema: JSONSchema, args: Record<string, unknown>): string | null {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    return `Invalid arguments for ${name}: expected an object.`;
+  }
+
+  for (const key of schema.required ?? []) {
+    if (!(key in args)) return `Invalid arguments for ${name}: missing required field "${key}".`;
+  }
+
+  for (const [key, value] of Object.entries(args)) {
+    const propSchema = schema.properties[key];
+    const expected = propertySchemaType(propSchema);
+    if (expected && schemaTypeOf(value) !== expected) {
+      return `Invalid arguments for ${name}: field "${key}" must be ${expected}, got ${schemaTypeOf(value)}.`;
+    }
+
+    const allowed = propertySchemaEnum(propSchema);
+    if (allowed && !allowed.includes(value)) {
+      return `Invalid arguments for ${name}: field "${key}" must be one of ${allowed.map(String).join(", ")}.`;
+    }
+  }
+
+  return null;
+}
+
 export interface ToolDefinition {
   name: string;                 // unique, e.g. "read_file" or "mcp__git__status"
   description: string;
@@ -290,6 +333,11 @@ export class ToolRegistry {
         denied: true,
         content: `Blocked by permission rule ${permission.rule.raw}.`,
       };
+    }
+
+    const validationError = validateToolArgs(name, tool.definition.inputSchema, args);
+    if (validationError) {
+      return { ok: false, isError: true, content: validationError };
     }
 
     // Safety gate: destructive actions require explicit user confirmation. The

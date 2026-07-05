@@ -225,6 +225,10 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("If the user explicitly corrects the next tool call");
     expect(prompt).toContain("Filesystem read/write/edit tools take workspace-relative paths");
     expect(prompt).toContain("list_dir tool may also inspect an explicit");
+    expect(prompt).toContain("Batch only calls that do not need each other's results");
+    expect(prompt).toContain("Read-only batches may");
+    expect(prompt).toContain("later calls still cannot see earlier results until the next model turn");
+    expect(prompt).toContain("If any call depends on another call's result");
     expect(prompt).toContain("## read_file");
     expect(prompt).toContain("Read a file.");
     expect(prompt).toContain('"path"');
@@ -455,6 +459,188 @@ describe("runAgent system prompt", () => {
         expect.objectContaining({ type: "tool_call", toolName: "list_dir", toolArgs: { path: String.raw`C:\new\test` } }),
         expect.objectContaining({ type: "tool_result", toolName: "list_dir" }),
         expect.objectContaining({ type: "text", text: "Saw the folder." }),
+      ]),
+    );
+  });
+
+  it("adds metadata to batched read-only tool events and runs them concurrently", async () => {
+    class BatchProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "custom",
+        label: "Custom",
+        kind: "custom",
+        baseUrl: "https://proxy.example/v1",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      requests = 0;
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(): AsyncGenerator<ChatChunk> {
+        this.requests += 1;
+        if (this.requests === 1) {
+          yield {
+            delta: '<tool_calls>[{"name":"read_a","args":{}},{"name":"read_b","args":{}}]</tool_calls>',
+            done: false,
+          };
+        } else {
+          yield { delta: "Done with both reads.", done: false };
+        }
+        yield { delta: "", done: true };
+      }
+    }
+
+    const order: string[] = [];
+    const tools = new ToolRegistry();
+    tools.register({
+      definition: { name: "read_a", description: "Read A.", inputSchema: { type: "object", properties: {} } },
+      execute: async () => {
+        order.push("finish-a");
+        return { ok: true, content: "A" };
+      },
+    });
+    tools.register({
+      definition: { name: "read_b", description: "Read B.", inputSchema: { type: "object", properties: {} } },
+      execute: async () => {
+        order.push("finish-b");
+        return { ok: true, content: "B" };
+      },
+    });
+
+    const events = [];
+    for await (const event of runAgent(new BatchProvider(), "test-model", tools, [{ role: "user", content: "Read both" }])) {
+      events.push(event);
+    }
+
+    expect(order).toEqual(["finish-a", "finish-b"]);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "tool_call", toolName: "read_a", stepId: 1, batchId: "step-1-tools", callIndex: 0, callCount: 2 }),
+        expect.objectContaining({ type: "tool_call", toolName: "read_b", stepId: 1, batchId: "step-1-tools", callIndex: 1, callCount: 2 }),
+        expect.objectContaining({ type: "tool_result", toolName: "read_a", stepId: 1, batchId: "step-1-tools", callIndex: 0, callCount: 2 }),
+        expect.objectContaining({ type: "tool_result", toolName: "read_b", stepId: 1, batchId: "step-1-tools", callIndex: 1, callCount: 2 }),
+        expect.objectContaining({ type: "text", text: "Done with both reads." }),
+      ]),
+    );
+  });
+
+  it("runs non-read batched tool calls sequentially in model order", async () => {
+    class BatchProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "custom",
+        label: "Custom",
+        kind: "custom",
+        baseUrl: "https://proxy.example/v1",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      requests = 0;
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(): AsyncGenerator<ChatChunk> {
+        this.requests += 1;
+        if (this.requests === 1) {
+          yield {
+            delta: '<tool_calls>[{"name":"write_a","args":{}},{"name":"write_b","args":{}}]</tool_calls>',
+            done: false,
+          };
+        } else {
+          yield { delta: "Writes done.", done: false };
+        }
+        yield { delta: "", done: true };
+      }
+    }
+
+    const order: string[] = [];
+    const tools = new ToolRegistry();
+    tools.register({
+      definition: { name: "write_a", description: "Write A.", inputSchema: { type: "object", properties: {} } },
+      execute: async () => {
+        order.push("a");
+        return { ok: true, content: "A" };
+      },
+    });
+    tools.register({
+      definition: { name: "write_b", description: "Write B.", inputSchema: { type: "object", properties: {} } },
+      execute: async () => {
+        order.push("b");
+        return { ok: true, content: "B" };
+      },
+    });
+
+    const events = [];
+    for await (const event of runAgent(new BatchProvider(), "test-model", tools, [{ role: "user", content: "Write both" }])) {
+      events.push(event);
+    }
+
+    expect(order).toEqual(["a", "b"]);
+    expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ type: "text", text: "Writes done." })]));
+  });
+
+  it("feeds schema validation failures back as tool results and continues", async () => {
+    class InvalidArgsProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "custom",
+        label: "Custom",
+        kind: "custom",
+        baseUrl: "https://proxy.example/v1",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      requests: ChatRequest[] = [];
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
+        this.requests.push({ ...req, messages: req.messages.map((m) => ({ ...m })) });
+        if (this.requests.length === 1) {
+          yield { delta: '<tool_call>{"name":"read_file","args":{}}</tool_call>', done: false };
+        } else {
+          yield { delta: "I need a path before reading.", done: false };
+        }
+        yield { delta: "", done: true };
+      }
+    }
+
+    let executed = false;
+    const tools = new ToolRegistry();
+    tools.register({
+      definition: {
+        name: "read_file",
+        description: "Read file.",
+        inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      },
+      execute: async () => {
+        executed = true;
+        return { ok: true, content: "file" };
+      },
+    });
+
+    const provider = new InvalidArgsProvider();
+    const events = [];
+    for await (const event of runAgent(provider, "test-model", tools, [{ role: "user", content: "Read it" }])) {
+      events.push(event);
+    }
+
+    expect(executed).toBe(false);
+    expect(provider.requests).toHaveLength(2);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "tool_result", toolName: "read_file", toolResult: expect.stringContaining('missing required field "path"') }),
+        expect.objectContaining({ type: "text", text: "I need a path before reading." }),
+      ]),
+    );
+    expect(provider.requests[1].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: "tool", content: expect.stringContaining('missing required field "path"') }),
       ]),
     );
   });
@@ -871,18 +1057,22 @@ describe("runAgent native tool calls", () => {
     expect(events.map((event) => event.text ?? "").join("")).not.toContain("<tool_call>");
   });
 
-  it("reports missing native tool names without making a follow-up request", async () => {
+  it("feeds missing tool names back as invalid tool results and continues", async () => {
     class MissingNameProvider extends NativeProvider {
       async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
         this.requests.push({
           ...req,
           messages: req.messages.map((m) => ({ ...m })),
         });
-        yield {
-          delta: "",
-          done: false,
-          toolCall: { id: "call_missing", name: "", argsJson: "{}" },
-        };
+        if (this.requests.length === 1) {
+          yield {
+            delta: "",
+            done: false,
+            toolCall: { id: "call_missing", name: "", argsJson: "{}" },
+          };
+        } else {
+          yield { delta: "I will retry with a named tool.", done: false };
+        }
         yield { delta: "", done: true };
       }
     }
@@ -899,8 +1089,14 @@ describe("runAgent native tool calls", () => {
       events.push(event);
     }
 
-    expect(events).toEqual([expect.objectContaining({ type: "error", text: "Tool call is missing a name" })]);
-    expect(provider.requests).toHaveLength(1);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "tool_call", toolName: "invalid_tool_call" }),
+        expect.objectContaining({ type: "tool_result", toolName: "invalid_tool_call", toolResult: expect.stringContaining("missing required tool name") }),
+        expect.objectContaining({ type: "text", text: "I will retry with a named tool." }),
+      ]),
+    );
+    expect(provider.requests).toHaveLength(2);
   });
 
   it("does not let native tool calls bypass Chat mode tool filtering", async () => {

@@ -1,11 +1,19 @@
-{
-  "version": "0.10.0",
-  "notes": "Native provider tool-calling (Anthropic + OpenAI), LSP command bridge, DeepSeek default provider, and a 62-test Vitest suite.",
-  "pub_date": "2026-06-27T18:18:21Z",
-  "platforms": {
-    "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0lFa1lqaUduaU42Y0QxaTlLckR3SXhnaStDSjAxT1B3K3J5U3pEOWplNlVOdkdVR2c5S2NFVTFwK0EvT3NoZ0JsUTJDdFpYZFJvWXhmdk9uVE1NdEE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNTgzOTI3CWZpbGU6UnVzaF8wLjEwLjBfeDY0LXNldHVwLmV4ZQpvMVlna0RNSHJqMDNsdVFEN09hTTZUYnBhR2VxY2dpS3BPYmlDcnovWlFjSk5oQVQyKy9hYmlmdXRlN1RoSnRua2V0MUZZSC8yMlRJY2k5ZTlXeVJDZz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v0.10.0/Rush_0.10.0_x64-setup.exe"
-    }
-  }
-}
+{
+  "version": "1.7.30",
+  "notes": "Improve agent tool batching safety and validation, add recoverable tool-call feedback, make context usage compact, and keep full conversation titles with a titlebar width cap.",
+  "pub_date": "2026-07-05T00:00:00Z",
+  "platforms": {
+    "windows-x86_64-nsis": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na01JdGVnTHB0Q01qVlhZVFBWcmtPYWk4dUhBMGNuNmpqdzZTeHlOcHdmcFg1NXlNSk1hWEZCOTNBWitiSFdmMEtoRVZyc29RRDVHbmRhbElIMHdaZ0E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjE5MzQzCWZpbGU6UnVzaF8xLjcuMzBfeDY0LXNldHVwLmV4ZQpSWE1KeEFRNUtyZCtaZmgreHk3eEt4L2kzVE5adG9wcTVtMGlvd0cwVlJNZWk2YzVBYnc5R1duanAzNXAzWDRqZzQwNGViK09RWW53dDN4RGFpTXBBQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.30/Rush_1.7.30_x64-setup.exe"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na01JdGVnTHB0Q01qVlhZVFBWcmtPYWk4dUhBMGNuNmpqdzZTeHlOcHdmcFg1NXlNSk1hWEZCOTNBWitiSFdmMEtoRVZyc29RRDVHbmRhbElIMHdaZ0E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjE5MzQzCWZpbGU6UnVzaF8xLjcuMzBfeDY0LXNldHVwLmV4ZQpSWE1KeEFRNUtyZCtaZmgreHk3eEt4L2kzVE5adG9wcTVtMGlvd0cwVlJNZWk2YzVBYnc5R1duanAzNXAzWDRqZzQwNGViK09RWW53dDN4RGFpTXBBQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.30/Rush_1.7.30_x64-setup.exe"
+    },
+    "windows-x86_64-pc-windows-msvc": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na01JdGVnTHB0Q01qVlhZVFBWcmtPYWk4dUhBMGNuNmpqdzZTeHlOcHdmcFg1NXlNSk1hWEZCOTNBWitiSFdmMEtoRVZyc29RRDVHbmRhbElIMHdaZ0E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjE5MzQzCWZpbGU6UnVzaF8xLjcuMzBfeDY0LXNldHVwLmV4ZQpSWE1KeEFRNUtyZCtaZmgreHk3eEt4L2kzVE5adG9wcTVtMGlvd0cwVlJNZWk2YzVBYnc5R1duanAzNXAzWDRqZzQwNGViK09RWW53dDN4RGFpTXBBQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.30/Rush_1.7.30_x64-setup.exe"
+    }
+  }
+}

@@ -94,12 +94,12 @@ function emptyTitle(mode: ConversationMode): string {
   return mode === "agent" ? "New task" : "New chat";
 }
 
-// Derive a short title from the first user message of a conversation.
+// Derive a readable title from the first user message of a conversation.
 function titleFrom(lines: ChatLine[], mode: ConversationMode): string {
   const firstUser = lines.find((l) => l.role === "user");
   if (!firstUser) return emptyTitle(mode);
   const t = firstUser.text.trim().replace(/\s+/g, " ");
-  return t.length > 40 ? t.slice(0, 40) + "\u2026" : t || emptyTitle(mode);
+  return t || emptyTitle(mode);
 }
 
 export interface AppState {

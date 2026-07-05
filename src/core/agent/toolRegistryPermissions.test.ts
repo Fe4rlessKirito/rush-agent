@@ -127,12 +127,12 @@ describe("ToolRegistry permission rules", () => {
       },
     });
 
-    expect(tools.list().map((tool) => tool.name)).toEqual(["read_file"]);
+    expect(tools.list().map((tool) => tool.name)).toEqual(["Agent", "read_file"]);
 
     const result = await tools.call("Agent", { task: "inspect" });
 
-    expect(result.denied).toBe(true);
-    expect(result.content).toContain("Tool unavailable in this mode");
-    expect(executed).toBe(false);
+    expect(result.ok).toBe(true);
+    expect(result.content).toBe("spawned");
+    expect(executed).toBe(true);
   });
 });

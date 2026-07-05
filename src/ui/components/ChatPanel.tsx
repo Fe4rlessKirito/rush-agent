@@ -1943,13 +1943,25 @@ export function ChatPanel({ mode }: Props) {
           </div>
 
           <div className="composer-right-controls">
-            <div className="context-window-control" title={contextWindowTitle} aria-label={contextWindowTitle}>
-              <div className="context-window-head">
-                <span>Context windows</span>
-                <strong>{contextWindowLabel}</strong>
-              </div>
-              <div className="context-window-track" aria-hidden="true">
-                <span style={{ width: `${contextWindowPercent}%` }} />
+            <div
+              className="context-window-control"
+              title={contextWindowTitle}
+              aria-label={contextWindowTitle}
+              tabIndex={0}
+              style={{ "--context-window-percent": `${contextWindowPercent}%` } as React.CSSProperties}
+            >
+              <span className="context-window-ring" aria-hidden="true" />
+              <div className="context-window-popover" role="tooltip">
+                <div className="context-window-head">
+                  <span>Context windows</span>
+                  <strong>{contextWindowLabel}</strong>
+                </div>
+                <div className="context-window-detail">
+                  {contextWindowTokens.toLocaleString()} of {contextWindowLimit.toLocaleString()} estimated tokens used
+                </div>
+                <div className="context-window-track" aria-hidden="true">
+                  <span style={{ width: `${contextWindowPercent}%` }} />
+                </div>
               </div>
             </div>
             <select

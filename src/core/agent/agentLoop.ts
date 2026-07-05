@@ -1,5 +1,5 @@
 import type { Provider, ChatMessage, ChatRequest, ToolSchema, NativeToolCall } from "../providers/types";
-import type { ToolDefinition, ToolRegistry } from "./tools";
+import { riskOf, type ToolDefinition, type ToolRegistry } from "./tools";
 
 // The agent loop: stream a model response, detect tool calls, execute them via
 // the registry, feed results back, and repeat until the model produces a final
@@ -13,6 +13,10 @@ export interface AgentEvent {
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   toolResult?: string;
+  stepId?: number;
+  batchId?: string;
+  callIndex?: number;
+  callCount?: number;
 }
 
 const TOOL_CALL_RE_G = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
@@ -298,9 +302,12 @@ export function buildSystemPrompt(definitions: ToolDefinition[], projectInstruct
     '<tool_call>{"name": "tool_name", "args": { ... }}</tool_call>',
     "If several tool calls are independent and safe to run together, emit a batch instead:",
     '<tool_calls>[{"name": "tool_a", "args": { ... }}, {"name": "tool_b", "args": { ... }}]</tool_calls>',
-    "Use batches for independent read-only checks or unrelated lookups. Do not batch",
-    "dependent edits, destructive operations, commits, pushes, installs, terminal input,",
-    "or commands where one result should change the next action.",
+    "Batch only calls that do not need each other's results. Read-only batches may",
+    "run in parallel. Batches containing mutating or destructive tools run in order,",
+    "but later calls still cannot see earlier results until the next model turn.",
+    "If any call depends on another call's result, call one tool, stop, and wait for",
+    "the tool result before deciding the next action.",
+    "Do not batch commits, pushes, installs, terminal input, or confirmation-gated actions.",
     "When the task is fully done, reply normally with no thinking or tool_call block.",
     "Always use the exact tool names and argument shapes from the tool reference below.",
     "If the provider offers native tool calling, use the provider's native tool-call",
@@ -548,6 +555,30 @@ async function callToolWithTimeout(
   }
 }
 
+async function executeToolCall(
+  tools: ToolRegistry,
+  call: ParsedToolCall,
+): Promise<{ call: ParsedToolCall; safeResult: string }> {
+  const result = await callToolWithTimeout(tools, call.name, call.args ?? {});
+  return { call, safeResult: sanitizeToolOutput(result.content) };
+}
+
+async function executeToolCalls(
+  tools: ToolRegistry,
+  calls: ParsedToolCall[],
+): Promise<{ call: ParsedToolCall; safeResult: string }[]> {
+  const shouldRunInParallel = calls.length <= 1 || calls.every((call) => riskOf(call.name, call.args) === "read");
+  if (shouldRunInParallel) {
+    return Promise.all(calls.map((call) => executeToolCall(tools, call)));
+  }
+
+  const results: { call: ParsedToolCall; safeResult: string }[] = [];
+  for (const call of calls) {
+    results.push(await executeToolCall(tools, call));
+  }
+  return results;
+}
+
 export function parseToolCalls(text: string): ParsedToolCall[] | null {
   const batch = text.match(TOOL_CALLS_RE);
   if (batch) {
@@ -712,29 +743,81 @@ export async function* runAgent(
     }
 
     if (parsedCalls.some((call) => !call.name)) {
-      yield { type: "error", text: "Tool call is missing a name" };
-      return;
+      const invalidCalls = parsedCalls.map((call, index) => ({
+        ...call,
+        name: call.name || "invalid_tool_call",
+        id: call.id ?? `invalid-${step}-${index}`,
+      }));
+      const batchId = invalidCalls.length > 1 ? `step-${step}-tools` : undefined;
+      for (const [index, call] of invalidCalls.entries()) {
+        yield {
+          type: "tool_call",
+          toolName: call.name,
+          toolArgs: call.args,
+          stepId: step,
+          batchId,
+          callIndex: index,
+          callCount: invalidCalls.length,
+        };
+      }
+      const results = invalidCalls.map((call) => ({
+        call,
+        safeResult: `Invalid tool call: missing required tool name. Use one of the advertised tool names and retry.`,
+      }));
+      for (const { call, safeResult } of results) {
+        yield { type: "tool_result", toolName: call.name, toolResult: safeResult, stepId: step, batchId };
+      }
+      const assistantMsg: ChatMessage = {
+        role: "assistant",
+        content: stripThinking(full),
+        ...(nativeCalls.length > 0 ? { toolCalls: nativeCalls } : {}),
+      };
+      messages.push(assistantMsg);
+      appendMessages?.push(assistantMsg);
+      for (const { call, safeResult } of results) {
+        const toolMsg: ChatMessage = {
+          role: "tool",
+          name: call.name,
+          toolCallId: call.id,
+          content: fenceToolOutput(call.name, safeResult),
+        };
+        messages.push(toolMsg);
+        appendMessages?.push(toolMsg);
+      }
+      continue;
     }
 
-    for (const call of parsedCalls) {
-      yield { type: "tool_call", toolName: call.name, toolArgs: call.args };
+    const batchId = parsedCalls.length > 1 ? `step-${step}-tools` : undefined;
+    for (const [index, call] of parsedCalls.entries()) {
+      yield {
+        type: "tool_call",
+        toolName: call.name,
+        toolArgs: call.args,
+        stepId: step,
+        batchId,
+        callIndex: index,
+        callCount: parsedCalls.length,
+      };
     }
 
     let results: { call: ParsedToolCall; safeResult: string }[];
     try {
-      results = await Promise.all(
-        parsedCalls.map(async (call) => {
-          const result = await callToolWithTimeout(tools, call.name, call.args ?? {});
-          return { call, safeResult: sanitizeToolOutput(result.content) };
-        }),
-      );
+      results = await executeToolCalls(tools, parsedCalls);
     } catch (err) {
-      yield { type: "error", text: String(err) };
+      yield { type: "error", text: String(err), stepId: step, batchId };
       return;
     }
 
-    for (const { call, safeResult } of results) {
-      yield { type: "tool_result", toolName: call.name, toolResult: safeResult };
+    for (const [index, { call, safeResult }] of results.entries()) {
+      yield {
+        type: "tool_result",
+        toolName: call.name,
+        toolResult: safeResult,
+        stepId: step,
+        batchId,
+        callIndex: index,
+        callCount: results.length,
+      };
     }
 
     // Record the exchange so the model sees what happened next iteration. Strip

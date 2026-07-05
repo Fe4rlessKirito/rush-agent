@@ -1,19 +1,19 @@
-{
-  "version": "1.7.29",
-  "notes": "Add compact context-window usage in the composer, refresh README documentation, and switch updater checks to the raw GitHub latest manifest.",
-  "pub_date": "2026-07-05T00:00:00Z",
-  "platforms": {
-    "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0M0bWEzMWtRVXRCOENJK2VmV3BOVU9wd2tZYk9Ibk8xUWFqV3ZDQTNqU3ZENkY5OE84UXF4WUZiN0xKamlWVUJvemhrU2xCd1ZRVzJRdm9vU3FlSmdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjE0MTQ4CWZpbGU6UnVzaF8xLjcuMjlfeDY0LXNldHVwLmV4ZQpDbTZaOXMwZXFJZk9leG05QnNoMHZ0eGNUUThKenJyV2lDMVY4NW12VHExcStYOE42V09lYW9wZnQzN2wxUGJjb0RHSkgydU91ZTBYbURkcVVFM2FEQT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.29/Rush_1.7.29_x64-setup.exe"
-    },
-    "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0M0bWEzMWtRVXRCOENJK2VmV3BOVU9wd2tZYk9Ibk8xUWFqV3ZDQTNqU3ZENkY5OE84UXF4WUZiN0xKamlWVUJvemhrU2xCd1ZRVzJRdm9vU3FlSmdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjE0MTQ4CWZpbGU6UnVzaF8xLjcuMjlfeDY0LXNldHVwLmV4ZQpDbTZaOXMwZXFJZk9leG05QnNoMHZ0eGNUUThKenJyV2lDMVY4NW12VHExcStYOE42V09lYW9wZnQzN2wxUGJjb0RHSkgydU91ZTBYbURkcVVFM2FEQT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.29/Rush_1.7.29_x64-setup.exe"
-    },
-    "windows-x86_64-pc-windows-msvc": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0M0bWEzMWtRVXRCOENJK2VmV3BOVU9wd2tZYk9Ibk8xUWFqV3ZDQTNqU3ZENkY5OE84UXF4WUZiN0xKamlWVUJvemhrU2xCd1ZRVzJRdm9vU3FlSmdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjE0MTQ4CWZpbGU6UnVzaF8xLjcuMjlfeDY0LXNldHVwLmV4ZQpDbTZaOXMwZXFJZk9leG05QnNoMHZ0eGNUUThKenJyV2lDMVY4NW12VHExcStYOE42V09lYW9wZnQzN2wxUGJjb0RHSkgydU91ZTBYbURkcVVFM2FEQT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.29/Rush_1.7.29_x64-setup.exe"
-    }
-  }
-}
+{
+  "version": "1.7.30",
+  "notes": "Improve agent tool batching safety and validation, add recoverable tool-call feedback, make context usage compact, and keep full conversation titles with a titlebar width cap.",
+  "pub_date": "2026-07-05T00:00:00Z",
+  "platforms": {
+    "windows-x86_64-nsis": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na01JdGVnTHB0Q01qVlhZVFBWcmtPYWk4dUhBMGNuNmpqdzZTeHlOcHdmcFg1NXlNSk1hWEZCOTNBWitiSFdmMEtoRVZyc29RRDVHbmRhbElIMHdaZ0E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjE5MzQzCWZpbGU6UnVzaF8xLjcuMzBfeDY0LXNldHVwLmV4ZQpSWE1KeEFRNUtyZCtaZmgreHk3eEt4L2kzVE5adG9wcTVtMGlvd0cwVlJNZWk2YzVBYnc5R1duanAzNXAzWDRqZzQwNGViK09RWW53dDN4RGFpTXBBQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.30/Rush_1.7.30_x64-setup.exe"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na01JdGVnTHB0Q01qVlhZVFBWcmtPYWk4dUhBMGNuNmpqdzZTeHlOcHdmcFg1NXlNSk1hWEZCOTNBWitiSFdmMEtoRVZyc29RRDVHbmRhbElIMHdaZ0E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjE5MzQzCWZpbGU6UnVzaF8xLjcuMzBfeDY0LXNldHVwLmV4ZQpSWE1KeEFRNUtyZCtaZmgreHk3eEt4L2kzVE5adG9wcTVtMGlvd0cwVlJNZWk2YzVBYnc5R1duanAzNXAzWDRqZzQwNGViK09RWW53dDN4RGFpTXBBQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.30/Rush_1.7.30_x64-setup.exe"
+    },
+    "windows-x86_64-pc-windows-msvc": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na01JdGVnTHB0Q01qVlhZVFBWcmtPYWk4dUhBMGNuNmpqdzZTeHlOcHdmcFg1NXlNSk1hWEZCOTNBWitiSFdmMEtoRVZyc29RRDVHbmRhbElIMHdaZ0E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjE5MzQzCWZpbGU6UnVzaF8xLjcuMzBfeDY0LXNldHVwLmV4ZQpSWE1KeEFRNUtyZCtaZmgreHk3eEt4L2kzVE5adG9wcTVtMGlvd0cwVlJNZWk2YzVBYnc5R1duanAzNXAzWDRqZzQwNGViK09RWW53dDN4RGFpTXBBQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.30/Rush_1.7.30_x64-setup.exe"
+    }
+  }
+}

@@ -6728,3 +6728,8 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
   font-size: 13px;
   font-weight: 650;
 }
+
+/* Let conversation titles breathe in the custom titlebar while still capping long text. */
+.app-titlebar .titlebar-session-title {
+  max-width: clamp(220px, 34vw, 560px);
+}
