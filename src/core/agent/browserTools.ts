@@ -208,7 +208,11 @@ export function createBrowserTools(options: BrowserToolOptions = {}): Tool[] {
         const url = String(args.url ?? "").trim();
         if (!/^https?:\/\//i.test(url)) return { ok: false, isError: true, content: `Invalid URL: ${url}` };
         if (!options.screenshot) {
-          return { ok: true, content: await automation("browser_screenshot", { ...args, url }) };
+          try {
+            return { ok: true, content: await automation("browser_screenshot", { ...args, url }) };
+          } catch (err) {
+            return { ok: false, isError: true, content: `no browser screenshot backend: ${String(err)}` };
+          }
         }
         return { ok: true, content: await options.screenshot(url, args) };
       },

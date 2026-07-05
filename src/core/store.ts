@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { ProviderConfig, ChatMessage } from "./providers/types";
 import { DEFAULT_PROVIDERS } from "./providers/defaults";
+import type { CompactContext } from "./agent/contextCompaction";
 import type { PermissionConfig } from "./agent/toolPermissions";
 
 // App settings store. Persisted to localStorage for the dev build. NOTE: API
@@ -53,6 +54,7 @@ export interface Conversation {
   // model. `messages` is what actually gets replayed into the next request,
   // so it must be persisted alongside `lines` rather than derived from it.
   messages?: ChatMessage[];
+  compactSummary?: CompactContext;
   createdAt: number;
   projectId?: string;
   projectRoot?: string;
@@ -99,7 +101,8 @@ function titleFrom(lines: ChatLine[], mode: ConversationMode): string {
   const firstUser = lines.find((l) => l.role === "user");
   if (!firstUser) return emptyTitle(mode);
   const t = firstUser.text.trim().replace(/\s+/g, " ");
-  return t || emptyTitle(mode);
+  if (!t) return emptyTitle(mode);
+  return t.length > 40 ? `${t.slice(0, 40)}…` : t;
 }
 
 export interface AppState {
@@ -136,6 +139,8 @@ export interface AppState {
   // Conversation.messages for details.
   chatMessages: ChatMessage[];
   flowChatMessages: ChatMessage[];
+  chatCompactSummary?: CompactContext;
+  flowCompactSummary?: CompactContext;
 
   setProviders: (p: ProviderConfig[]) => void;
   upsertProvider: (p: ProviderConfig) => void;
@@ -149,6 +154,8 @@ export interface AppState {
   setFlowChat: (updater: ChatLine[] | ((prev: ChatLine[]) => ChatLine[])) => void;
   setChatMessages: (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
   setFlowChatMessages: (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
+  setChatCompactSummary: (summary: CompactContext | undefined) => void;
+  setFlowCompactSummary: (summary: CompactContext | undefined) => void;
   // Switches the active chat conversation's current sub-mode in place — the
   // conversation, its lines, and its messages are untouched.
   setChatMode: (mode: "plain" | "agent") => void;
@@ -225,6 +232,8 @@ function normalizeConversations(state: Partial<AppState>): {
   flowChat: ChatLine[];
   chatMessages: ChatMessage[];
   flowChatMessages: ChatMessage[];
+  chatCompactSummary?: CompactContext;
+  flowCompactSummary?: CompactContext;
 } {
   const raw = state.conversations ?? [];
   const conversations = raw
@@ -240,6 +249,7 @@ function normalizeConversations(state: Partial<AppState>): {
         // Default to empty rather than undefined so callers can rely on it
         // always being an array.
         messages: c.messages ?? [],
+        compactSummary: c.compactSummary,
         createdAt: c.createdAt ?? Date.now(),
         projectId: c.projectId,
         projectRoot: c.projectRoot,
@@ -290,6 +300,8 @@ function normalizeConversations(state: Partial<AppState>): {
     flowChat: activeFlow?.lines ?? [],
     chatMessages: activeChat?.messages ?? [],
     flowChatMessages: activeFlow?.messages ?? [],
+    chatCompactSummary: activeChat?.compactSummary,
+    flowCompactSummary: activeFlow?.compactSummary,
   };
 }
 
@@ -318,11 +330,13 @@ function upsertConversation(
   // display transcript never clobber the raw tool-call/tool-result history
   // that's already been saved.
   const carriedMessages = sameProject && id ? current?.messages ?? [] : [];
+  const carriedSummary = sameProject && id ? current?.compactSummary : undefined;
   const next: Conversation = {
     id: nextId,
     mode,
     lines,
     messages: carriedMessages,
+    compactSummary: carriedSummary,
     title: titleFrom(lines, mode),
     createdAt: Date.now(),
     ...(projectContext
@@ -359,6 +373,19 @@ function updateConversationMessages(
   return next;
 }
 
+function updateConversationSummary(
+  conversations: Conversation[],
+  id: string,
+  compactSummary: CompactContext | undefined,
+): Conversation[] {
+  if (!id) return conversations;
+  const idx = conversations.findIndex((c) => c.id === id);
+  if (idx === -1) return conversations;
+  const next = conversations.slice();
+  next[idx] = { ...next[idx], compactSummary };
+  return next;
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -383,6 +410,8 @@ export const useAppStore = create<AppState>()(
       flowChat: [],
       chatMessages: [],
       flowChatMessages: [],
+      chatCompactSummary: undefined,
+      flowCompactSummary: undefined,
 
       setProviders: (providers) =>
         set((s) => ({
@@ -442,6 +471,7 @@ export const useAppStore = create<AppState>()(
           return {
             chat: [],
             chatMessages: [],
+            chatCompactSummary: undefined,
             chatMode: "plain",
             conversations: activeId
               ? s.conversations.filter((c) => c.id !== activeId)
@@ -462,6 +492,12 @@ export const useAppStore = create<AppState>()(
             conversations: updateConversationMessages(s.conversations, s.activeConversationIds.chat, messages),
           };
         }),
+
+      setChatCompactSummary: (summary) =>
+        set((s) => ({
+          chatCompactSummary: summary,
+          conversations: updateConversationSummary(s.conversations, s.activeConversationIds.chat, summary),
+        })),
 
       setChatMode: (mode) =>
         set((s) => {
@@ -499,6 +535,7 @@ export const useAppStore = create<AppState>()(
           return {
             flowChat: [],
             flowChatMessages: [],
+            flowCompactSummary: undefined,
             conversations: activeId
               ? s.conversations.filter((c) => c.id !== activeId)
               : s.conversations,
@@ -518,6 +555,12 @@ export const useAppStore = create<AppState>()(
             conversations: updateConversationMessages(s.conversations, s.activeConversationIds.flow, messages),
           };
         }),
+
+      setFlowCompactSummary: (summary) =>
+        set((s) => ({
+          flowCompactSummary: summary,
+          conversations: updateConversationSummary(s.conversations, s.activeConversationIds.flow, summary),
+        })),
 
       setConversationProjectContext: (context) =>
         set((s) => {
@@ -573,12 +616,14 @@ export const useAppStore = create<AppState>()(
                 activeConversationIds: { ...s.activeConversationIds, flow: "" },
                 flowChat: [],
                 flowChatMessages: [],
+                flowCompactSummary: undefined,
               }
             : {
                 activeConversationIds: { ...s.activeConversationIds, chat: "" },
                 chatMode: mode,
                 chat: [],
                 chatMessages: [],
+                chatCompactSummary: undefined,
               }),
         })),
 
@@ -597,8 +642,8 @@ export const useAppStore = create<AppState>()(
               }
             : null,
           ...(slot === "flow"
-            ? { flowChat: convo.lines, flowChatMessages: convo.messages ?? [] }
-            : { chatMode: convo.mode === "plain" ? "plain" : "agent", chat: convo.lines, chatMessages: convo.messages ?? [] }),
+            ? { flowChat: convo.lines, flowChatMessages: convo.messages ?? [], flowCompactSummary: convo.compactSummary }
+            : { chatMode: convo.mode === "plain" ? "plain" : "agent", chat: convo.lines, chatMessages: convo.messages ?? [], chatCompactSummary: convo.compactSummary }),
         }));
         return convo.mode;
       },
@@ -628,11 +673,12 @@ export const useAppStore = create<AppState>()(
             activeConversationId,
             activeConversationIds,
             ...(deletedSlot === "flow"
-              ? { flowChat: replacement?.lines ?? [], flowChatMessages: replacement?.messages ?? [] }
+              ? { flowChat: replacement?.lines ?? [], flowChatMessages: replacement?.messages ?? [], flowCompactSummary: replacement?.compactSummary }
               : {
                   chatMode: replacement?.mode === "plain" ? "plain" : "agent",
                   chat: replacement?.lines ?? [],
                   chatMessages: replacement?.messages ?? [],
+                  chatCompactSummary: replacement?.compactSummary,
                 }),
           };
         }),

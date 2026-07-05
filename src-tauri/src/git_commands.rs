@@ -95,13 +95,32 @@ pub fn git_current_branch(state: State<ProjectRoot>) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn git_switch_branch(state: State<ProjectRoot>, branch: String) -> Result<String, String> {
+    let branch = branch.trim();
+    if branch.is_empty() {
+        return Err("branch is required".to_string());
+    }
+    run_git(state, &["switch", branch])
+}
+
+#[tauri::command]
+pub fn git_create_branch(state: State<ProjectRoot>, branch: String) -> Result<String, String> {
+    let branch = branch.trim();
+    if branch.is_empty() {
+        return Err("branch is required".to_string());
+    }
+    run_git(state, &["switch", "-c", branch])
+}
+
+#[tauri::command]
 pub fn git_log(state: State<ProjectRoot>, limit: Option<u32>) -> Result<String, String> {
     let limit = limit.unwrap_or(10).clamp(1, 100).to_string();
     run_git(
         state,
         &[
             "log",
-            "--oneline",
+            "--pretty=format:%h%x09%D%x09%s%x09%ad%x09%an",
+            "--date=format:%m/%d, %I:%M %p",
             "--decorate",
             "--max-count",
             limit.as_str(),

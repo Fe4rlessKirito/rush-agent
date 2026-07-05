@@ -1,5 +1,6 @@
 import type { Provider, ChatMessage, ChatRequest, ToolSchema, NativeToolCall } from "../providers/types";
 import { riskOf, type ToolDefinition, type ToolRegistry } from "./tools";
+import { prepareContextMessages, type CompactContext, type ContextCompactionBudget } from "./contextCompaction";
 
 // The agent loop: stream a model response, detect tool calls, execute them via
 // the registry, feed results back, and repeat until the model produces a final
@@ -17,6 +18,12 @@ export interface AgentEvent {
   batchId?: string;
   callIndex?: number;
   callCount?: number;
+}
+
+export interface AgentContextCompactionOptions {
+  summary?: CompactContext;
+  budget?: Partial<ContextCompactionBudget>;
+  onSummary?: (summary: CompactContext) => void;
 }
 
 const TOOL_CALL_RE_G = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
@@ -579,6 +586,16 @@ async function executeToolCalls(
   return results;
 }
 
+function buildPostToolStallRecoveryPrompt(): string {
+  return [
+    "The previous model stream stalled after tool results were returned.",
+    "Continue from the tool results already in this conversation.",
+    "If concrete work remains, call the next needed tool or continue the implementation/verification.",
+    "If the requested work is complete, provide the final user-facing summary now.",
+    "Do not ask the user to press Continue or repeat work that already succeeded.",
+  ].join("\n");
+}
+
 export function parseToolCalls(text: string): ParsedToolCall[] | null {
   const batch = text.match(TOOL_CALLS_RE);
   if (batch) {
@@ -612,6 +629,7 @@ export async function* runAgent(
   projectInstructions?: string,
   providerThinking?: ChatRequest["thinking"],
   appendMessages?: ChatMessage[],
+  contextCompaction?: AgentContextCompactionOptions,
 ): AsyncGenerator<AgentEvent> {
   const definitions = tools.list();
 
@@ -644,6 +662,9 @@ export async function* runAgent(
   ];
 
   let step = 0;
+  let sawToolResults = false;
+  let postToolStallRetries = 0;
+  let compactSummary = contextCompaction?.summary;
   while (!signal?.aborted && (maxSteps === undefined || step < maxSteps)) {
     step += 1;
     let full = "";
@@ -668,10 +689,24 @@ export async function* runAgent(
       }
     }
     try {
+      const preparedContext = contextCompaction
+        ? await prepareContextMessages({
+            provider,
+            model,
+            messages,
+            previousSummary: compactSummary,
+            budget: contextCompaction.budget,
+            signal: stepController.signal,
+          })
+        : { messages, summary: compactSummary, compacted: false };
+      if (preparedContext.compacted && preparedContext.summary) {
+        compactSummary = preparedContext.summary;
+        contextCompaction?.onSummary?.(compactSummary);
+      }
       for await (const chunk of withIdleTimeout(
         provider.streamChat({
           model,
-          messages,
+          messages: preparedContext.messages,
           signal: stepController.signal,
           tools: toolSchemas,
           thinking: providerThinking,
@@ -711,6 +746,11 @@ export async function* runAgent(
         if (tail) yield { type: "text", text: tail };
       }
     } catch (err) {
+      if (sawToolResults && postToolStallRetries < 2 && !signal?.aborted) {
+        postToolStallRetries += 1;
+        messages.push({ role: "user", content: buildPostToolStallRecoveryPrompt() });
+        continue;
+      }
       yield { type: "error", text: String(err) };
       return;
     } finally {
@@ -819,6 +859,8 @@ export async function* runAgent(
         callCount: results.length,
       };
     }
+    sawToolResults = true;
+    postToolStallRetries = 0;
 
     // Record the exchange so the model sees what happened next iteration. Strip
     // the <thinking> block first — it streamed to the user live, but replaying it

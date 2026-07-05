@@ -6,11 +6,14 @@ import {
   segment,
   stripThinking,
   sanitizeToolOutput,
+  STREAM_IDLE_TIMEOUT_MS,
+  type AgentEvent,
   withIdleTimeout,
 } from "./agentLoop";
 import { ToolRegistry } from "./tools";
 import { isToolAvailableInMode } from "./toolModes";
-import type { ChatChunk, ChatRequest, Provider, ProviderConfig } from "../providers/types";
+import type { CompactContext } from "./contextCompaction";
+import type { ChatChunk, ChatMessage, ChatRequest, Provider, ProviderConfig } from "../providers/types";
 
 function runAgent(...args: Parameters<typeof runAgentUnbounded>) {
   const [provider, model, tools, userMessages, signal, maxSteps, projectInstructions, providerThinking] = args;
@@ -309,6 +312,188 @@ describe("runAgent system prompt", () => {
       expect(request.messages[0].content).toContain("## read_file");
       expect(request.messages[0].content).toContain('"path"');
     }
+  });
+
+  it("does not force an extra continuation check after normal tool work", async () => {
+    class CompletionCheckProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "test",
+        label: "Test",
+        kind: "custom",
+        baseUrl: "http://localhost",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      readonly requests: ChatRequest[] = [];
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
+        this.requests.push({ ...req, messages: req.messages.map((m) => ({ ...m })) });
+        if (this.requests.length === 1) {
+          yield { delta: '<tool_call>{"name":"read_file","args":{"path":"package.json"}}</tool_call>', done: false };
+        } else if (this.requests.length === 2) {
+          yield { delta: '<tool_call>{"name":"read_file","args":{"path":"package-lock.json"}}</tool_call>', done: false };
+        } else {
+          yield { delta: "Looks done.", done: false };
+        }
+        yield { delta: "", done: true };
+      }
+    }
+
+    const provider = new CompletionCheckProvider();
+    const events = [];
+    const tools = new ToolRegistry();
+    tools.register({
+      definition: {
+        name: "read_file",
+        description: "Read a file.",
+        inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      },
+      execute: async () => ({ ok: true, content: "file contents" }),
+    });
+    for await (const event of runAgent(
+      provider,
+      "test-model",
+      tools,
+      [{ role: "user", content: "Read package.json" }],
+    )) {
+      events.push(event);
+    }
+
+    expect(provider.requests).toHaveLength(3);
+    expect(provider.requests[2].messages).not.toEqual(expect.arrayContaining([expect.objectContaining({
+      role: "user",
+      content: expect.stringContaining("decide whether the user's requested outcome is actually complete"),
+    })]));
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "text", text: "Looks done." }),
+      expect.objectContaining({ type: "done" }),
+    ]));
+  });
+
+  it("compacts long request context without mutating appended local messages", async () => {
+    class CompactingProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "test",
+        label: "Test",
+        kind: "custom",
+        baseUrl: "http://localhost",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      readonly requests: ChatRequest[] = [];
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
+        this.requests.push({ ...req, messages: req.messages.map((message) => ({ ...message })) });
+        if (this.requests.length === 1) {
+          yield {
+            delta: JSON.stringify({
+              goal: "Keep the task alive",
+              currentState: ["Old context was compacted"],
+              decisions: [],
+              filesChanged: [],
+              verification: [],
+              releaseState: "",
+              durableCommands: [],
+              nextSteps: ["Continue"],
+            }),
+            done: false,
+          };
+        } else {
+          yield { delta: '<tool_call>{"name":"read_file","args":{"path":"package.json"}}</tool_call>', done: false };
+        }
+        yield { delta: "", done: true };
+      }
+    }
+
+    const provider = new CompactingProvider();
+    const appended: ChatMessage[] = [];
+    const summaries: CompactContext[] = [];
+    const tools = new ToolRegistry();
+    tools.register({
+      definition: {
+        name: "read_file",
+        description: "Read a file.",
+        inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      },
+      execute: async () => ({ ok: true, content: "file contents" }),
+    });
+
+    const messages: ChatMessage[] = [
+      { role: "user", content: "old context ".repeat(250) },
+      { role: "assistant", content: "old answer ".repeat(250) },
+      { role: "user", content: "Read package.json" },
+    ];
+
+    const events: AgentEvent[] = [];
+    for await (const event of runAgent(
+      provider,
+      "test-model",
+      tools,
+      messages,
+      undefined,
+      3,
+      "project context ".repeat(40),
+      undefined,
+      appended,
+      { budget: { maxChars: 6_000, targetChars: 5_000, keepRecentMessages: 1 }, onSummary: (summary) => summaries.push(summary) },
+    )) {
+      events.push(event);
+    }
+
+    expect(provider.requests).toHaveLength(1);
+    expect(provider.requests[0].messages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "system", content: expect.stringContaining("Conversation memory summary") }),
+    ]));
+    expect(provider.requests[0].messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "user", content: "Read package.json" }),
+    ]));
+    expect(summaries).toHaveLength(0);
+    expect(appended).toEqual([]);
+    expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ type: "text", text: expect.stringContaining("Keep the task alive") })]));
+  });
+
+  it("does not run a continuation check for simple no-tool answers", async () => {
+    class SimpleProvider implements Provider {
+      readonly config: ProviderConfig = {
+        id: "test",
+        label: "Test",
+        kind: "custom",
+        baseUrl: "http://localhost",
+        defaultModel: "test-model",
+        enabled: true,
+      };
+      readonly requests: ChatRequest[] = [];
+
+      async listModels(): Promise<string[]> {
+        return ["test-model"];
+      }
+
+      async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
+        this.requests.push({ ...req, messages: req.messages.map((m) => ({ ...m })) });
+        yield { delta: "Plain answer.", done: false };
+        yield { delta: "", done: true };
+      }
+    }
+
+    const provider = new SimpleProvider();
+    const events = [];
+    for await (const event of runAgent(provider, "test-model", new ToolRegistry(), [{ role: "user", content: "hi" }])) {
+      events.push(event);
+    }
+
+    expect(provider.requests).toHaveLength(1);
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "text", text: "Plain answer." }),
+      expect.objectContaining({ type: "done" }),
+    ]));
   });
 
   it("stops generation at the tool-call closing tag for XML-tag providers", async () => {
@@ -1305,6 +1490,207 @@ describe("withIdleTimeout", () => {
     for (let i = 0; i < addSpy.mock.calls.length; i++) {
       expect(removeSpy.mock.calls[i][0]).toBe("abort");
       expect(removeSpy.mock.calls[i][1]).toBe(addSpy.mock.calls[i][1]);
+    }
+  });
+
+  it("recovers automatically when the model stream stalls after tool results", async () => {
+    vi.useFakeTimers();
+    try {
+      class StallAfterToolProvider implements Provider {
+        readonly config: ProviderConfig = {
+          id: "test",
+          label: "Test",
+          kind: "custom",
+          baseUrl: "http://localhost",
+          defaultModel: "test-model",
+          enabled: true,
+        };
+        readonly requests: ChatRequest[] = [];
+
+        async listModels(): Promise<string[]> {
+          return ["test-model"];
+        }
+
+        async *streamChat(req: ChatRequest): AsyncGenerator<ChatChunk> {
+          this.requests.push({ ...req, messages: req.messages.map((m) => ({ ...m })) });
+          if (this.requests.length === 1) {
+            yield { delta: '<tool_call>{"name":"read_file","args":{"path":"package.json"}}</tool_call>', done: false };
+            yield { delta: "", done: true };
+            return;
+          }
+          if (this.requests.length === 2) {
+            await new Promise(() => {});
+            return;
+          }
+          yield { delta: "Recovered and finished.", done: false };
+          yield { delta: "", done: true };
+        }
+      }
+
+      const provider = new StallAfterToolProvider();
+      const tools = new ToolRegistry();
+      tools.register({
+        definition: {
+          name: "read_file",
+          description: "Read a file.",
+          inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+        },
+        execute: async () => ({ ok: true, content: "file contents" }),
+      });
+
+      const events: AgentEvent[] = [];
+      const pump = (async () => {
+        for await (const event of runAgentUnbounded(
+          provider,
+          "test-model",
+          tools,
+          [{ role: "user", content: "Read package.json" }],
+          undefined,
+          5,
+        )) {
+          events.push(event);
+        }
+      })();
+
+      await vi.advanceTimersByTimeAsync(STREAM_IDLE_TIMEOUT_MS + 1);
+      await pump;
+
+      expect(provider.requests).toHaveLength(3);
+      expect(provider.requests[2].messages.at(-1)).toEqual(
+        expect.objectContaining({
+          role: "user",
+          content: expect.stringContaining("previous model stream stalled after tool results"),
+        }),
+      );
+      expect(events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: "tool_result", toolName: "read_file" }),
+          expect.objectContaining({ type: "text", text: "Recovered and finished." }),
+          expect.objectContaining({ type: "done" }),
+        ]),
+      );
+      expect(events.some((event) => event.type === "error")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still surfaces an idle timeout before any tool results exist", async () => {
+    vi.useFakeTimers();
+    try {
+      class InitialStallProvider implements Provider {
+        readonly config: ProviderConfig = {
+          id: "test",
+          label: "Test",
+          kind: "custom",
+          baseUrl: "http://localhost",
+          defaultModel: "test-model",
+          enabled: true,
+        };
+        requests = 0;
+
+        async listModels(): Promise<string[]> {
+          return ["test-model"];
+        }
+
+        async *streamChat(): AsyncGenerator<ChatChunk> {
+          this.requests += 1;
+          await new Promise(() => {});
+        }
+      }
+
+      const provider = new InitialStallProvider();
+      const events: AgentEvent[] = [];
+      const pump = (async () => {
+        for await (const event of runAgentUnbounded(
+          provider,
+          "test-model",
+          new ToolRegistry(),
+          [{ role: "user", content: "Say hi" }],
+          undefined,
+          5,
+        )) {
+          events.push(event);
+        }
+      })();
+
+      await vi.advanceTimersByTimeAsync(STREAM_IDLE_TIMEOUT_MS + 1);
+      await pump;
+
+      expect(provider.requests).toBe(1);
+      expect(events).toEqual([
+        expect.objectContaining({ type: "error", text: expect.stringContaining("No response from the model") }),
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops retrying after repeated post-tool stream stalls", async () => {
+    vi.useFakeTimers();
+    try {
+      class RepeatedStallProvider implements Provider {
+        readonly config: ProviderConfig = {
+          id: "test",
+          label: "Test",
+          kind: "custom",
+          baseUrl: "http://localhost",
+          defaultModel: "test-model",
+          enabled: true,
+        };
+        requests = 0;
+
+        async listModels(): Promise<string[]> {
+          return ["test-model"];
+        }
+
+        async *streamChat(): AsyncGenerator<ChatChunk> {
+          this.requests += 1;
+          if (this.requests === 1) {
+            yield { delta: '<tool_call>{"name":"read_file","args":{"path":"package.json"}}</tool_call>', done: false };
+            yield { delta: "", done: true };
+            return;
+          }
+          await new Promise(() => {});
+        }
+      }
+
+      const provider = new RepeatedStallProvider();
+      const tools = new ToolRegistry();
+      tools.register({
+        definition: {
+          name: "read_file",
+          description: "Read a file.",
+          inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+        },
+        execute: async () => ({ ok: true, content: "file contents" }),
+      });
+
+      const events: AgentEvent[] = [];
+      const pump = (async () => {
+        for await (const event of runAgentUnbounded(
+          provider,
+          "test-model",
+          tools,
+          [{ role: "user", content: "Read package.json" }],
+          undefined,
+          6,
+        )) {
+          events.push(event);
+        }
+      })();
+
+      await vi.advanceTimersByTimeAsync(STREAM_IDLE_TIMEOUT_MS + 1);
+      await vi.advanceTimersByTimeAsync(STREAM_IDLE_TIMEOUT_MS + 1);
+      await vi.advanceTimersByTimeAsync(STREAM_IDLE_TIMEOUT_MS + 1);
+      await pump;
+
+      expect(provider.requests).toBe(4);
+      expect(events.at(-1)).toEqual(
+        expect.objectContaining({ type: "error", text: expect.stringContaining("No response from the model") }),
+      );
+    } finally {
+      vi.useRealTimers();
     }
   });
 

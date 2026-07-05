@@ -526,8 +526,12 @@ export function ChatPanel({ mode }: Props) {
     setFlowChat,
     chatMessages: sharedChatMessages,
     setChatMessages: setSharedChatMessages,
+    chatCompactSummary: sharedChatCompactSummary,
+    setChatCompactSummary: setSharedChatCompactSummary,
     flowChatMessages,
     setFlowChatMessages,
+    flowCompactSummary,
+    setFlowCompactSummary,
     chatMode,
     setChatMode,
     conversations,
@@ -558,6 +562,8 @@ export function ChatPanel({ mode }: Props) {
   // alone (dropping every tool_call/tool_result turn).
   const chatMessages = isFlow ? flowChatMessages : sharedChatMessages;
   const setChatMessages = isFlow ? setFlowChatMessages : setSharedChatMessages;
+  const compactSummary = isFlow ? flowCompactSummary : sharedChatCompactSummary;
+  const setCompactSummary = isFlow ? setFlowCompactSummary : setSharedChatCompactSummary;
 
   // Custom instructions for the currently-open project, fed into the agent's
   // system prompt so each project can steer the model differently.
@@ -1224,6 +1230,7 @@ export function ChatPanel({ mode }: Props) {
             ].filter(Boolean).join("\n\n"),
             effortThinking,
             chatNewMsgs,
+            { summary: compactSummary, onSummary: setCompactSummary },
           )) {
             if (ev.type === "thinking" && ev.text) {
               appendToLatestAgent({ thinking: ev.text });
@@ -1436,6 +1443,7 @@ export function ChatPanel({ mode }: Props) {
         [projectRuntimeContext, projectInstructions, brainContext, packRuntimeContext, flowContext].filter(Boolean).join("\n\n"),
         effortThinking,
         agentNewMsgs,
+        { summary: compactSummary, onSummary: setCompactSummary },
       )) {
         await handleAndPaint(ev);
       }

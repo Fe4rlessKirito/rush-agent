@@ -88,6 +88,6 @@ describe("Agent tool", () => {
     expect(result.content).toContain("Subagent result for: Summarize the codebase");
     expect(result.content).toContain("subagent answer");
     expect(provider.requests).toHaveLength(1);
-    expect(provider.requests[0].messages.some((message) => String(message.content).includes("Rush Flow subagent"))).toBe(true);
+    expect(provider.requests[0].messages.some((message) => String(message.content).includes("Rush subagent"))).toBe(true);
   });
 });

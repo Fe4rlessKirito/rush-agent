@@ -56,6 +56,8 @@ pub fn run() {
             git_commands::git_diff,
             git_commands::git_branch,
             git_commands::git_current_branch,
+            git_commands::git_switch_branch,
+            git_commands::git_create_branch,
             git_commands::git_log,
             git_commands::git_show,
             git_commands::git_blame,

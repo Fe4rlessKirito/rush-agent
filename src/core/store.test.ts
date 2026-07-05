@@ -134,6 +134,25 @@ describe("useAppStore conversations", () => {
     expect(active.title.endsWith("\u2026")).toBe(true);
   });
 
+  it("persists and restores compact summaries", () => {
+    useAppStore.getState().setChat([{ role: "user", text: "compact this" }]);
+    const id = useAppStore.getState().activeConversationIds.chat;
+    useAppStore.getState().setChatCompactSummary({
+      goal: "Keep context small",
+      currentState: ["Summary saved"],
+      decisions: [],
+      filesChanged: [],
+      verification: [],
+      durableCommands: [],
+      nextSteps: ["Continue"],
+    });
+    useAppStore.getState().newConversation("agent");
+    useAppStore.getState().selectConversation(id);
+
+    expect(useAppStore.getState().chatCompactSummary?.goal).toBe("Keep context small");
+    expect(useAppStore.getState().conversations.find((c) => c.id === id)?.compactSummary?.nextSteps).toEqual(["Continue"]);
+  });
+
   it("setChat accepts a functional updater over the previous lines", () => {
     useAppStore.getState().setChat([{ role: "user", text: "first" }]);
     useAppStore.getState().setChat((prev) => [...prev, { role: "agent", text: "reply" }]);

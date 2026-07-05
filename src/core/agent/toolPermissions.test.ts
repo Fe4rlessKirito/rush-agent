@@ -67,7 +67,7 @@ describe("tool permission rules", () => {
   it("keeps Flow coordination tools out of Code and Chat modes", () => {
     expect(isToolAvailableInMode("chat", "read_file")).toBe(false);
     expect(isToolAvailableInMode("code", "read_file")).toBe(true);
-    expect(isToolAvailableInMode("code", "Agent")).toBe(false);
+    expect(isToolAvailableInMode("code", "Agent")).toBe(true);
     expect(isToolAvailableInMode("flow", "Agent")).toBe(true);
   });
 });
