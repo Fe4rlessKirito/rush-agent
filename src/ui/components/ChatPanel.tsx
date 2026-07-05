@@ -482,6 +482,34 @@ function imageMediaTypeForFile(file: File): string {
   return IMAGE_MEDIA_TYPES[extensionOf(file.name)] ?? "image/png";
 }
 
+function contentText(value: ChatMessage["content"]): string {
+  if (typeof value === "string") return value;
+  if (!Array.isArray(value)) return "";
+  return value.map((part) => part.type === "text" ? part.text : `[${part.type}]`).join("\n");
+}
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+function modelContextLimit(model: string | null): number {
+  const name = (model ?? "").toLowerCase();
+  if (/claude|gemini|gpt-5/.test(name)) return 200_000;
+  if (/gpt-4o|\bo[13]\b|o3|o4/.test(name)) return 128_000;
+  return 128_000;
+}
+
+function formatTokenCount(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`;
+  return String(tokens);
+}
+
+function normalizePercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
 function normalizeDataUrlMediaType(dataUrl: string, mediaType: string): string {
   if (!dataUrl.startsWith("data:") || !dataUrl.includes(",")) return dataUrl;
   return dataUrl.replace(/^data:[^,]*,/, `data:${mediaType};base64,`);
@@ -665,6 +693,17 @@ export function ChatPanel({ mode }: Props) {
   const permissionPreset = presetFromPermissions(toolPermissions);
   const modelOptions = Array.from(new Set([...(activeModelAllowed ? [activeModelAllowed] : []), ...models]));
   const modelGroups = groupModels(modelOptions);
+  const contextWindowLimit = modelContextLimit(activeModel);
+  const contextWindowTokens = useMemo(() => {
+    const messageTokens = chatMessages.reduce((sum, message) => sum + estimateTokens(contentText(message.content)), 0);
+    const inputTokens = estimateTokens(input);
+    const libraryTokens = contextItems.reduce((sum, item) => sum + estimateTokens(item.text), 0);
+    const attachmentTokens = attachments.reduce((sum, item) => sum + estimateTokens(`${item.name} ${item.type || "attachment"}`), 0);
+    return messageTokens + inputTokens + libraryTokens + attachmentTokens;
+  }, [attachments, chatMessages, contextItems, input]);
+  const contextWindowPercent = normalizePercent((contextWindowTokens / contextWindowLimit) * 100);
+  const contextWindowLabel = `${formatTokenCount(contextWindowTokens)}/${formatTokenCount(contextWindowLimit)} (${contextWindowPercent.toFixed(1)}%)`;
+  const contextWindowTitle = `Estimated context window usage: ${contextWindowTokens.toLocaleString()} / ${contextWindowLimit.toLocaleString()} tokens (${contextWindowPercent.toFixed(1)}%)`;
   const packCommandSuggestions = useMemo(
     () => suggestPackCommands(input, effectiveMode, 6, activeProjectId),
     [input, effectiveMode, packSuggestionKey, activeProjectId],
@@ -1904,6 +1943,15 @@ export function ChatPanel({ mode }: Props) {
           </div>
 
           <div className="composer-right-controls">
+            <div className="context-window-control" title={contextWindowTitle} aria-label={contextWindowTitle}>
+              <div className="context-window-head">
+                <span>Context windows</span>
+                <strong>{contextWindowLabel}</strong>
+              </div>
+              <div className="context-window-track" aria-hidden="true">
+                <span style={{ width: `${contextWindowPercent}%` }} />
+              </div>
+            </div>
             <select
               className="model-select"
               value={activeModel ?? ""}

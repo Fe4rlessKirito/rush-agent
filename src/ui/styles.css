@@ -2384,6 +2384,67 @@ body {
   gap: 8px;
   min-width: 0;
 }
+.context-window-control {
+  width: 190px;
+  max-width: 22vw;
+  height: 34px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.context-window-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.context-window-head span,
+.context-window-head strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.context-window-head span {
+  color: var(--text);
+}
+.context-window-head strong {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+}
+.context-window-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.context-window-track span {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent) 78%, white);
+}
+.context-window-control:hover {
+  border-color: var(--border-soft);
+  color: var(--text);
+}
+@media (max-width: 980px) {
+  .context-window-control {
+    width: 128px;
+  }
+  .context-window-head span {
+    display: none;
+  }
+}
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; padding: 0; border-radius: 9px; flex: 0 0 auto;
@@ -2413,6 +2474,7 @@ body {
 }
 .permission-mode-btn,
 .library-context-actions button,
+.context-window-control,
 .model-select,
 .effort-control {
   border-color: transparent;
