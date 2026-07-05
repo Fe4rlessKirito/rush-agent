@@ -26,11 +26,14 @@ function conversation(
 
 describe("getVisibleSidebarConversations", () => {
   it("shows all chats in recents newest-first", () => {
-    const visible = getVisibleSidebarConversations([
-      conversation("old-global-agent", 10),
-      conversation("new-project-flow", 30, "project-a"),
-      conversation("middle-project-agent", 20, "project-b"),
-    ]);
+    const visible = getVisibleSidebarConversations(
+      [
+        conversation("old-global-agent", 10),
+        conversation("new-project-flow", 30, "project-a"),
+        conversation("middle-project-agent", 20, "project-b"),
+      ],
+      null,
+    );
 
     expect(visible.map((c) => c.id)).toEqual([
       "new-project-flow",
@@ -39,17 +42,22 @@ describe("getVisibleSidebarConversations", () => {
     ]);
   });
 
-  it("does not filter project-scoped chats anymore", () => {
-    const visible = getVisibleSidebarConversations([
-      conversation("project-a-flow", 10, "project-a"),
-      conversation("project-b-agent", 30, "project-b"),
-      conversation("project-a-agent", 20, "project-a"),
-      conversation("global-agent", 40),
-    ]);
+  it("filters recents to the active project when a project is open", () => {
+    const visible = getVisibleSidebarConversations(
+      [
+        conversation("project-a-flow", 10, "project-a"),
+        conversation("project-b-agent", 30, "project-b"),
+        conversation("project-a-agent", 20, "project-a"),
+        conversation("global-agent", 40),
+      ],
+      {
+        projectId: "project-a",
+        projectRoot: "C:/work/project-a",
+        projectName: "Project A",
+      },
+    );
 
     expect(visible.map((c) => c.id)).toEqual([
-      "global-agent",
-      "project-b-agent",
       "project-a-agent",
       "project-a-flow",
     ]);

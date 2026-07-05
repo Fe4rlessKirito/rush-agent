@@ -1,11 +1,14 @@
 import { lazy, Suspense, useState, useEffect } from "react";
-import type { LibraryFilter } from "./components/LibraryView";
 import { ChatPanel } from "./components/ChatPanel";
 import { AppTitlebar } from "./components/AppTitlebar";
 import { Sidebar } from "./components/Sidebar";
+import type { LibraryFilter } from "./components/LibraryView";
 import { ToastHost } from "./components/ToastHost";
 import { checkForUpdates } from "../core/updater";
 import { useAppStore, type ConversationMode } from "../core/store";
+import { useProjectStore } from "../core/projectStore";
+import { useFileStore } from "../core/fileStore";
+import { setDesktopProjectRoot } from "../core/projectRoot";
 
 const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((m) => ({ default: m.SettingsPanel })));
 const LibraryView = lazy(() => import("./components/LibraryView").then((m) => ({ default: m.LibraryView })));
@@ -14,8 +17,11 @@ const DeepResearchView = lazy(() => import("./components/DeepResearchView").then
 const WebProbingView = lazy(() => import("./components/WebProbingView").then((m) => ({ default: m.WebProbingView })));
 const FlowView = lazy(() => import("./components/FlowView").then((m) => ({ default: m.FlowView })));
 
-type View = "chat" | "library" | "flow" | "webProbing";
+type View = "chat" | "projects" | "library" | "flow" | "webProbing";
 type SettingsTab = "general" | "providers" | "proxies" | "tools" | "packs" | "lsp" | "mcp";
+function normalizeProjectRoot(path: string): string {
+  return path.trim().replace(/[\\/]+$/, "");
+}
 
 export function App() {
   const [showSettings, setShowSettings] = useState(false);
@@ -27,20 +33,32 @@ export function App() {
   const [viewHistory, setViewHistory] = useState<View[]>(["chat"]);
   const [viewHistoryIndex, setViewHistoryIndex] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [inProject, setInProject] = useState(false);
+  const [currentBranch] = useState("");
   const autoUpdateEnabled = useAppStore((s) => s.autoUpdateEnabled);
   const activeConversationId = useAppStore((s) => s.activeConversationId);
   const conversations = useAppStore((s) => s.conversations);
+  const conversationProjectContext = useAppStore((s) => s.conversationProjectContext);
   const selectConversation = useAppStore((s) => s.selectConversation);
+  const setConversationProjectContext = useAppStore((s) => s.setConversationProjectContext);
+  const openProject = useProjectStore((s) => s.openProject);
+  const saveActiveFiles = useProjectStore((s) => s.saveActiveFiles);
+  const activeProject = useProjectStore((s) =>
+    s.projects.find((p) => p.id === s.activeProjectId),
+  );
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId);
   const sessionTitle = activeConversation?.title && !activeConversation.title.startsWith("New ")
     ? activeConversation.title
     : view === "library"
       ? "Library"
-      : view === "webProbing"
-        ? "Web Probing"
-        : view === "flow"
-          ? "Flow"
-          : "Untitled session";
+      : view === "projects"
+        ? "Projects"
+        : view === "webProbing"
+          ? "Web Probing"
+          : view === "flow"
+            ? "Flow"
+            : "Untitled session";
+  const titlebarProjectName = activeProject?.name || conversationProjectContext?.projectName || activeConversation?.projectName || "rush-agent";
 
   const navigateView = (next: View) => {
     setViewState((current) => {
@@ -70,6 +88,33 @@ export function App() {
     });
   };
 
+  const enterProject = async (id: string) => {
+    openProject(id);
+    const project = useProjectStore.getState().projects.find((p) => p.id === id);
+    if (project) {
+      setConversationProjectContext({
+        projectId: project.id,
+        projectRoot: normalizeProjectRoot(project.path),
+        projectName: project.name,
+      });
+    }
+    if (project?.path) {
+      try {
+        await setDesktopProjectRoot(project.path);
+        await useFileStore.getState().loadFromDisk(project.path);
+      } catch (err) {
+        console.warn("set_project_root failed", err);
+      }
+    }
+    setInProject(true);
+  };
+
+  const leaveProject = () => {
+    saveActiveFiles();
+    setConversationProjectContext(null);
+    setInProject(false);
+  };
+
   const openLibraryConversation = (id: string, mode: ConversationMode) => {
     const selectedMode = selectConversation(id) ?? mode;
     navigateView(selectedMode === "flow" ? "flow" : "chat");
@@ -82,9 +127,48 @@ export function App() {
   };
 
   useEffect(() => {
+    if (!inProject) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unsub = useFileStore.subscribe((state, prev) => {
+      if (state.files === prev.files) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => saveActiveFiles(), 600);
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsub();
+      saveActiveFiles();
+    };
+  }, [inProject, saveActiveFiles]);
+
+  useEffect(() => {
     if (!autoUpdateEnabled) return;
     void checkForUpdates(true);
   }, [autoUpdateEnabled]);
+
+  useEffect(() => {
+    const root = normalizeProjectRoot(activeProject?.path ?? "");
+    if (!root) return;
+
+    let cancelled = false;
+    async function syncProjectRoot() {
+      try {
+        await setDesktopProjectRoot(root);
+        if (cancelled) return;
+        const fileState = useFileStore.getState();
+        if (fileState.mode !== "disk" || normalizeProjectRoot(fileState.root) !== root) {
+          await fileState.loadFromDisk(root);
+        }
+      } catch (err) {
+        console.warn("sync project root failed", err);
+      }
+    }
+
+    void syncProjectRoot();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProject?.path]);
 
   return (
     <div className="app">
@@ -93,8 +177,8 @@ export function App() {
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
         sessionTitle={sessionTitle}
-        projectName="Rush"
-        branchName=""
+        projectName={titlebarProjectName}
+        branchName={currentBranch}
         canGoBack={viewHistoryIndex > 0}
         canGoForward={viewHistoryIndex < viewHistory.length - 1}
         onBack={goBack}
@@ -111,9 +195,27 @@ export function App() {
       />
 
       <div className={"app-body" + (sidebarCollapsed ? " sidebar-collapsed" : "")}>
-        <Sidebar view={view} onSelectView={navigateView} />
+        <Sidebar
+          view={view}
+          onSelectView={navigateView}
+          onOpenProject={enterProject}
+          onOpenRoot={leaveProject}
+          projectContext={inProject && activeProject ? {
+            projectId: activeProject.id,
+            projectRoot: normalizeProjectRoot(activeProject.path),
+            projectName: activeProject.name,
+          } : null}
+        />
 
         {view === "chat" && (
+          <main className="chat-view">
+            <div className="chat-center">
+              <ChatPanel />
+            </div>
+          </main>
+        )}
+
+        {view === "projects" && (
           <main className="chat-view">
             <div className="chat-center">
               <ChatPanel />
@@ -137,12 +239,14 @@ export function App() {
           </Suspense>
         )}
 
+
         {view === "flow" && (
           <Suspense fallback={null}>
             <FlowView />
           </Suspense>
         )}
       </div>
+
 
       {showSettings && (
         <Suspense fallback={null}>
