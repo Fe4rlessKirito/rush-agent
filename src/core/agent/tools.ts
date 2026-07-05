@@ -153,6 +153,23 @@ const READ_TOOLS = new Set([
   "release_verify",
   "dependency_audit",
   "app_research_run",
+  "memory_retrieve",
+  "rag_search",
+  "rag_list",
+  "read_docx",
+  "read_pptx",
+  "read_excel",
+  "read_csv",
+  "read_pdf",
+  "ocr_image",
+  "split_up",
+  "github_whoami",
+  "github_list_repos",
+  "github_get_repo",
+  "github_list_branches",
+  "github_get_file",
+  "github_list_issues",
+  "github_search_repos",
 ]);
 
 // Tools that are always destructive regardless of args.

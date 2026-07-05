@@ -1,19 +1,15 @@
 {
-  "version": "1.7.35",
-  "notes": "Update tool activity UI to match compact grouped tool-call formatting with icons, file badges, and inline paths.",
-  "pub_date": "2026-07-05T00:00:00Z",
+  "version": "1.7.36",
+  "notes": "Rush v1.7.36 adds Oblivian-inspired memory, RAG, document, split-up, and GitHub REST tools, plus an end-of-message file change review panel and dark native model picker dropdowns.",
+  "pub_date": "2026-07-05T12:59:17Z",
   "platforms": {
-    "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na01lU1IwQ1RwUHg1Y0oxQnZBUFFDaFJzWVZtbjRCbTBzVGIyZElWayt2NVRNRHE2azRXWGRkKzFxbmJITUhMVnRiajV2YXh2OGl2ekxlMVkzZHM5L1FBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjUyMDk5CWZpbGU6UnVzaF8xLjcuMzVfeDY0LXNldHVwLmV4ZQpndUJ2RDJGYlBJdWVFVmFKQUk1S2wwWFN6Y0h5azErcGFOdC8rQ2RGY28wY0pUTGdBOGtWY0VhamZMRGRlWURiMGwvS3M0TC9PUzU5ZTY3QTFPRG5CQT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.35/Rush_1.7.35_x64-setup.exe"
-    },
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na01lU1IwQ1RwUHg1Y0oxQnZBUFFDaFJzWVZtbjRCbTBzVGIyZElWayt2NVRNRHE2azRXWGRkKzFxbmJITUhMVnRiajV2YXh2OGl2ekxlMVkzZHM5L1FBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjUyMDk5CWZpbGU6UnVzaF8xLjcuMzVfeDY0LXNldHVwLmV4ZQpndUJ2RDJGYlBJdWVFVmFKQUk1S2wwWFN6Y0h5azErcGFOdC8rQ2RGY28wY0pUTGdBOGtWY0VhamZMRGRlWURiMGwvS3M0TC9PUzU5ZTY3QTFPRG5CQT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.35/Rush_1.7.35_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0ZhNEpJN3FjTmt0dzdsZnNncXpEUUMrcDZCUnNPZGFEM0hxN3BxdWh0V0tsVEtHMHBmSzRnSzFJSklqYUV3VndrNnIrajI3TmxjRHorSWkwM3U1TVFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjU2MzI2CWZpbGU6UnVzaF8xLjcuMzZfeDY0LXNldHVwLmV4ZQpFZHczb3Yxd1F3N1czZHBnbE53dGxWZStpbHpSWERLa3ZNZjdUWlREb0hPdlNHcUl6dzIrRzBiak1ZeUViR2s3bmJhY0FieHJYZ3JLckhIdzQzR3ZEZz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.36/Rush_1.7.36_x64-setup.exe"
     },
-    "windows-x86_64-pc-windows-msvc": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na01lU1IwQ1RwUHg1Y0oxQnZBUFFDaFJzWVZtbjRCbTBzVGIyZElWayt2NVRNRHE2azRXWGRkKzFxbmJITUhMVnRiajV2YXh2OGl2ekxlMVkzZHM5L1FBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjUyMDk5CWZpbGU6UnVzaF8xLjcuMzVfeDY0LXNldHVwLmV4ZQpndUJ2RDJGYlBJdWVFVmFKQUk1S2wwWFN6Y0h5azErcGFOdC8rQ2RGY28wY0pUTGdBOGtWY0VhamZMRGRlWURiMGwvS3M0TC9PUzU5ZTY3QTFPRG5CQT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.35/Rush_1.7.35_x64-setup.exe"
+    "windows-x86_64-msi": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0FOQTJKZVZFVno4OSs1TkVYUGFvTnhiWU90SllTMmRYb2hseXZaL2crZjRSRWNaejNzWFBUUW1jVy9vSzBzU2RkZlJvV2xmSE9JbDdoY2hlZWlVckFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjU2MzI2CWZpbGU6UnVzaF8xLjcuMzZfeDY0X2VuLVVTLm1zaQpYb01HV2cya1ZHV2g3dzFnYUFJbWNMMXVFNU9VRm5VVVJGbDRRQXpZa1lkM20wQjFPNWpEcENoQThZZkRwb09GdFl3clRYR2ZvdzVlSnRXNWlPMGJDQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.36/Rush_1.7.36_x64_en-US.msi"
     }
   }
 }

@@ -68,6 +68,8 @@ describe("tool permission rules", () => {
     expect(isToolAvailableInMode("chat", "read_file")).toBe(false);
     expect(isToolAvailableInMode("code", "read_file")).toBe(true);
     expect(isToolAvailableInMode("code", "Agent")).toBe(true);
-    expect(isToolAvailableInMode("flow", "Agent")).toBe(true);
+    expect(isToolAvailableInMode("code", "memory_retrieve")).toBe(true);
+    expect(isToolAvailableInMode("code", "github_get_file")).toBe(true);
+    expect(isToolAvailableInMode("flow", "split_up")).toBe(true);
   });
 });

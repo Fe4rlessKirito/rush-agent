@@ -3,7 +3,7 @@ import { riskOf, summarize } from "./tools";
 
 describe("riskOf", () => {
   it("classifies pure read tools as 'read'", () => {
-    for (const name of ["read_file", "read_file_range", "read_many_files", "file_info", "project_files_summary", "list_dir", "list_tree", "git_status", "git_diff", "git_log", "git_show", "git_blame", "grep_search", "deep_research_search", "ui_inspect", "screenshot_url", "release_prepare", "release_verify", "dependency_audit", "project_context"]) {
+    for (const name of ["read_file", "read_file_range", "read_many_files", "file_info", "project_files_summary", "list_dir", "list_tree", "git_status", "git_diff", "git_log", "git_show", "git_blame", "grep_search", "deep_research_search", "ui_inspect", "screenshot_url", "release_prepare", "release_verify", "dependency_audit", "project_context", "memory_retrieve", "rag_search", "rag_list", "read_docx", "read_pptx", "read_excel", "read_csv", "read_pdf", "ocr_image", "split_up", "github_whoami", "github_list_repos", "github_get_repo", "github_list_branches", "github_get_file", "github_list_issues", "github_search_repos"]) {
       expect(riskOf(name, {})).toBe("read");
     }
   });
@@ -21,7 +21,12 @@ describe("riskOf", () => {
     expect(riskOf("create_dir", { path: "src/new" })).toBe("write");
     expect(riskOf("open_url", { url: "http://localhost:1420" })).toBe("write");
     expect(riskOf("search_replace", { dryRun: false })).toBe("write");
-    expect(riskOf("search_replace", {})).toBe("read");
+      expect(riskOf("write_excel", { path: "out.csv" })).toBe("write");
+      expect(riskOf("memory_save", { text: "remember this" })).toBe("write");
+      expect(riskOf("memory_forget", { query: "old" })).toBe("write");
+      expect(riskOf("rag_add", { name: "spec", content: "text" })).toBe("write");
+      expect(riskOf("github_put_file", { owner: "o", repo: "r", path: "README.md" })).toBe("write");
+      expect(riskOf("github_create_issue", { owner: "o", repo: "r", title: "bug" })).toBe("write");
   });
 
   it("treats a format_files dry-run check as read-only, not destructive", () => {

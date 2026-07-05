@@ -17,6 +17,9 @@ export interface ChatLine {
     speaker?: string;
     startedAt?: number;
     completedAt?: number;
+    toolName?: string;
+    toolArgs?: Record<string, unknown>;
+    toolResult?: string;
   };
 }
 

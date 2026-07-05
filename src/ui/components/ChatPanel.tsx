@@ -33,6 +33,11 @@ import { createMcpTools } from "../../core/agent/mcpTools";
 import { createProjectTools } from "../../core/agent/projectTools";
 import { createReleaseTools } from "../../core/agent/releaseTools";
 import { createBrowserTools } from "../../core/agent/browserTools";
+import { createMemoryTools } from "../../core/agent/memoryTools";
+import { createRagTools } from "../../core/agent/ragTools";
+import { createDocumentTools } from "../../core/agent/documentTools";
+import { createSplitUpTools } from "../../core/agent/splitUpTools";
+import { createGithubTools } from "../../core/agent/githubTools";
 import { createDynamicMcpTools, createMcpConfigTools, mcpRuntimeSource } from "../../core/agent/mcpRuntime";
 import { isToolAvailableInMode } from "../../core/agent/toolModes";
 import { buildFlowRuntimeInstructions } from "../../core/agent/flowPrompt";
@@ -144,6 +149,27 @@ function registerCodeToolset(registry: ToolRegistry, mode: "code" | "flow") {
   registry.registerAll(createMcpConfigTools());
   registry.registerAll(createReleaseTools(fs));
   registry.registerAll(createBrowserTools());
+  registry.registerAll(createMemoryTools());
+  registry.registerAll(createRagTools());
+  registry.registerAll(createDocumentTools(fs));
+  registry.registerAll(createGithubTools());
+  registry.registerAll(createSplitUpTools({
+    getProvider: () => {
+      const state = useAppStore.getState();
+      if (!state.activeProviderId) throw new Error("No active provider selected.");
+      return new ProviderRegistry(state.providers).get(state.activeProviderId);
+    },
+    getModel: () => {
+      const state = useAppStore.getState();
+      if (!state.activeModel) throw new Error("No active model selected.");
+      return state.activeModel;
+    },
+    getTools: () => registry,
+    getProjectInstructions: () => {
+      const state = useProjectStore.getState();
+      return state.projects.find((p) => p.id === state.activeProjectId)?.instructions ?? "";
+    },
+  }));
   registry.registerAll(createProjectTools({
     getContext: () => {
       const projectState = useProjectStore.getState();
@@ -354,6 +380,28 @@ interface ToolActivityDisplay {
   badge: string;
 }
 
+interface FileEditReviewItem {
+  key: string;
+  path: string;
+  name: string;
+  dir: string;
+  ext: string;
+  added: number;
+  removed: number;
+}
+
+const FILE_EDIT_TOOLS = new Set([
+  "write_file",
+  "write_many_files",
+  "edit_file",
+  "Edit",
+  "Write",
+  "search_replace",
+  "format_files",
+  "write_excel",
+  "github_put_file",
+]);
+
 function fileParts(value: string): { name: string; dir: string; ext: string } {
   const clean = value.trim().replace(/\\/g, "/");
   if (!clean) return { name: "", dir: "", ext: "" };
@@ -411,6 +459,55 @@ function activityGroupLabel(items: ToolActivityDisplay[]): { kind: ToolActivityD
   const unit = kind === "read" || kind === "edit" || kind === "explore" ? "file" : "tool";
   const count = `${Math.max(1, uniqueTargets.size || source.length)} ${unit}${Math.max(1, uniqueTargets.size || source.length) === 1 ? "" : "s"}`;
   return { kind: kind as ToolActivityDisplay["kind"], action, count };
+}
+
+function pathFromToolArgs(args: Record<string, unknown> | undefined): string {
+  return toolTarget(args, ["path", "file_path", "output_path", "filename", "owner", "repo"]);
+}
+
+function parseDiffStat(text: string | undefined): { added: number; removed: number } {
+  const value = text ?? "";
+  const compact = value.match(/\+(\d+)\s+-([0-9]+)/);
+  if (compact) return { added: Number(compact[1]), removed: Number(compact[2]) };
+  const added = value.match(/(\d+)\s+(?:insertions?|additions?|added)/i);
+  const removed = value.match(/(\d+)\s+(?:deletions?|removals?|removed)/i);
+  return { added: added ? Number(added[1]) : 0, removed: removed ? Number(removed[1]) : 0 };
+}
+
+function fileEditReviewItems(lines: Array<{ line: ChatLine; index: number }>): FileEditReviewItem[] {
+  const byPath = new Map<string, FileEditReviewItem>();
+  for (const { line, index } of lines) {
+    if (line.role !== "tool") continue;
+    const toolName = line.meta?.toolName;
+    const display = compactToolAction(line.text);
+    const isEdit = display.kind === "edit" || FILE_EDIT_TOOLS.has(String(toolName));
+    if (!isEdit) continue;
+
+    const explicitPath = pathFromToolArgs(line.meta?.toolArgs);
+    const fallbackPath = `${display.detail}${display.title}`.trim();
+    const path = explicitPath || fallbackPath;
+    if (!path) continue;
+
+    const parts = fileParts(path);
+    const stats = parseDiffStat(line.meta?.toolResult ?? line.text);
+    const existing = byPath.get(path);
+    byPath.set(path, {
+      key: existing?.key ?? `${index}:${path}`,
+      path,
+      name: parts.name || display.title || path,
+      dir: parts.dir || display.detail,
+      ext: parts.ext || display.badge || "file",
+      added: (existing?.added ?? 0) + stats.added,
+      removed: (existing?.removed ?? 0) + stats.removed,
+    });
+  }
+  return [...byPath.values()];
+}
+
+function fileEditReviewSummary(items: FileEditReviewItem[]): { added: number; removed: number; label: string } {
+  const added = items.reduce((sum, item) => sum + item.added, 0);
+  const removed = items.reduce((sum, item) => sum + item.removed, 0);
+  return { added, removed, label: `${items.length} file${items.length === 1 ? "" : "s"} changed` };
 }
 
 function ActivityIcon({ kind }: { kind: ToolActivityDisplay["kind"] }) {
@@ -1387,12 +1484,12 @@ export function ChatPanel({ mode }: Props) {
             } else if (ev.type === "tool_call") {
               if (ev.toolName) toolNamesUsed.push(ev.toolName);
               if (ev.toolName === "suggest_mode_switch") {
-                setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs) }, { role: "agent", text: "" }]);
+                setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs), meta: { toolName: ev.toolName, toolArgs: ev.toolArgs } }, { role: "agent", text: "" }]);
               } else {
-                setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs) }, { role: "agent", text: "" }]);
+                setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs), meta: { toolName: ev.toolName, toolArgs: ev.toolArgs } }, { role: "agent", text: "" }]);
               }
             } else if (ev.type === "tool_result") {
-              setChat((l) => [...l, { role: "tool", text: describeToolResult(ev.toolName, ev.toolResult) }, { role: "agent", text: "" }]);
+              setChat((l) => [...l, { role: "tool", text: describeToolResult(ev.toolName, ev.toolResult), meta: { toolName: ev.toolName, toolResult: ev.toolResult } }, { role: "agent", text: "" }]);
             } else if (ev.type === "error") {
               setChat((l) => [...l, { role: "tool", text: `Error: ${ev.text}` }]);
             }
@@ -1486,7 +1583,7 @@ export function ChatPanel({ mode }: Props) {
       } else if (e.type === "tool_call") {
         if (e.toolName) toolNamesUsed.push(e.toolName);
         if (!isFlow && e.toolName === "suggest_mode_switch") {
-          setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs) }, { role: "agent", text: "" }]);
+          setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs), meta: { toolName: e.toolName, toolArgs: e.toolArgs } }, { role: "agent", text: "" }]);
           return;
         }
         if (flowRun) {
@@ -1523,7 +1620,7 @@ export function ChatPanel({ mode }: Props) {
             `\n${describeToolCall(e.toolName, e.toolArgs)}`,
           );
         }
-        setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs) }, { role: "agent", text: "" }]);
+        setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs), meta: { toolName: e.toolName, toolArgs: e.toolArgs } }, { role: "agent", text: "" }]);
       } else if (e.type === "tool_result") {
         if (e.toolName === "suggest_mode_switch" && flowRun) {
           return;
@@ -1539,7 +1636,7 @@ export function ChatPanel({ mode }: Props) {
             useFlowStore.getState().setLaneStatus(flowRun.id, laneId, "completed", "Subagent returned a result.");
           }
         }
-        setChat((l) => [...l, { role: "tool", text: describeToolResult(e.toolName, e.toolResult) }, { role: "agent", text: "" }]);
+        setChat((l) => [...l, { role: "tool", text: describeToolResult(e.toolName, e.toolResult), meta: { toolName: e.toolName, toolResult: e.toolResult } }, { role: "agent", text: "" }]);
       } else if (e.type === "error") {
         if (flowRun) {
           useFlowStore.getState().setLaneStatus(flowRun.id, flowSawTool ? "worker" : "planner", "blocked", e.text ?? "Flow blocked.");
@@ -1768,7 +1865,9 @@ export function ChatPanel({ mode }: Props) {
           const runStatusLabel = isActiveRun && activeRunStartedAt
             ? `Working for ${formatElapsed(elapsedNow - activeRunStartedAt)}`
             : elapsedLabel(timedLine?.meta?.startedAt, timedLine?.meta?.completedAt, "Worked");
-          if (activityLines.length === 0 && answerLines.length === 0 && !isActiveRun) return null;
+          const editReviewItems = fileEditReviewItems(lines);
+          const editReviewSummary = fileEditReviewSummary(editReviewItems);
+          if (activityLines.length === 0 && answerLines.length === 0 && editReviewItems.length === 0 && !isActiveRun) return null;
 
           return (
             <div key={item.startIndex} className={"agent-run" + (isActiveRun ? " active" : "") }>
@@ -1840,6 +1939,43 @@ export function ChatPanel({ mode }: Props) {
                   </div>
                 );
               })}
+
+              {editReviewItems.length > 0 && !isActiveRun && (
+                <details className="agent-edit-review">
+                  <summary>
+                    <span className="agent-edit-review-icon"><ActivityIcon kind="edit" /></span>
+                    <span className="agent-edit-review-label">{editReviewSummary.label}</span>
+                    {(editReviewSummary.added > 0 || editReviewSummary.removed > 0) && (
+                      <>
+                        <span className="agent-edit-review-added">+{editReviewSummary.added}</span>
+                        <span className="agent-edit-review-removed">-{editReviewSummary.removed}</span>
+                      </>
+                    )}
+                  </summary>
+                  <div className="agent-edit-review-list">
+                    {editReviewItems.map((edit) => (
+                      <details key={edit.key} className="agent-edit-review-row">
+                        <summary>
+                          <span className={`agent-file-badge ${edit.ext}`}>{edit.ext.slice(0, 4)}</span>
+                          <span className="agent-edit-review-file">{edit.name}</span>
+                          {edit.dir && <span className="agent-edit-review-dir">{edit.dir}</span>}
+                          {(edit.added > 0 || edit.removed > 0) && (
+                            <span className="agent-edit-review-stats">
+                              <span className="agent-edit-review-added">+{edit.added}</span>
+                              <span className="agent-edit-review-removed">-{edit.removed}</span>
+                            </span>
+                          )}
+                        </summary>
+                        <div className="agent-edit-review-body">
+                          <button type="button">Review</button>
+                          <button type="button">Open</button>
+                          <code>{edit.path}</code>
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </details>
+              )}
             </div>
           );
         })}
