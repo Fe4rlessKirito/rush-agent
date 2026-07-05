@@ -160,9 +160,24 @@ function registerCodeToolset(registry: ToolRegistry, mode: "code" | "flow") {
   registry.registerDynamic(() => createDynamicMcpTools());
 }
 
-// A proposal by default: ChatPanel intercepts its tool_call/tool_result events
-// and renders a confirm banner. When permissions are Full access, a Chat-mode
-// request to enter Code mode can be applied immediately.
+interface PendingModeSwitch {
+  mode: "plain" | "agent";
+  reason: string;
+  resolve: (ok: boolean) => void;
+}
+
+function modeLabel(mode: "plain" | "agent"): string {
+  return mode === "agent" ? "Code" : "Chat";
+}
+
+function modeSwitchResult(mode: "plain" | "agent", source: "auto" | "approved" | "dismissed"): string {
+  if (source === "auto") return `Switched to ${modeLabel(mode)} mode automatically because permissions are Full access.`;
+  if (source === "approved") return `Switched to ${modeLabel(mode)} mode after the user approved the request.`;
+  return `Mode switch to ${modeLabel(mode)} mode was dismissed by the user.`;
+}
+
+let handleModeSwitchRequest: ((mode: "plain" | "agent", reason: string) => Promise<string>) | null = null;
+
 const suggestModeSwitchTool: Tool = {
   definition: {
     name: "suggest_mode_switch",
@@ -177,10 +192,12 @@ const suggestModeSwitchTool: Tool = {
       required: ["mode", "reason"],
     },
   },
-  execute: async (args) => ({
-    ok: true,
-    content: `Proposed switching to ${args.mode === "agent" ? "Code" : "Chat"} mode. Waiting on the user to confirm or dismiss.`,
-  }),
+  execute: async (args) => {
+    const mode = args.mode === "plain" ? "plain" : "agent";
+    const reason = String(args.reason ?? "");
+    const result = await handleModeSwitchRequest?.(mode, reason);
+    return { ok: true, content: result ?? `Mode switch to ${modeLabel(mode)} mode could not be handled by the UI.` };
+  },
 };
 
 export const codeTools = new ToolRegistry({
@@ -327,6 +344,87 @@ interface RenderedChatItem {
   startIndex: number;
   user?: ChatLine;
   lines?: Array<{ line: ChatLine; index: number }>;
+}
+
+interface ToolActivityDisplay {
+  kind: "explore" | "read" | "edit" | "run" | "web" | "mode" | "done" | "other";
+  action: string;
+  title: string;
+  detail: string;
+  badge: string;
+}
+
+function fileParts(value: string): { name: string; dir: string; ext: string } {
+  const clean = value.trim().replace(/\\/g, "/");
+  if (!clean) return { name: "", dir: "", ext: "" };
+  const parts = clean.split("/").filter(Boolean);
+  const name = parts.pop() ?? clean;
+  const dir = parts.join("/");
+  const ext = name.includes(".") ? name.split(".").pop()?.toLowerCase() ?? "" : "";
+  return { name, dir: dir ? `${dir}/` : "", ext };
+}
+
+function compactToolAction(text: string): ToolActivityDisplay {
+  const trimmed = text.trim();
+  const [, usingAction = "tool", rawTarget = ""] = trimmed.match(/^Using ([^:]+)(?::\s*(.*))?$/) ?? [];
+  const [, finishedAction = ""] = trimmed.match(/^Finished (.+)$/) ?? [];
+  const didNotComplete = trimmed.match(/^(.+) did not complete$/);
+  if (trimmed.startsWith("Switched to ") || trimmed.startsWith("Mode switch to ")) {
+    return { kind: "mode", action: "Mode", title: trimmed, detail: "", badge: "" };
+  }
+  if (finishedAction) {
+    return { kind: "done", action: "Done", title: finishedAction, detail: "", badge: "" };
+  }
+  if (didNotComplete) {
+    return { kind: "done", action: "Failed", title: didNotComplete[1], detail: "", badge: "" };
+  }
+
+  const target = rawTarget.trim();
+  const file = fileParts(target);
+  const action = usingAction.toLowerCase();
+  if (action.includes("read") || action.includes("lines")) {
+    return { kind: "read", action: "Read", title: file.name || target || usingAction, detail: file.dir, badge: file.ext || "file" };
+  }
+  if (action.includes("edit") || action.includes("write") || action.includes("format")) {
+    return { kind: "edit", action: "Edited", title: file.name || target || usingAction, detail: file.dir, badge: file.ext || "file" };
+  }
+  if (action.includes("list") || action.includes("find") || action.includes("search") || action.includes("inspect project")) {
+    return { kind: "explore", action: action.includes("search") ? "Search" : "Explore", title: target || usingAction, detail: "", badge: "" };
+  }
+  if (action.includes("command") || action.includes("terminal") || action.includes("test") || action.includes("lint")) {
+    return { kind: "run", action: "Run", title: target || usingAction, detail: "", badge: "" };
+  }
+  if (action.includes("web") || action.includes("url") || action.includes("page")) {
+    return { kind: "web", action: "Web", title: target || usingAction, detail: "", badge: "" };
+  }
+  return { kind: "other", action: "Tool", title: target || trimmed, detail: "", badge: file.ext };
+}
+
+function activityGroupLabel(items: ToolActivityDisplay[]): { kind: ToolActivityDisplay["kind"]; action: string; count: string } {
+  const meaningful = items.filter((item) => item.kind !== "done");
+  const source = meaningful.length ? meaningful : items;
+  const counts = new Map<string, number>();
+  for (const item of source) counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
+  const [kind] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? ["other", 0];
+  const action = kind === "explore" ? "Explore" : kind === "edit" ? "Edited" : kind === "read" ? "Read" : kind === "run" ? "Run" : kind === "web" ? "Web" : kind === "mode" ? "Mode" : "Tools";
+  const uniqueTargets = new Set(source.map((item) => `${item.detail}${item.title}`).filter(Boolean));
+  const unit = kind === "read" || kind === "edit" || kind === "explore" ? "file" : "tool";
+  const count = `${Math.max(1, uniqueTargets.size || source.length)} ${unit}${Math.max(1, uniqueTargets.size || source.length) === 1 ? "" : "s"}`;
+  return { kind: kind as ToolActivityDisplay["kind"], action, count };
+}
+
+function ActivityIcon({ kind }: { kind: ToolActivityDisplay["kind"] }) {
+  const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {kind === "explore" && <><circle {...common} cx="10.5" cy="10.5" r="5.5" /><path {...common} d="m15 15 4 4" /></>}
+      {kind === "edit" && <><path {...common} d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17z" /><path {...common} d="m14 7 3 3" /></>}
+      {kind === "run" && <><path {...common} d="m8 5 10 7-10 7z" /></>}
+      {kind === "web" && <><circle {...common} cx="12" cy="12" r="8" /><path {...common} d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16" /></>}
+      {kind === "mode" && <><path {...common} d="M7 7h10v10H7z" /><path {...common} d="M4 12h3M17 12h3M12 4v3M12 17v3" /></>}
+      {(kind === "read" || kind === "done" || kind === "other") && <><path {...common} d="M7 3h7l4 4v14H7z" /><path {...common} d="M14 3v5h5" /></>}
+    </svg>
+  );
 }
 
 function displayValue(value: unknown): string {
@@ -545,7 +643,6 @@ export function ChatPanel({ mode }: Props) {
     flowCompactSummary,
     setFlowCompactSummary,
     chatMode,
-    setChatMode,
     conversations,
     subagentRuns,
     activeSubagentRunId,
@@ -601,7 +698,7 @@ export function ChatPanel({ mode }: Props) {
   const [busy, setBusy] = useState(false);
   const [activeRunStartedAt, setActiveRunStartedAt] = useState<number | null>(null);
   const [elapsedNow, setElapsedNow] = useState(() => Date.now());
-  const [pendingModeSwitch, setPendingModeSwitch] = useState<{ mode: "plain" | "agent"; reason: string } | null>(null);
+  const [pendingModeSwitch, setPendingModeSwitch] = useState<PendingModeSwitch | null>(null);
   const [effort, setEffort] = useState(1);
   const [showPermissionMenu, setShowPermissionMenu] = useState(false);
   // Models offered by the active provider, for the composer's model selector.
@@ -659,6 +756,39 @@ export function ChatPanel({ mode }: Props) {
       return null;
     });
   };
+
+  useEffect(() => {
+    handleModeSwitchRequest = (mode, reason) => {
+      if (mode === "agent" && presetFromPermissions(useAppStore.getState().toolPermissions).id === "full") {
+        useAppStore.getState().setChatMode("agent");
+        return Promise.resolve(modeSwitchResult(mode, "auto"));
+      }
+      return new Promise<string>((resolve) => {
+        setPendingModeSwitch({
+          mode,
+          reason,
+          resolve: (ok) => {
+            if (ok) {
+              useAppStore.getState().setChatMode(mode);
+              resolve(modeSwitchResult(mode, "approved"));
+            } else {
+              resolve(modeSwitchResult(mode, "dismissed"));
+            }
+          },
+        });
+      });
+    };
+    return () => {
+      handleModeSwitchRequest = null;
+    };
+  }, []);
+
+  function resolveModeSwitch(ok: boolean) {
+    setPendingModeSwitch((pending) => {
+      pending?.resolve(ok);
+      return null;
+    });
+  }
 
   // Load the active provider's model catalog so the selector lists real models.
   // Best-effort: a proxy that blocks CORS or fails just leaves the active model
@@ -731,7 +861,10 @@ export function ChatPanel({ mode }: Props) {
 
   useEffect(() => {
     setShowAllMessages(false);
-    setPendingModeSwitch(null);
+    setPendingModeSwitch((pending) => {
+      pending?.resolve(false);
+      return null;
+    });
   }, [activeConversationId, effectiveMode]);
 
   useLayoutEffect(() => {
@@ -1254,23 +1387,12 @@ export function ChatPanel({ mode }: Props) {
             } else if (ev.type === "tool_call") {
               if (ev.toolName) toolNamesUsed.push(ev.toolName);
               if (ev.toolName === "suggest_mode_switch") {
-                const requestedMode = ev.toolArgs?.mode === "agent" ? "agent" : "plain";
-                if (requestedMode === "agent" && permissionPreset.id === "full") {
-                  setChatMode("agent");
-                  setPendingModeSwitch(null);
-                } else {
-                  setPendingModeSwitch({
-                    mode: requestedMode,
-                    reason: String(ev.toolArgs?.reason ?? ""),
-                  });
-                }
+                setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs) }, { role: "agent", text: "" }]);
               } else {
                 setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs) }, { role: "agent", text: "" }]);
               }
             } else if (ev.type === "tool_result") {
-              if (ev.toolName !== "suggest_mode_switch") {
-                setChat((l) => [...l, { role: "tool", text: describeToolResult(ev.toolName, ev.toolResult) }, { role: "agent", text: "" }]);
-              }
+              setChat((l) => [...l, { role: "tool", text: describeToolResult(ev.toolName, ev.toolResult) }, { role: "agent", text: "" }]);
             } else if (ev.type === "error") {
               setChat((l) => [...l, { role: "tool", text: `Error: ${ev.text}` }]);
             }
@@ -1364,16 +1486,7 @@ export function ChatPanel({ mode }: Props) {
       } else if (e.type === "tool_call") {
         if (e.toolName) toolNamesUsed.push(e.toolName);
         if (!isFlow && e.toolName === "suggest_mode_switch") {
-          const requestedMode = e.toolArgs?.mode === "plain" ? "plain" : "agent";
-          if (requestedMode === "agent" && permissionPreset.id === "full") {
-            setChatMode("agent");
-            setPendingModeSwitch(null);
-          } else {
-            setPendingModeSwitch({
-              mode: requestedMode,
-              reason: String(e.toolArgs?.reason ?? ""),
-            });
-          }
+          setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs) }, { role: "agent", text: "" }]);
           return;
         }
         if (flowRun) {
@@ -1412,7 +1525,7 @@ export function ChatPanel({ mode }: Props) {
         }
         setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs) }, { role: "agent", text: "" }]);
       } else if (e.type === "tool_result") {
-        if (e.toolName === "suggest_mode_switch") {
+        if (e.toolName === "suggest_mode_switch" && flowRun) {
           return;
         }
         if (flowRun) {
@@ -1617,14 +1730,11 @@ export function ChatPanel({ mode }: Props) {
           <div className="mode-switch-banner-actions">
             <button
               type="button"
-              onClick={() => {
-                setChatMode(pendingModeSwitch.mode);
-                setPendingModeSwitch(null);
-              }}
+              onClick={() => resolveModeSwitch(true)}
             >
               Switch
             </button>
-            <button type="button" onClick={() => setPendingModeSwitch(null)}>
+            <button type="button" onClick={() => resolveModeSwitch(false)}>
               Dismiss
             </button>
           </div>
@@ -1647,6 +1757,7 @@ export function ChatPanel({ mode }: Props) {
 
           const lines = item.lines ?? [];
           const activityLines = lines.filter(({ line }) => line.role === "tool" && line.text.trim());
+          const activityItems = activityLines.map(({ line, index }) => ({ line, index, display: compactToolAction(line.text) }));
           const answerLines = lines.filter(({ line, index }) => {
             const isActiveEmptyAgent =
               busy && index === chat.length - 1 && line.role === "agent" && !line.text.trim() && !line.thinking?.trim();
@@ -1666,19 +1777,23 @@ export function ChatPanel({ mode }: Props) {
                 <span className="agent-run-status">{runStatusLabel}</span>
               </div>
 
-              {activityLines.length > 0 && (
+              {activityItems.length > 0 && (
                 <details className="agent-activity-details" open={isActiveRun}>
                   <summary>
-                    <span className="agent-activity-summary-label">
-                      {activityLines.length} tool activit{activityLines.length === 1 ? "y" : "ies"}
-                    </span>
+                    <span className="agent-activity-summary-icon"><ActivityIcon kind={activityGroupLabel(activityItems.map((item) => item.display)).kind} /></span>
+                    <span className="agent-activity-summary-label">{activityGroupLabel(activityItems.map((item) => item.display)).action}</span>
+                    <span className="agent-activity-dot">•</span>
+                    <span className="agent-activity-summary-count">{activityGroupLabel(activityItems.map((item) => item.display)).count}</span>
                     {isActiveRun && <span className="agent-activity-summary-status">running</span>}
                   </summary>
                   <div className="agent-activity-list">
-                    {activityLines.map(({ line, index }) => (
-                      <details key={index} className="agent-activity-row">
+                    {activityItems.map(({ line, index, display }) => (
+                      <details key={index} className={`agent-activity-row ${display.kind}`}>
                         <summary>
-                          <span>{line.text}</span>
+                          <span className="agent-activity-action">{display.action}</span>
+                          {display.badge && <span className={`agent-file-badge ${display.badge}`}>{display.badge.slice(0, 4)}</span>}
+                          <span className="agent-activity-title">{display.title}</span>
+                          {display.detail && <span className="agent-activity-detail">{display.detail}</span>}
                         </summary>
                         <div className="agent-activity-detail-body">
                           <Markdown>{line.text}</Markdown>
