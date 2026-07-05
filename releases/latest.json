@@ -1,19 +1,19 @@
 {
-  "version": "1.7.33",
-  "notes": "Add topbar Git branch dropdown and Git Graph, tighten composer controls, recover from post-tool model stream stalls, and add hybrid context compaction for long conversations.",
+  "version": "1.7.34",
+  "notes": "Add Full access auto-switch to Code mode, connect Chat to Deep Research runs, and group tool activity into a single expandable dropdown.",
   "pub_date": "2026-07-05T00:00:00Z",
   "platforms": {
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na09MOHpWK3c2THdoVk5qQ01CcTBzVk5DYVpVZVp3TlBwbUs1SXh2TWx6dEtCYVFoZDBlNFlOWGZWY0ZVTHZVREszSEs1bDdKWCtienNabXQvTlY4RGdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQ3MjI4CWZpbGU6UnVzaF8xLjcuMzNfeDY0LXNldHVwLmV4ZQpjV0J2QitGOVBEVHo5MjBQcWt5NUd3YWVzQmdqaTc1Vyt6OWFNcjJURTFucG04cGxIczdIYnZHTXVOR1V4TlNvM21TZDRZVys2aHJHUlBLS2FsNFdCdz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.33/Rush_1.7.33_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0ZJaEVIVmlkS3pHcTkzODBZN2xQQzBKbVZxVlMvZk5IODNrVjNLYW5YVFNsY0lreXoxZU40dy9zWkxxNmk1aEVEYWxuY0N6a2NxV1NEdFZUYm0rOGdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQ5OTAxCWZpbGU6UnVzaF8xLjcuMzRfeDY0LXNldHVwLmV4ZQpvU05QR3pqU2djNkVXZnVUbWRBYVBvWW40RVppbURLUnJvQUY2OXUvcmlDditQNlB0QTJxdWk0cG1nSkxKQ1BiOSswMWJmQkJxYTZOaEwrUk0xd09CQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.34/Rush_1.7.34_x64-setup.exe"
     },
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na09MOHpWK3c2THdoVk5qQ01CcTBzVk5DYVpVZVp3TlBwbUs1SXh2TWx6dEtCYVFoZDBlNFlOWGZWY0ZVTHZVREszSEs1bDdKWCtienNabXQvTlY4RGdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQ3MjI4CWZpbGU6UnVzaF8xLjcuMzNfeDY0LXNldHVwLmV4ZQpjV0J2QitGOVBEVHo5MjBQcWt5NUd3YWVzQmdqaTc1Vyt6OWFNcjJURTFucG04cGxIczdIYnZHTXVOR1V4TlNvM21TZDRZVys2aHJHUlBLS2FsNFdCdz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.33/Rush_1.7.33_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0ZJaEVIVmlkS3pHcTkzODBZN2xQQzBKbVZxVlMvZk5IODNrVjNLYW5YVFNsY0lreXoxZU40dy9zWkxxNmk1aEVEYWxuY0N6a2NxV1NEdFZUYm0rOGdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQ5OTAxCWZpbGU6UnVzaF8xLjcuMzRfeDY0LXNldHVwLmV4ZQpvU05QR3pqU2djNkVXZnVUbWRBYVBvWW40RVppbURLUnJvQUY2OXUvcmlDditQNlB0QTJxdWk0cG1nSkxKQ1BiOSswMWJmQkJxYTZOaEwrUk0xd09CQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.34/Rush_1.7.34_x64-setup.exe"
     },
     "windows-x86_64-pc-windows-msvc": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na09MOHpWK3c2THdoVk5qQ01CcTBzVk5DYVpVZVp3TlBwbUs1SXh2TWx6dEtCYVFoZDBlNFlOWGZWY0ZVTHZVREszSEs1bDdKWCtienNabXQvTlY4RGdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQ3MjI4CWZpbGU6UnVzaF8xLjcuMzNfeDY0LXNldHVwLmV4ZQpjV0J2QitGOVBEVHo5MjBQcWt5NUd3YWVzQmdqaTc1Vyt6OWFNcjJURTFucG04cGxIczdIYnZHTXVOR1V4TlNvM21TZDRZVys2aHJHUlBLS2FsNFdCdz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.33/Rush_1.7.33_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0ZJaEVIVmlkS3pHcTkzODBZN2xQQzBKbVZxVlMvZk5IODNrVjNLYW5YVFNsY0lreXoxZU40dy9zWkxxNmk1aEVEYWxuY0N6a2NxV1NEdFZUYm0rOGdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjQ5OTAxCWZpbGU6UnVzaF8xLjcuMzRfeDY0LXNldHVwLmV4ZQpvU05QR3pqU2djNkVXZnVUbWRBYVBvWW40RVppbURLUnJvQUY2OXUvcmlDditQNlB0QTJxdWk0cG1nSkxKQ1BiOSswMWJmQkJxYTZOaEwrUk0xd09CQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.34/Rush_1.7.34_x64-setup.exe"
     }
   }
 }

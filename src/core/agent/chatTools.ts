@@ -1,6 +1,9 @@
 import type { BrainMemory, MemoryKind } from "../brainStore";
 import type { Conversation } from "../store";
-import type { ResearchRun } from "../researchStore";
+import type { ResearchRun, ResearchSettings } from "../researchStore";
+import { runDeepResearch } from "../researchRunner";
+import type { SearchConfig } from "../searchProviders";
+import type { Provider, ProviderConfig } from "../providers/types";
 import type { Tool } from "./tools";
 
 export interface ChatToolOptions {
@@ -8,6 +11,10 @@ export interface ChatToolOptions {
   addMemory: (text: string, kind: MemoryKind) => void;
   getConversations: () => Conversation[];
   getResearchRuns: () => ResearchRun[];
+  createResearchRun?: (input: { prompt: string; settings: ResearchSettings; status?: ResearchRun["status"] }) => string;
+  updateResearchRun?: (id: string, patch: Partial<Omit<ResearchRun, "id" | "createdAt">>) => void;
+  getResearchProvider?: () => { provider: Provider; config?: ProviderConfig; model: string };
+  getSearchConfig?: () => SearchConfig;
 }
 
 function text(value: unknown): string {
@@ -52,6 +59,25 @@ function researchText(run: ResearchRun): string {
     run.content ? `Report:\n${run.content}` : "",
     run.error ? `Error: ${run.error}` : "",
   ].filter(Boolean).join("\n\n");
+}
+
+function normalizeResearchSettings(args: Record<string, unknown>): ResearchSettings {
+  const rounds = text(args.rounds) || "Auto";
+  const format = text(args.format) || "Auto";
+  const engine = text(args.engine) || "Default";
+  return {
+    rounds,
+    format,
+    engine,
+    endpoint: "Current",
+    model: "Current",
+  };
+}
+
+function researchResultText(id: string, content: string, maxChars: unknown): string {
+  const max = Math.max(2000, Math.min(20000, Number(maxChars ?? 12000) || 12000));
+  const body = content.trim() || "Deep Research completed without report text.";
+  return [`Saved Deep Research run: ${id}`, body.slice(0, max)].join("\n\n");
 }
 
 export function createChatTools(options: ChatToolOptions): Tool[] {
@@ -190,6 +216,59 @@ export function createChatTools(options: ChatToolOptions): Tool[] {
     },
     {
       definition: {
+        name: "app_research_run",
+        description: "Run a new Deep Research report from Chat mode, save it to Library, and return the report text. Use for current, source-grounded research that needs web search and follow-up fetching.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            prompt: { type: "string", description: "Research question or brief." },
+            rounds: { type: "string", description: "Auto, 1 round, 2 rounds, 3 rounds, or 5 rounds." },
+            format: { type: "string", description: "Auto, Product, Compare, How-to, or Fact-check." },
+            engine: { type: "string", description: "Default, duckduckgo, searxng, tavily, brave, google, or serper." },
+            max_chars: { type: "number", description: "Maximum returned report characters." },
+          },
+          required: ["prompt"],
+        },
+      },
+      async execute(args) {
+        const prompt = text(args.prompt);
+        if (!prompt) return { ok: false, isError: true, content: "Missing research prompt." };
+        if (!options.createResearchRun || !options.updateResearchRun || !options.getResearchProvider || !options.getSearchConfig) {
+          return { ok: false, isError: true, content: "Deep Research runner is not configured in this Chat context." };
+        }
+        const settings = normalizeResearchSettings(args);
+        const id = options.createResearchRun({ prompt, settings, status: "running" });
+        try {
+          const selected = options.getResearchProvider();
+          const result = await runDeepResearch({
+            prompt,
+            settings,
+            provider: selected.provider,
+            providerConfig: selected.config,
+            model: selected.model,
+            searchConfig: options.getSearchConfig(),
+            callbacks: {
+              onSources: (sources, warning) => options.updateResearchRun?.(id, { sources, searchWarning: warning }),
+              onContent: (content) => options.updateResearchRun?.(id, { content }),
+              onError: (error, content) => options.updateResearchRun?.(id, { content, error }),
+            },
+          });
+          options.updateResearchRun(id, {
+            status: "completed",
+            content: result.content,
+            sources: result.sources,
+            searchWarning: result.warning,
+          });
+          return { ok: true, content: researchResultText(id, result.content, args.max_chars) };
+        } catch (err) {
+          const error = String(err);
+          options.updateResearchRun(id, { status: "error", error });
+          return { ok: false, isError: true, content: `Deep Research failed for ${id}: ${error}` };
+        }
+      },
+    },
+    {
+      definition: {
         name: "app_research_read",
         description: "Read one saved Deep Research run by id.",
         inputSchema: {
@@ -208,6 +287,6 @@ export function createChatTools(options: ChatToolOptions): Tool[] {
         const max = Math.max(1000, Math.min(16000, Number(args.max_chars ?? 8000) || 8000));
         return { ok: true, content: researchText(run).slice(0, max) };
       },
-    },
+    }
   ];
 }

@@ -141,17 +141,18 @@ const READ_TOOLS = new Set([
   "npm_scripts",
   "winget_search",
   "project_context",
+  "app_research_search",
+  "app_research_read",
   "deep_research_search",
   "website_environment",
   "ui_inspect",
   "screenshot_url",
   "browser_get_text",
   "browser_get_html",
-  "browser_screenshot",
-  "browser_links",
   "release_prepare",
   "release_verify",
   "dependency_audit",
+  "app_research_run",
 ]);
 
 // Tools that are always destructive regardless of args.

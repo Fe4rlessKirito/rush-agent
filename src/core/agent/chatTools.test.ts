@@ -102,6 +102,7 @@ describe("chat app tools", () => {
       "app_library_search",
       "app_library_read",
       "app_research_search",
+      "app_research_run",
       "app_research_read",
     ]);
     await expect(toolRegistry.call("read_file", { path: "package.json" })).resolves.toMatchObject({
@@ -178,6 +179,7 @@ describe("chat app tools", () => {
       "app_library_search",
       "app_library_read",
       "app_research_search",
+      "app_research_run",
       "app_research_read",
     ]);
     expect(provider.requests[1].messages).toEqual(

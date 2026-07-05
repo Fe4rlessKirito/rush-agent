@@ -160,15 +160,14 @@ function registerCodeToolset(registry: ToolRegistry, mode: "code" | "flow") {
   registry.registerDynamic(() => createDynamicMcpTools());
 }
 
-// A proposal, not an action: this tool never changes anything on its own.
-// ChatPanel intercepts its tool_call/tool_result events and renders a confirm
-// banner instead of executing the switch — the actual mode change only
-// happens if the user clicks "Switch".
+// A proposal by default: ChatPanel intercepts its tool_call/tool_result events
+// and renders a confirm banner. When permissions are Full access, a Chat-mode
+// request to enter Code mode can be applied immediately.
 const suggestModeSwitchTool: Tool = {
   definition: {
     name: "suggest_mode_switch",
     description:
-      "Propose switching this conversation's current mode between Chat and Code. Use this when the task needs capabilities the current mode doesn't have — e.g. you're in Chat and the user needs you to read/edit project files, run commands, or use Git, or you're in Code and a purely conversational request would be better served without file/tool access. This never switches anything by itself: the user sees your proposed mode and reason, and must explicitly confirm before it takes effect.",
+      "Propose switching this conversation's current mode between Chat and Code. Use this when the task needs capabilities the current mode doesn't have — e.g. you're in Chat and the user needs you to read/edit project files, run commands, or use Git, or you're in Code and a purely conversational request would be better served without file/tool access. Switching to Code mode may apply automatically when permissions are Full access; otherwise the user sees your proposed mode and reason, and must explicitly confirm before it takes effect.",
     inputSchema: {
       type: "object",
       properties: {
@@ -257,6 +256,19 @@ chatTools.registerAll(createChatTools({
   addMemory: (text, kind) => useBrainStore.getState().addMemory(text, kind),
   getConversations: () => useAppStore.getState().conversations,
   getResearchRuns: () => useResearchStore.getState().runs,
+  createResearchRun: (input) => useResearchStore.getState().createRun(input),
+  updateResearchRun: (id, patch) => useResearchStore.getState().updateRun(id, patch),
+  getResearchProvider: () => {
+    const state = useAppStore.getState();
+    const config = state.providers.find((item) => item.id === state.activeProviderId);
+    if (!config) throw new Error("No active provider selected.");
+    return {
+      provider: createProvider(config),
+      config,
+      model: state.activeModel || config.defaultModel || "default",
+    };
+  },
+  getSearchConfig: () => useResearchStore.getState().searchConfig,
 }));
 chatTools.registerAll(createBrowserTools());
 chatTools.register(suggestModeSwitchTool);
@@ -1225,7 +1237,7 @@ export function ChatPanel({ mode }: Props) {
             8,
             [
               projectRuntimeContext,
-              "You are Rush in Chat mode. You may answer, explain, plan, use Brain memories, search saved Library chats, read saved Deep Research, inspect websites with the passive Website Environment tool, and analyze images attached directly to the current message. You do not have filesystem, terminal, Git, package-manager, MCP, or Flow-agent access in Chat. Do not claim to inspect workspace files, run commands, edit projects, save files, or view the user's screen from Chat. Attached images are visible message content, not filesystem or screen access. Website Environment is passive fetch only: do not run exploit payloads, credential attacks, brute force, load tests, stealth, or destructive checks.",
+              "You are Rush in Chat mode. You may answer, explain, plan, use Brain memories, search saved Library chats, run or read Deep Research, inspect websites with the passive Website Environment tool, and analyze images attached directly to the current message. You do not have filesystem, terminal, Git, package-manager, MCP, or Flow-agent access in Chat. Do not claim to inspect workspace files, run commands, edit projects, save files, or view the user's screen from Chat. Attached images are visible message content, not filesystem or screen access. Website Environment is passive fetch only: do not run exploit payloads, credential attacks, brute force, load tests, stealth, or destructive checks.",
               brainContext,
             ].filter(Boolean).join("\n\n"),
             effortThinking,
@@ -1242,10 +1254,16 @@ export function ChatPanel({ mode }: Props) {
             } else if (ev.type === "tool_call") {
               if (ev.toolName) toolNamesUsed.push(ev.toolName);
               if (ev.toolName === "suggest_mode_switch") {
-                setPendingModeSwitch({
-                  mode: ev.toolArgs?.mode === "agent" ? "agent" : "plain",
-                  reason: String(ev.toolArgs?.reason ?? ""),
-                });
+                const requestedMode = ev.toolArgs?.mode === "agent" ? "agent" : "plain";
+                if (requestedMode === "agent" && permissionPreset.id === "full") {
+                  setChatMode("agent");
+                  setPendingModeSwitch(null);
+                } else {
+                  setPendingModeSwitch({
+                    mode: requestedMode,
+                    reason: String(ev.toolArgs?.reason ?? ""),
+                  });
+                }
               } else {
                 setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs) }, { role: "agent", text: "" }]);
               }
@@ -1346,10 +1364,16 @@ export function ChatPanel({ mode }: Props) {
       } else if (e.type === "tool_call") {
         if (e.toolName) toolNamesUsed.push(e.toolName);
         if (!isFlow && e.toolName === "suggest_mode_switch") {
-          setPendingModeSwitch({
-            mode: e.toolArgs?.mode === "plain" ? "plain" : "agent",
-            reason: String(e.toolArgs?.reason ?? ""),
-          });
+          const requestedMode = e.toolArgs?.mode === "plain" ? "plain" : "agent";
+          if (requestedMode === "agent" && permissionPreset.id === "full") {
+            setChatMode("agent");
+            setPendingModeSwitch(null);
+          } else {
+            setPendingModeSwitch({
+              mode: requestedMode,
+              reason: String(e.toolArgs?.reason ?? ""),
+            });
+          }
           return;
         }
         if (flowRun) {
@@ -1643,14 +1667,26 @@ export function ChatPanel({ mode }: Props) {
               </div>
 
               {activityLines.length > 0 && (
-                <div className="agent-activity-list">
-                  {activityLines.map(({ line, index }) => (
-                    <div key={index} className="agent-activity-row">
-                      <span className="agent-activity-icon" aria-hidden="true">▸</span>
-                      <span>{line.text}</span>
-                    </div>
-                  ))}
-                </div>
+                <details className="agent-activity-details" open={isActiveRun}>
+                  <summary>
+                    <span className="agent-activity-summary-label">
+                      {activityLines.length} tool activit{activityLines.length === 1 ? "y" : "ies"}
+                    </span>
+                    {isActiveRun && <span className="agent-activity-summary-status">running</span>}
+                  </summary>
+                  <div className="agent-activity-list">
+                    {activityLines.map(({ line, index }) => (
+                      <details key={index} className="agent-activity-row">
+                        <summary>
+                          <span>{line.text}</span>
+                        </summary>
+                        <div className="agent-activity-detail-body">
+                          <Markdown>{line.text}</Markdown>
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </details>
               )}
 
               {answerLines.map(({ line, index }) => {
