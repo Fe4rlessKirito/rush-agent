@@ -12,6 +12,11 @@ export interface ChatLine {
   role: "user" | "agent" | "tool";
   text: string;
   thinking?: string;
+  meta?: {
+    speaker?: string;
+    startedAt?: number;
+    completedAt?: number;
+  };
 }
 
 export type ConversationMode = "plain" | "agent" | "flow";
@@ -69,7 +74,10 @@ export interface SubagentRun {
   task: string;
   status: SubagentRunStatus;
   lines: ChatLine[];
+  messages: ChatMessage[];
   toolNames: string[];
+  startedAt: number;
+  completedAt?: number;
   createdAt: number;
   updatedAt: number;
   projectId?: string;
@@ -150,9 +158,10 @@ export interface AppState {
   newConversation: (mode?: ConversationMode) => void;
   selectConversation: (id: string) => ConversationMode | undefined;
   deleteConversation: (id: string) => void;
-  startSubagentRun: (args: { parentConversationId: string; task: string; title?: string; projectContext?: ConversationProjectContext | null }) => string;
+  startSubagentRun: (args: { parentConversationId: string; task: string; title?: string; coordinator?: string; projectContext?: ConversationProjectContext | null }) => string;
   appendSubagentLine: (id: string, line: ChatLine) => void;
   appendSubagentText: (id: string, patch: Partial<Pick<ChatLine, "text" | "thinking">>) => void;
+  setSubagentMessages: (id: string, messages: ChatMessage[]) => void;
   addSubagentToolName: (id: string, toolName: string) => void;
   completeSubagentRun: (id: string, status: SubagentRunStatus) => void;
   selectSubagentRun: (id: string | null) => void;
@@ -261,7 +270,15 @@ function normalizeConversations(state: Partial<AppState>): {
 
   return {
     conversations,
-    subagentRuns: state.subagentRuns ?? [],
+    subagentRuns: (state.subagentRuns ?? []).map((run) => ({
+      ...run,
+      lines: run.lines ?? [],
+      messages: run.messages ?? [],
+      toolNames: run.toolNames ?? [],
+      startedAt: run.startedAt ?? run.createdAt ?? Date.now(),
+      createdAt: run.createdAt ?? Date.now(),
+      updatedAt: run.updatedAt ?? run.createdAt ?? Date.now(),
+    })),
     activeSubagentRunId: state.activeSubagentRunId ?? null,
     activeConversationId: active?.id ?? "",
     activeConversationIds: {
@@ -620,7 +637,7 @@ export const useAppStore = create<AppState>()(
           };
         }),
 
-      startSubagentRun: ({ parentConversationId, task, title, projectContext }) => {
+      startSubagentRun: ({ parentConversationId, task, title, coordinator, projectContext }) => {
         const id = newId();
         const trimmedTask = task.trim() || "Subagent task";
         const now = Date.now();
@@ -631,8 +648,21 @@ export const useAppStore = create<AppState>()(
           title: shortTitle.length > 52 ? `${shortTitle.slice(0, 52)}...` : shortTitle,
           task: trimmedTask,
           status: "running",
-          lines: [],
+          lines: [
+            {
+              role: "agent",
+              text: trimmedTask,
+              meta: {
+                speaker: coordinator?.trim() || "Coordinator",
+                startedAt: now,
+                completedAt: now,
+              },
+            },
+            { role: "agent", text: "", meta: { startedAt: now } },
+          ],
+          messages: [],
           toolNames: [],
+          startedAt: now,
           createdAt: now,
           updatedAt: now,
           ...(projectContext
@@ -654,7 +684,7 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           subagentRuns: s.subagentRuns.map((run) =>
             run.id === id
-              ? { ...run, lines: [...run.lines, line], updatedAt: Date.now() }
+              ? { ...run, lines: [...run.lines, { ...line, meta: { startedAt: Date.now(), ...line.meta } }], updatedAt: Date.now() }
               : run,
           ),
         })),
@@ -664,15 +694,23 @@ export const useAppStore = create<AppState>()(
           subagentRuns: s.subagentRuns.map((run) => {
             if (run.id !== id) return run;
             const lines = run.lines.slice();
-            const cur = lines[lines.length - 1] ?? { role: "agent" as const, text: "" };
+            const cur = lines[lines.length - 1] ?? { role: "agent" as const, text: "", meta: { startedAt: Date.now() } };
             lines[lines.length - 1] = {
               ...cur,
               role: "agent",
               text: patch.text === undefined ? cur.text : cur.text + patch.text,
               thinking: patch.thinking === undefined ? cur.thinking : (cur.thinking ?? "") + patch.thinking,
+              meta: cur.meta ?? { startedAt: Date.now() },
             };
             return { ...run, lines, updatedAt: Date.now() };
           }),
+        })),
+
+      setSubagentMessages: (id, messages) =>
+        set((s) => ({
+          subagentRuns: s.subagentRuns.map((run) =>
+            run.id === id ? { ...run, messages, updatedAt: Date.now() } : run,
+          ),
         })),
 
       addSubagentToolName: (id, toolName) =>
@@ -686,9 +724,15 @@ export const useAppStore = create<AppState>()(
 
       completeSubagentRun: (id, status) =>
         set((s) => ({
-          subagentRuns: s.subagentRuns.map((run) =>
-            run.id === id ? { ...run, status, updatedAt: Date.now() } : run,
-          ),
+          subagentRuns: s.subagentRuns.map((run) => {
+            if (run.id !== id) return run;
+            const completedAt = Date.now();
+            const lines = run.lines.map((line, index) => {
+              if (index !== run.lines.length - 1 || line.role !== "agent") return line;
+              return { ...line, meta: { ...(line.meta ?? {}), completedAt } };
+            });
+            return { ...run, status, lines, completedAt, updatedAt: completedAt };
+          }),
         })),
 
       selectSubagentRun: (id) => set({ activeSubagentRunId: id }),

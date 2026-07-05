@@ -22,6 +22,8 @@ export interface FlowToolOptions {
   getProjectInstructions?: () => string;
   maxAgentTurns?: number;
   taskStore?: FlowTaskStore;
+  getSubagents?: () => Array<{ id: string; title: string; task: string; status: string }>;
+  getSubagentMessages?: (id: string) => ChatMessage[];
   onSubagentStart?: (meta: { task: string; title: string }) => string | undefined;
   onSubagentEvent?: (id: string, event: AgentEvent) => void;
   onSubagentMessages?: (id: string, messages: ChatMessage[]) => void;
@@ -52,6 +54,56 @@ function formatTask(task: FlowTask): string {
     task.dependencies.length ? `Dependencies: ${task.dependencies.join(", ")}` : "",
     task.output ? `Output: ${task.output}` : "",
   ].filter(Boolean).join("\n");
+}
+
+function formatSubagents(subagents: Array<{ id: string; title: string; task: string; status: string }>): string {
+  return subagents.length
+    ? subagents.map((run) => `${run.id} [${run.status}] ${run.title}\nTask: ${run.task}`).join("\n\n")
+    : "No existing subagents.";
+}
+
+async function runSubagentThread(options: FlowToolOptions, id: string | undefined, messages: ChatMessage[], turns: number) {
+  const provider = options.getProvider();
+  const model = options.getModel();
+  const childTools = options.getTools();
+  const chunks: string[] = [];
+  const toolEvents: string[] = [];
+  let status: "completed" | "blocked" | "cancelled" = "completed";
+
+  try {
+    for await (const event of runAgent(
+      provider,
+      model,
+      childTools,
+      messages,
+      undefined,
+      turns,
+      [
+        options.getProjectInstructions?.() ?? "",
+        "You are a Rush subagent. Work on only the assigned task and return a concise result for the parent agent. Do not ask the user questions. Do not broaden your scope beyond the task you were assigned.",
+      ].filter(Boolean).join("\n\n"),
+      undefined,
+      messages,
+    )) {
+      options.onSubagentEvent?.(id ?? "", event);
+      if (event.type === "text" && event.text) chunks.push(event.text);
+      if (event.type === "tool_call" && event.toolName) toolEvents.push(`called ${event.toolName}`);
+      if (event.type === "error" && event.text) {
+        status = "blocked";
+        chunks.push(`Error: ${event.text}`);
+      }
+    }
+  } catch (err) {
+    status = "blocked";
+    chunks.push(`Error: ${String(err)}`);
+  } finally {
+    if (id) {
+      options.onSubagentMessages?.(id, messages);
+      options.onSubagentDone?.(id, status);
+    }
+  }
+
+  return { content: chunks.join("").trim() || "Subagent finished without a text response.", status, toolEvents };
 }
 
 export class FlowTaskStore {
@@ -130,55 +182,52 @@ export function createFlowTools(options: FlowToolOptions): Tool[] {
         const task = text(args.task) || text(args.description);
         if (!task) return { ok: false, isError: true, content: "Missing task." };
         const turns = Math.max(1, Math.min(maxAgentTurns, Number(args.maxTurns ?? maxAgentTurns) || maxAgentTurns));
-        const provider = options.getProvider();
-        const model = options.getModel();
-        const childTools = options.getTools();
-        const chunks: string[] = [];
-        const toolEvents: string[] = [];
         const subagentId = options.onSubagentStart?.({
           task,
           title: task.length > 52 ? `${task.slice(0, 52)}...` : task,
         });
-        const childMessages: ChatMessage[] = [];
-        let status: "completed" | "blocked" | "cancelled" = "completed";
+        const childMessages: ChatMessage[] = [{ role: "user", content: task }];
+        const result = await runSubagentThread(options, subagentId, childMessages, turns);
 
-        try {
-          for await (const event of runAgent(
-            provider,
-            model,
-            childTools,
-            [{ role: "user", content: task }],
-            undefined,
-            turns,
-            [
-              options.getProjectInstructions?.() ?? "",
-              "You are a Rush subagent. Work on only the assigned task and return a concise result for the parent agent. Do not ask the user questions. Do not broaden your scope beyond the task you were assigned.",
-            ].filter(Boolean).join("\n\n"),
-            undefined,
-            childMessages,
-          )) {
-            options.onSubagentEvent?.(subagentId ?? "", event);
-            if (event.type === "text" && event.text) chunks.push(event.text);
-            if (event.type === "tool_call" && event.toolName) toolEvents.push(`called ${event.toolName}`);
-            if (event.type === "error" && event.text) {
-              status = "blocked";
-              chunks.push(`Error: ${event.text}`);
-            }
-          }
-        } catch (err) {
-          status = "blocked";
-          chunks.push(`Error: ${String(err)}`);
-        } finally {
-          if (subagentId) {
-            options.onSubagentMessages?.(subagentId, childMessages);
-            options.onSubagentDone?.(subagentId, status);
-          }
-        }
-
-        const content = chunks.join("").trim() || "Subagent finished without a text response.";
         return {
           ok: true,
-          content: [`Subagent result for: ${task}`, toolEvents.length ? `Tools: ${toolEvents.join(", ")}` : "", "", content]
+          content: [`Subagent ${subagentId ? `${subagentId} ` : ""}result for: ${task}`, result.toolEvents.length ? `Tools: ${result.toolEvents.join(", ")}` : "", "", result.content]
+            .filter((part) => part !== "")
+            .join("\n"),
+        };
+      },
+    },
+    {
+      definition: {
+        name: "SubagentMessage",
+        description:
+          "Continue an existing Rush subagent conversation by ID. Use this when a prior subagent needs a follow-up prompt instead of spawning a fresh subagent. Existing subagents are:\n" + formatSubagents(options.getSubagents?.() ?? []),
+        inputSchema: {
+          type: "object",
+          properties: {
+            subagentId: { type: "string", description: "ID of the existing subagent to continue." },
+            message: { type: "string", description: "Follow-up prompt for the subagent." },
+            maxTurns: { type: "number", description: "Maximum subagent turns, capped by Rush." },
+          },
+          required: ["subagentId", "message"],
+        },
+      },
+      async execute(args) {
+        const subagentId = text(args.subagentId);
+        const message = text(args.message);
+        if (!subagentId) return { ok: false, isError: true, content: "Missing subagentId." };
+        if (!message) return { ok: false, isError: true, content: "Missing message." };
+        const subagent = options.getSubagents?.().find((run) => run.id === subagentId);
+        if (!subagent) return { ok: false, isError: true, content: `Unknown subagent: ${subagentId}\n\n${formatSubagents(options.getSubagents?.() ?? [])}` };
+        const turns = Math.max(1, Math.min(maxAgentTurns, Number(args.maxTurns ?? maxAgentTurns) || maxAgentTurns));
+        options.onSubagentEvent?.(subagentId, { type: "tool_call", toolName: "SubagentMessage", toolArgs: { message } });
+        options.onSubagentEvent?.(subagentId, { type: "tool_result", toolName: "SubagentMessage", toolResult: "Follow-up from coordinator" });
+        const childMessages: ChatMessage[] = [...(options.getSubagentMessages?.(subagentId) ?? []), { role: "user", content: message }];
+        const result = await runSubagentThread(options, subagentId, childMessages, turns);
+
+        return {
+          ok: true,
+          content: [`Continued subagent ${subagentId}: ${subagent.title}`, result.toolEvents.length ? `Tools: ${result.toolEvents.join(", ")}` : "", "", result.content]
             .filter((part) => part !== "")
             .join("\n"),
         };

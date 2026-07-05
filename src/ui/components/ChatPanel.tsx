@@ -205,13 +205,21 @@ codeTools.registerAll(createFlowTools({
     const state = useProjectStore.getState();
     return state.projects.find((p) => p.id === state.activeProjectId)?.instructions ?? "";
   },
+  getSubagents: () => {
+    const state = useAppStore.getState();
+    const parentId = state.activeConversationId || state.activeConversationIds.chat || "pending";
+    return state.subagentRuns
+      .filter((run) => run.parentConversationId === parentId)
+      .map((run) => ({ id: run.id, title: run.title, task: run.task, status: run.status }));
+  },
+  getSubagentMessages: (id) => useAppStore.getState().subagentRuns.find((run) => run.id === id)?.messages ?? [],
   onSubagentStart: ({ task, title }) => {
     const state = useAppStore.getState();
     return state.startSubagentRun({
-          parentConversationId: state.activeConversationId || state.activeConversationIds.chat || "pending",
-
+      parentConversationId: state.activeConversationId || state.activeConversationIds.chat || "pending",
       task,
       title,
+      coordinator: state.activeModel ? `${modelDisplayName(state.activeModel)} Coordinator` : "Rush Coordinator",
       projectContext: state.conversationProjectContext,
     });
   },
@@ -235,6 +243,9 @@ codeTools.registerAll(createFlowTools({
   },
   onSubagentDone: (id, status) => {
     if (id) useAppStore.getState().completeSubagentRun(id, status);
+  },
+  onSubagentMessages: (id, messages) => {
+    if (id) useAppStore.getState().setSubagentMessages(id, messages);
   },
 }));
 codeTools.register(suggestModeSwitchTool);
@@ -369,6 +380,7 @@ function friendlyToolName(name: string | undefined): string {
     case "release_prepare": return "check release";
     case "release_verify": return "verify release";
     case "Agent": return "run subagent";
+    case "SubagentMessage": return "continue subagent";
     default: return name ? name.replace(/_/g, " ") : "tool";
   }
 }
@@ -377,6 +389,10 @@ function describeToolCall(name: string | undefined, args: Record<string, unknown
   if (name === "Agent") {
     const task = toolTarget(args, ["task", "description"]);
     return task ? `Started subagent: ${task}` : "Started subagent";
+  }
+  if (name === "SubagentMessage") {
+    const target = toolTarget(args, ["subagentId"]);
+    return target ? `Continued subagent: ${target}` : "Continued subagent";
   }
   const target =
     toolTarget(args, ["path", "file_path", "pattern", "query", "command", "url", "task", "description"]) ||
@@ -387,6 +403,7 @@ function describeToolCall(name: string | undefined, args: Record<string, unknown
 
 function describeToolResult(name: string | undefined, result: string | undefined): string {
   if (name === "Agent") return "Finished subagent";
+  if (name === "SubagentMessage") return "Finished subagent follow-up";
   const action = friendlyToolName(name);
   const text = result ?? "";
   if (/^(Tool .* failed:|Unknown tool:|Tool unavailable|Blocked:|Blocked by permission rule|User denied)/.test(text)) {
@@ -415,6 +432,19 @@ function groupRenderedChat(lines: ChatLine[], startIndex: number): RenderedChatI
   });
 
   return items;
+}
+
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes <= 0) return `${seconds}s`;
+  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+}
+
+function elapsedLabel(startedAt: number | undefined, completedAt: number | undefined, fallback: string): string {
+  if (!startedAt || !completedAt || completedAt < startedAt) return fallback;
+  return `Worked for ${formatElapsed(completedAt - startedAt)}`;
 }
 
 function supportsNativeImageContent(cfg: { kind?: string; baseUrl?: string } | undefined): boolean {
@@ -941,7 +971,7 @@ export function ChatPanel({ mode }: Props) {
   }
 
   async function send() {
-    if ((!input.trim() && attachments.length === 0 && contextItems.length === 0) || busy) return;
+    if ((!input.trim() && attachments.length === 0 && contextItems.length === 0) || busy || activeSubagentRunId) return;
     if (!activeProviderId || !activeModel) {
       setChat((l) => [...l, { role: "tool", text: "Pick a provider + model in Settings first." }]);
       return;
@@ -1143,6 +1173,7 @@ export function ChatPanel({ mode }: Props) {
           next[next.length - 1] = { ...cur, role: "agent", text: message };
           return next;
         });
+        markLatestAgentCompleted();
         setBusy(false);
         return;
       }
@@ -1218,6 +1249,7 @@ export function ChatPanel({ mode }: Props) {
       } finally {
         setChatMessages([...history, chatUserMsg, ...chatNewMsgs]);
         extractBrainFromTurn({ userText, assistantText, mode: effectiveMode });
+        markLatestAgentCompleted();
         setBusy(false);
       }
       return;
@@ -1244,6 +1276,7 @@ export function ChatPanel({ mode }: Props) {
         });
       } finally {
         extractBrainFromTurn({ userText, assistantText, mode: effectiveMode, toolNames: toolNamesUsed });
+        markLatestAgentCompleted();
         setBusy(false);
       }
       return;
@@ -1266,6 +1299,7 @@ export function ChatPanel({ mode }: Props) {
         });
       } finally {
         extractBrainFromTurn({ userText, assistantText, mode: effectiveMode, toolNames: toolNamesUsed });
+        markLatestAgentCompleted();
         setBusy(false);
       }
       return;
@@ -1482,12 +1516,17 @@ export function ChatPanel({ mode }: Props) {
     return clean.length > 72 ? `Thinking about ${clean.slice(0, 72)}...` : `Thinking about ${clean}`;
   }
 
-  function formatElapsed(ms: number): string {
-    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    if (minutes <= 0) return `${seconds}s`;
-    return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+  function markLatestAgentCompleted() {
+    const completedAt = Date.now();
+    setChat((lines) => {
+      const next = lines.slice();
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (next[i].role !== "agent") continue;
+        next[i] = { ...next[i], meta: { ...(next[i].meta ?? {}), completedAt } };
+        break;
+      }
+      return next;
+    });
   }
 
   const pickerConversations = conversations
@@ -1544,15 +1583,6 @@ export function ChatPanel({ mode }: Props) {
         </div>
       )}
       <div className="messages">
-        {activeSubagent && (
-          <div className="subagent-chat-banner">
-            <div>
-              <span className={"subagent-status " + activeSubagent.status} aria-hidden="true" />
-              <strong>Subagent: {activeSubagent.title}</strong>
-            </div>
-            <span>{activeSubagent.task}</span>
-          </div>
-        )}
         {hiddenMessageCount > 0 && (
           <button className="messages-window-notice" onClick={() => setShowAllMessages(true)}>
             Show {hiddenMessageCount} older message{hiddenMessageCount === 1 ? "" : "s"}
@@ -1574,16 +1604,17 @@ export function ChatPanel({ mode }: Props) {
               busy && index === chat.length - 1 && line.role === "agent" && !line.text.trim() && !line.thinking?.trim();
             return line.role === "agent" && (line.text.trim() || line.thinking?.trim() || isActiveEmptyAgent);
           });
-          const isActiveRun = busy && lines.some(({ index }) => index === chat.length - 1);
+          const isActiveRun = busy && !activeSubagent && lines.some(({ index }) => index === chat.length - 1);
+          const timedLine = [...lines].reverse().find(({ line }) => line.meta?.startedAt || line.meta?.completedAt)?.line;
           const runStatusLabel = isActiveRun && activeRunStartedAt
             ? `Working for ${formatElapsed(elapsedNow - activeRunStartedAt)}`
-            : "Worked";
+            : elapsedLabel(timedLine?.meta?.startedAt, timedLine?.meta?.completedAt, "Worked");
           if (activityLines.length === 0 && answerLines.length === 0 && !isActiveRun) return null;
 
           return (
             <div key={item.startIndex} className={"agent-run" + (isActiveRun ? " active" : "") }>
               <div className="agent-run-head">
-                <span className="agent-run-model">{activeModel ? modelDisplayName(activeModel) : "Rush"}</span>
+                <span className="agent-run-model">{lines.find(({ line }) => line.meta?.speaker)?.line.meta?.speaker ?? (activeModel ? modelDisplayName(activeModel) : "Rush")}</span>
                 <span className="agent-run-status">{runStatusLabel}</span>
               </div>
 
@@ -1638,6 +1669,12 @@ export function ChatPanel({ mode }: Props) {
           );
         })}
       </div>
+      {activeSubagent ? (
+        <div className="composer subagent-readonly-composer">
+          <span className={"subagent-status " + activeSubagent.status} aria-hidden="true" />
+          <span>Viewing subagent chat - only the coordinator can continue this thread.</span>
+        </div>
+      ) : (
       <div className="composer">
         {(showProjectSelector || currentBranch) && (
           <div className="composer-context-bar">
@@ -1918,6 +1955,7 @@ export function ChatPanel({ mode }: Props) {
           </button>
         </div>
       </div>
+      )}
 
       {previewAttachment?.dataUrl && (
         <div className="image-preview-overlay" role="dialog" aria-modal="true" onMouseDown={() => setPreviewAttachment(null)}>
