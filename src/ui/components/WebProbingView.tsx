@@ -180,8 +180,8 @@ async function callLocalProbe(model: string, url: string, focus: string, evidenc
 export function WebProbingView() {
   const [url, setUrl] = useState("");
   const [authorized, setAuthorized] = useState(false);
-  const [agentCount, setAgentCount] = useState(100);
-  const [concurrency, setConcurrency] = useState(8);
+  const [agentCount, setAgentCount] = useState(8);
+  const [concurrency, setConcurrency] = useState(2);
   const [selectedModel, setSelectedModel] = useState("");
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [models, setModels] = useState<LocalModel[]>([]);
@@ -211,7 +211,7 @@ export function WebProbingView() {
 
   const allowedModels = useMemo(() => allowedProbeModels(models), [models]);
   const selectedModels = useMemo(
-    () => pickModels(models, selectedModel, clampNumber(agentCount, 1, 100)),
+    () => pickModels(models, selectedModel, clampNumber(agentCount, 1, 25)),
     [agentCount, selectedModel, models],
   );
   const summary = useMemo(() => summarizeFindings(findings), [findings]);
@@ -221,8 +221,8 @@ export function WebProbingView() {
   async function startProbe() {
     const target = normalizeUrl(url);
     if (!target || !authorized || running) return;
-    const count = clampNumber(agentCount, 1, 100);
-    const limit = clampNumber(concurrency, 1, 20);
+    const count = clampNumber(agentCount, 1, 25);
+    const limit = clampNumber(concurrency, 1, 6);
     const chosen = pickModels(models, selectedModel, count);
     if (chosen.length === 0) {
       setModelError("No local proxy models matched. Confirm /v1/models is available and has non-Faceb models.");
@@ -298,8 +298,8 @@ export function WebProbingView() {
               <span>I own this site or have authorization to test it.</span>
             </label>
             <div className="web-probing-controls">
-              <label><span>Agents</span><input type="number" min="1" max="100" value={agentCount} onChange={(e) => setAgentCount(clampNumber(Number(e.target.value), 1, 100))} /></label>
-              <label><span>Concurrency</span><input type="number" min="1" max="20" value={concurrency} onChange={(e) => setConcurrency(clampNumber(Number(e.target.value), 1, 20))} /></label>
+              <label><span>Agents</span><input type="number" min="1" max="25" value={agentCount} onChange={(e) => setAgentCount(clampNumber(Number(e.target.value), 1, 25))} /></label>
+              <label><span>Concurrency</span><input type="number" min="1" max="6" value={concurrency} onChange={(e) => setConcurrency(clampNumber(Number(e.target.value), 1, 6))} /></label>
               <label>
                 <span>Model</span>
                 <div className="web-probing-model-picker">

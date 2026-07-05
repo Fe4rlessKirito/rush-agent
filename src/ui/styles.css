@@ -2017,6 +2017,85 @@ body {
   border-color: var(--accent);
   color: var(--text);
 }
+.ask-user-card {
+  align-self: stretch;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 92%, var(--accent));
+  color: var(--text);
+}
+.ask-user-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+.ask-user-card-head strong {
+  font-size: 13px;
+}
+.ask-user-card-head span {
+  color: var(--text-faint);
+}
+.ask-user-card p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.ask-user-choices {
+  display: grid;
+  gap: 7px;
+}
+.ask-user-choices button {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  text-align: left;
+}
+.ask-user-choices button:hover {
+  filter: none;
+  border-color: var(--accent);
+  color: var(--text);
+}
+.ask-user-choices small {
+  color: var(--text-faint);
+}
+.ask-user-form {
+  display: flex;
+  gap: 8px;
+}
+.ask-user-form input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+.ask-user-form button {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+}
+.ask-user-form button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .msg { padding: 9px 12px; border-radius: 12px; word-break: break-word; line-height: 1.42; font-size: 13.5px; }
 .msg.user {
   background: linear-gradient(135deg, var(--accent), var(--accent-2));

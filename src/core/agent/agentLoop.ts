@@ -9,7 +9,7 @@ import { prepareContextMessages, type CompactContext, type ContextCompactionBudg
 // detection step without touching the loop structure.
 
 export interface AgentEvent {
-  type: "text" | "thinking" | "tool_call" | "tool_result" | "done" | "error";
+  type: "text" | "thinking" | "tool_call" | "tool_result" | "user_question" | "done" | "error";
   text?: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
@@ -863,7 +863,7 @@ export async function* runAgent(
     postToolStallRetries = 0;
 
     // Record the exchange so the model sees what happened next iteration. Strip
-    // the <thinking> block first — it streamed to the user live, but replaying it
+    // the <​thinking> block first — it streamed to the user live, but replaying it
     // into context would bloat the conversation and anchor the next turn.
     const assistantMsg: ChatMessage = {
       role: "assistant",
@@ -881,6 +881,20 @@ export async function* runAgent(
       };
       messages.push(toolMsg);
       appendMessages?.push(toolMsg);
+    }
+
+    const userQuestion = results.find(({ call }) => call.name === "AskUserQuestion");
+    if (userQuestion) {
+      yield {
+        type: "user_question",
+        toolName: userQuestion.call.name,
+        toolArgs: userQuestion.call.args,
+        toolResult: userQuestion.safeResult,
+        text: userQuestion.safeResult,
+        stepId: step,
+        batchId,
+      };
+      return;
     }
   }
 

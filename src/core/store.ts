@@ -108,6 +108,54 @@ function titleFrom(lines: ChatLine[], mode: ConversationMode): string {
   return t.length > 40 ? `${t.slice(0, 40)}…` : t;
 }
 
+const MAX_PERSISTED_MESSAGES = 80;
+const MAX_PERSISTED_TOOL_CHARS = 12000;
+const MAX_DISPLAY_TOOL_RESULT_CHARS = 2000;
+const MAX_SUBAGENT_RUNS = 40;
+
+function truncateText(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, maxChars)}\n\n[truncated ${value.length - maxChars} chars to reduce memory use]`;
+}
+
+function compactChatContent(content: ChatMessage["content"]): ChatMessage["content"] {
+  if (typeof content === "string") return truncateText(content, MAX_PERSISTED_TOOL_CHARS);
+  if (Array.isArray(content)) {
+    return content.map((part) => {
+      if (part && typeof part === "object" && "text" in part && typeof part.text === "string") {
+        return { ...part, text: truncateText(part.text, MAX_PERSISTED_TOOL_CHARS) };
+      }
+      return part;
+    });
+  }
+  return content;
+}
+
+function compactMessage(message: ChatMessage): ChatMessage {
+  if (message.role !== "tool") return message;
+  return { ...message, content: compactChatContent(message.content) };
+}
+
+function compactMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.slice(-MAX_PERSISTED_MESSAGES).map(compactMessage);
+}
+
+function compactLine(line: ChatLine): ChatLine {
+  const toolResult = line.meta?.toolResult;
+  if (!toolResult || toolResult.length <= MAX_DISPLAY_TOOL_RESULT_CHARS) return line;
+  return {
+    ...line,
+    meta: {
+      ...line.meta,
+      toolResult: truncateText(toolResult, MAX_DISPLAY_TOOL_RESULT_CHARS),
+    },
+  };
+}
+
+function compactLines(lines: ChatLine[]): ChatLine[] {
+  return lines.map(compactLine);
+}
+
 export interface AppState {
   providers: ProviderConfig[];
   activeProviderId: string | null;
@@ -372,7 +420,7 @@ function updateConversationMessages(
   const idx = conversations.findIndex((c) => c.id === id);
   if (idx === -1) return conversations;
   const next = conversations.slice();
-  next[idx] = { ...next[idx], messages };
+  next[idx] = { ...next[idx], messages: compactMessages(messages) };
   return next;
 }
 
@@ -451,8 +499,9 @@ export const useAppStore = create<AppState>()(
 
       setChat: (updater) =>
         set((s) => {
-          const lines =
-            typeof updater === "function" ? updater(s.chat) : updater;
+          const lines = compactLines(
+            typeof updater === "function" ? updater(s.chat) : updater,
+          );
           const saved = upsertConversation(
             s.conversations,
             s.activeConversationIds.chat,
@@ -488,8 +537,9 @@ export const useAppStore = create<AppState>()(
 
       setChatMessages: (updater) =>
         set((s) => {
-          const messages =
-            typeof updater === "function" ? updater(s.chatMessages) : updater;
+          const messages = compactMessages(
+            typeof updater === "function" ? updater(s.chatMessages) : updater,
+          );
           return {
             chatMessages: messages,
             conversations: updateConversationMessages(s.conversations, s.activeConversationIds.chat, messages),
@@ -515,8 +565,9 @@ export const useAppStore = create<AppState>()(
 
       setFlowChat: (updater) =>
         set((s) => {
-          const lines =
-            typeof updater === "function" ? updater(s.flowChat) : updater;
+          const lines = compactLines(
+            typeof updater === "function" ? updater(s.flowChat) : updater,
+          );
           const saved = upsertConversation(
             s.conversations,
             s.activeConversationIds.flow,
@@ -551,8 +602,9 @@ export const useAppStore = create<AppState>()(
 
       setFlowChatMessages: (updater) =>
         set((s) => {
-          const messages =
-            typeof updater === "function" ? updater(s.flowChatMessages) : updater;
+          const messages = compactMessages(
+            typeof updater === "function" ? updater(s.flowChatMessages) : updater,
+          );
           return {
             flowChatMessages: messages,
             conversations: updateConversationMessages(s.conversations, s.activeConversationIds.flow, messages),
@@ -723,7 +775,7 @@ export const useAppStore = create<AppState>()(
             : {}),
         };
         set((s) => ({
-          subagentRuns: [run, ...s.subagentRuns],
+            subagentRuns: [run, ...s.subagentRuns].slice(0, MAX_SUBAGENT_RUNS),
           activeSubagentRunId: id,
         }));
         return id;
@@ -733,7 +785,7 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           subagentRuns: s.subagentRuns.map((run) =>
             run.id === id
-              ? { ...run, lines: [...run.lines, { ...line, meta: { startedAt: Date.now(), ...line.meta } }], updatedAt: Date.now() }
+              ? { ...run, lines: [...compactLines(run.lines), compactLine({ ...line, meta: { startedAt: Date.now(), ...line.meta } })], updatedAt: Date.now() }
               : run,
           ),
         })),
@@ -751,14 +803,14 @@ export const useAppStore = create<AppState>()(
               thinking: patch.thinking === undefined ? cur.thinking : (cur.thinking ?? "") + patch.thinking,
               meta: cur.meta ?? { startedAt: Date.now() },
             };
-            return { ...run, lines, updatedAt: Date.now() };
+            return { ...run, lines: compactLines(lines), updatedAt: Date.now() };
           }),
         })),
 
       setSubagentMessages: (id, messages) =>
         set((s) => ({
           subagentRuns: s.subagentRuns.map((run) =>
-            run.id === id ? { ...run, messages, updatedAt: Date.now() } : run,
+            run.id === id ? { ...run, messages: compactMessages(messages), updatedAt: Date.now() } : run,
           ),
         })),
 

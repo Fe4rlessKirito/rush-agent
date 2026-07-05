@@ -1,15 +1,15 @@
 {
-  "version": "1.7.36",
-  "notes": "Rush v1.7.36 adds Oblivian-inspired memory, RAG, document, split-up, and GitHub REST tools, plus an end-of-message file change review panel and dark native model picker dropdowns.",
-  "pub_date": "2026-07-05T12:59:17Z",
+  "version": "1.7.37",
+  "notes": "Rush v1.7.37 fixes AskUserQuestion so model clarification questions pause the run and render as answerable UI prompts. It also keeps the local-proxy behavior from v1.7.36 restored while retaining app-side transcript/output memory safeguards.",
+  "pub_date": "2026-07-05T13:36:23Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0ZhNEpJN3FjTmt0dzdsZnNncXpEUUMrcDZCUnNPZGFEM0hxN3BxdWh0V0tsVEtHMHBmSzRnSzFJSklqYUV3VndrNnIrajI3TmxjRHorSWkwM3U1TVFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjU2MzI2CWZpbGU6UnVzaF8xLjcuMzZfeDY0LXNldHVwLmV4ZQpFZHczb3Yxd1F3N1czZHBnbE53dGxWZStpbHpSWERLa3ZNZjdUWlREb0hPdlNHcUl6dzIrRzBiak1ZeUViR2s3bmJhY0FieHJYZ3JLckhIdzQzR3ZEZz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.36/Rush_1.7.36_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0kyaHlwYlY5aWM1UWs0bUJpa3ZsYlFQbmJtMXNnUlFqbmZ5SVpESUVTeTczSWJ2cDdqZjBVVDNOTzF3M1E5K1k5UU93ZzVkWGNlZnMxeXlEaXNOOEFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjU4NTYxCWZpbGU6UnVzaF8xLjcuMzdfeDY0LXNldHVwLmV4ZQpuSjdrR09BZ1BNMVdiV05xeDFUOGduYUMwUDk3Ry8zbmpnWFFpTFNUUHBFSFB3Skk0UmNyZzRDakZTVVJNWVZtcis5Q3FpNDBsTHNPdGJ4amRqVXdDdz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.37/Rush_1.7.37_x64-setup.exe"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0FOQTJKZVZFVno4OSs1TkVYUGFvTnhiWU90SllTMmRYb2hseXZaL2crZjRSRWNaejNzWFBUUW1jVy9vSzBzU2RkZlJvV2xmSE9JbDdoY2hlZWlVckFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjU2MzI2CWZpbGU6UnVzaF8xLjcuMzZfeDY0X2VuLVVTLm1zaQpYb01HV2cya1ZHV2g3dzFnYUFJbWNMMXVFNU9VRm5VVVJGbDRRQXpZa1lkM20wQjFPNWpEcENoQThZZkRwb09GdFl3clRYR2ZvdzVlSnRXNWlPMGJDQT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.36/Rush_1.7.36_x64_en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na015OWxVNlRMNGdINjJ4VjFidmRpTWlJWTc0eldiSlV6MDQ1TXhOM3BKL1g3c0lWanFrRVZvbmp0RkFqczBoWSt5cVQ0R2NSakt0aHZtMW4zSXZhQXdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjU4NTYxCWZpbGU6UnVzaF8xLjcuMzdfeDY0X2VuLVVTLm1zaQphRHNKeS9Gb3FyVklBQU1BYTZ0ZkFxdjlPdlJOZE1IcjgwQVluaCtTRldoMWZLcTJvNCtuYWZyTThZVmdHc1lLWVltaFduTDM4U1Z3Mm1MUlpqaWhDdz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.37/Rush_1.7.37_x64_en-US.msi"
     }
   }
 }

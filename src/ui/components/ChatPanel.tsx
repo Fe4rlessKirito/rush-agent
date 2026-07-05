@@ -192,6 +192,22 @@ interface PendingModeSwitch {
   resolve: (ok: boolean) => void;
 }
 
+interface PendingUserQuestion {
+  question: string;
+  choices: Array<{ label: string; value: string; description: string }>;
+}
+
+function questionChoices(value: unknown): PendingUserQuestion["choices"] {
+  if (!Array.isArray(value)) return [];
+  return value.map((raw, index) => {
+    const item: Record<string, unknown> = raw && typeof raw === "object" ? raw as Record<string, unknown> : { label: raw };
+    const label = String(item.label ?? item.value ?? item.title ?? raw ?? `Option ${index + 1}`).trim() || `Option ${index + 1}`;
+    const valueText = String(item.value ?? item.label ?? label).trim() || label;
+    const description = String(item.description ?? "").trim();
+    return { label, value: valueText, description };
+  });
+}
+
 function modeLabel(mode: "plain" | "agent"): string {
   return mode === "agent" ? "Code" : "Chat";
 }
@@ -585,7 +601,7 @@ function friendlyToolName(name: string | undefined): string {
     case "dev_server_status": return "check dev server";
     case "release_prepare": return "check release";
     case "release_verify": return "verify release";
-    case "Agent": return "run subagent";
+    case "AskUserQuestion": return "ask user";
     case "SubagentMessage": return "continue subagent";
     default: return name ? name.replace(/_/g, " ") : "tool";
   }
@@ -599,6 +615,10 @@ function describeToolCall(name: string | undefined, args: Record<string, unknown
   if (name === "SubagentMessage") {
     const target = toolTarget(args, ["subagentId"]);
     return target ? `Continued subagent: ${target}` : "Continued subagent";
+  }
+  if (name === "AskUserQuestion") {
+    const question = toolTarget(args, ["question"]);
+    return question ? `Asked user: ${question}` : "Asked user";
   }
   const target =
     toolTarget(args, ["path", "file_path", "pattern", "query", "command", "url", "task", "description"]) ||
@@ -796,6 +816,8 @@ export function ChatPanel({ mode }: Props) {
   const [activeRunStartedAt, setActiveRunStartedAt] = useState<number | null>(null);
   const [elapsedNow, setElapsedNow] = useState(() => Date.now());
   const [pendingModeSwitch, setPendingModeSwitch] = useState<PendingModeSwitch | null>(null);
+  const [pendingUserQuestion, setPendingUserQuestion] = useState<PendingUserQuestion | null>(null);
+  const [pendingUserAnswer, setPendingUserAnswer] = useState("");
   const [effort, setEffort] = useState(1);
   const [showPermissionMenu, setShowPermissionMenu] = useState(false);
   // Models offered by the active provider, for the composer's model selector.
@@ -962,6 +984,8 @@ export function ChatPanel({ mode }: Props) {
       pending?.resolve(false);
       return null;
     });
+    setPendingUserQuestion(null);
+    setPendingUserAnswer("");
   }, [activeConversationId, effectiveMode]);
 
   useLayoutEffect(() => {
@@ -972,6 +996,20 @@ export function ChatPanel({ mode }: Props) {
     el.style.height = `${Math.max(next, 44)}px`;
     el.style.overflowY = el.scrollHeight > 180 ? "auto" : "hidden";
   }, [input]);
+
+  function pendingQuestionFromEvent(ev: AgentEvent): PendingUserQuestion {
+    const question = String(ev.toolArgs?.question ?? ev.text ?? "").trim() || "Please answer the clarification question.";
+    return { question, choices: questionChoices(ev.toolArgs?.choices) };
+  }
+
+  function submitPendingUserAnswer(answer: string) {
+    const trimmed = answer.trim();
+    if (!trimmed || !pendingUserQuestion || busy) return;
+    const question = pendingUserQuestion.question;
+    setPendingUserQuestion(null);
+    setPendingUserAnswer("");
+    void send(`Answer to your clarification question:\n\nQuestion: ${question}\n\nAnswer: ${trimmed}`);
+  }
 
   function appendToLatestAgent(patch: Partial<Pick<ChatLine, "text" | "thinking">>) {
     flushSync(() => {
@@ -1234,8 +1272,9 @@ export function ChatPanel({ mode }: Props) {
     return text;
   }
 
-  async function send() {
-    if ((!input.trim() && attachments.length === 0 && contextItems.length === 0) || busy || activeSubagentRunId) return;
+  async function send(overrideText?: string) {
+    const submittedInput = overrideText ?? input;
+    if ((!submittedInput.trim() && attachments.length === 0 && contextItems.length === 0) || busy || activeSubagentRunId) return;
     if (!activeProviderId || !activeModel) {
       setChat((l) => [...l, { role: "tool", text: "Pick a provider + model in Settings first." }]);
       return;
@@ -1254,7 +1293,7 @@ export function ChatPanel({ mode }: Props) {
       setChat((l) => [...l, { role: "tool", text: `Project root sync failed: ${String(err)}` }]);
       return;
     }
-    const userText = input;
+    const userText = submittedInput;
     const attached = attachments;
     const imageAttachments = attached.filter((item) => item.dataUrl);
     const fileAttachments = attached.filter((item) => !item.dataUrl);
@@ -1331,7 +1370,7 @@ export function ChatPanel({ mode }: Props) {
       setChat((l) => [...l, { role: "tool", text }]);
       return;
     }
-    setInput("");
+    if (overrideText === undefined) setInput("");
     setAttachments([]);
     setPreviewAttachment(null);
     setContextItems([]);
@@ -1490,6 +1529,10 @@ export function ChatPanel({ mode }: Props) {
               }
             } else if (ev.type === "tool_result") {
               setChat((l) => [...l, { role: "tool", text: describeToolResult(ev.toolName, ev.toolResult), meta: { toolName: ev.toolName, toolResult: ev.toolResult } }, { role: "agent", text: "" }]);
+            } else if (ev.type === "user_question") {
+              setPendingUserQuestion(pendingQuestionFromEvent(ev));
+              setBusy(false);
+              break;
             } else if (ev.type === "error") {
               setChat((l) => [...l, { role: "tool", text: `Error: ${ev.text}` }]);
             }
@@ -1637,6 +1680,12 @@ export function ChatPanel({ mode }: Props) {
           }
         }
         setChat((l) => [...l, { role: "tool", text: describeToolResult(e.toolName, e.toolResult), meta: { toolName: e.toolName, toolResult: e.toolResult } }, { role: "agent", text: "" }]);
+      } else if (e.type === "user_question") {
+        setPendingUserQuestion(pendingQuestionFromEvent(e));
+        if (flowRun) {
+          useFlowStore.getState().setLaneStatus(flowRun.id, flowSawTool ? "worker" : "planner", "blocked", "Waiting for user answer.");
+        }
+        setBusy(false);
       } else if (e.type === "error") {
         if (flowRun) {
           useFlowStore.getState().setLaneStatus(flowRun.id, flowSawTool ? "worker" : "planner", "blocked", e.text ?? "Flow blocked.");
@@ -1838,6 +1887,39 @@ export function ChatPanel({ mode }: Props) {
         </div>
       )}
       <div className="messages">
+        {pendingUserQuestion && (
+          <div className="ask-user-card">
+            <div className="ask-user-card-head">
+              <strong>Rush needs your input</strong>
+              <span>Answer to continue</span>
+            </div>
+            <p>{pendingUserQuestion.question}</p>
+            {pendingUserQuestion.choices.length > 0 && (
+              <div className="ask-user-choices">
+                {pendingUserQuestion.choices.map((choice, index) => (
+                  <button type="button" key={`${choice.value}:${index}`} onClick={() => submitPendingUserAnswer(choice.value)}>
+                    <span>{choice.label}</span>
+                    {choice.description && <small>{choice.description}</small>}
+                  </button>
+                ))}
+              </div>
+            )}
+            <form
+              className="ask-user-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitPendingUserAnswer(pendingUserAnswer);
+              }}
+            >
+              <input
+                value={pendingUserAnswer}
+                onChange={(event) => setPendingUserAnswer(event.target.value)}
+                placeholder="Type an answer..."
+              />
+              <button type="submit" disabled={!pendingUserAnswer.trim() || busy}>Send answer</button>
+            </form>
+          </div>
+        )}
         {hiddenMessageCount > 0 && (
           <button className="messages-window-notice" onClick={() => setShowAllMessages(true)}>
             Show {hiddenMessageCount} older message{hiddenMessageCount === 1 ? "" : "s"}
@@ -2262,7 +2344,7 @@ export function ChatPanel({ mode }: Props) {
             </label>
           </div>
 
-          <button className="send-btn" onClick={send} disabled={busy} aria-label="Send">
+          <button className="send-btn" onClick={() => void send()} disabled={busy} aria-label="Send">
             {busy ? (
               <span className="send-spinner" />
             ) : (

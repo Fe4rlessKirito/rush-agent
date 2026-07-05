@@ -114,7 +114,8 @@ async function handle(command, args = {}) {
     case "browser_eval": {
       const session = await ensureSession(args);
       const result = await session.page.evaluate(String(args.script || ""));
-      return { sessionId: session.id, content: typeof result === "string" ? result : JSON.stringify(result) };
+      const content = typeof result === "string" ? result : JSON.stringify(result);
+      return { sessionId: session.id, content: String(content || "").slice(0, MAX_TEXT) };
     }
     case "browser_screenshot": {
       const session = await ensureSession(args);
