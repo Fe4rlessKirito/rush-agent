@@ -213,6 +213,12 @@ export function stripThinking(text: string): string {
   return text.replace(THINKING_RE, "").trim();
 }
 
+function askUserQuestionText(args: Record<string, unknown> | undefined): string {
+  if (!args) return "";
+  const value = args.question ?? args.prompt ?? args.text ?? args.message ?? args.query;
+  return typeof value === "string" ? value.trim() : "";
+}
+
 // --- Tool-output safety -----------------------------------------------------
 // Tool results are UNTRUSTED DATA: file contents, directory listings, error
 // strings, and (later) remote MCP/web responses all flow back into context
@@ -883,7 +889,7 @@ export async function* runAgent(
       appendMessages?.push(toolMsg);
     }
 
-    const userQuestion = results.find(({ call }) => call.name === "AskUserQuestion");
+    const userQuestion = results.find(({ call, safeResult }) => call.name === "AskUserQuestion" && askUserQuestionText(call.args) && !/^(Invalid arguments|Missing question|Tool .* failed:|Unknown tool:|Tool unavailable|Blocked:|Blocked by permission rule|User denied)/.test(safeResult));
     if (userQuestion) {
       yield {
         type: "user_question",

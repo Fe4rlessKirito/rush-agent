@@ -1,15 +1,15 @@
 {
-  "version": "1.7.37",
-  "notes": "Rush v1.7.37 fixes AskUserQuestion so model clarification questions pause the run and render as answerable UI prompts. It also keeps the local-proxy behavior from v1.7.36 restored while retaining app-side transcript/output memory safeguards.",
-  "pub_date": "2026-07-05T13:36:23Z",
+  "version": "1.7.38",
+  "notes": "Rush v1.7.38 improves AskUserQuestion by accepting common question aliases, only pausing on valid question prompts, and rendering the answer card above the composer.",
+  "pub_date": "2026-07-05T14:08:54Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0kyaHlwYlY5aWM1UWs0bUJpa3ZsYlFQbmJtMXNnUlFqbmZ5SVpESUVTeTczSWJ2cDdqZjBVVDNOTzF3M1E5K1k5UU93ZzVkWGNlZnMxeXlEaXNOOEFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjU4NTYxCWZpbGU6UnVzaF8xLjcuMzdfeDY0LXNldHVwLmV4ZQpuSjdrR09BZ1BNMVdiV05xeDFUOGduYUMwUDk3Ry8zbmpnWFFpTFNUUHBFSFB3Skk0UmNyZzRDakZTVVJNWVZtcis5Q3FpNDBsTHNPdGJ4amRqVXdDdz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.37/Rush_1.7.37_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0R3cjFYK0xSTVMrMlhOZDU4Rld3Y3Fpa0JWbG1MbW96VGNKVUYvRkpyT1J3WDhVMEtmd0NSS21Halh4R0pSSHBLbDhZWmd2QnFrKzhGem1JbE5uSHdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjYwNTA3CWZpbGU6UnVzaF8xLjcuMzhfeDY0LXNldHVwLmV4ZQpFV0c5cDNiQTFTWFZlWGp1MXFuUFJVYnhjc3ZhRUpWUGJpbWo1Rjhhd01nNUlYaWNkdWh4Vy91am1MZTNDNWtvTUFBZzNrTDN1QmF3MWdVcXZWV2JBQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.38/Rush_1.7.38_x64-setup.exe"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na015OWxVNlRMNGdINjJ4VjFidmRpTWlJWTc0eldiSlV6MDQ1TXhOM3BKL1g3c0lWanFrRVZvbmp0RkFqczBoWSt5cVQ0R2NSakt0aHZtMW4zSXZhQXdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjU4NTYxCWZpbGU6UnVzaF8xLjcuMzdfeDY0X2VuLVVTLm1zaQphRHNKeS9Gb3FyVklBQU1BYTZ0ZkFxdjlPdlJOZE1IcjgwQVluaCtTRldoMWZLcTJvNCtuYWZyTThZVmdHc1lLWVltaFduTDM4U1Z3Mm1MUlpqaWhDdz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.37/Rush_1.7.37_x64_en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na04ydnVXYmNGWDBPc2pyb1B4dTdpcG0xRzVwR1M3L3JWOGRnNDgrQ2RpdVlCcDdaMHhPdWp0UmlCMDNOc25SOFI1MmIxc295S1ZZbDR6VWRObzFsVUFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjYwNTA3CWZpbGU6UnVzaF8xLjcuMzhfeDY0X2VuLVVTLm1zaQpvWUZRUWRjSEN6RVgzUzQzZ3ZnUDg3ZVJJRVlpbFpRMnFGREJVczdDQUVJQ3NrNVN1eVB6VWVXZTMzTWxXMy9SR21hMGFDUWUybGhFbUVzY2RVTFpCQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.38/Rush_1.7.38_x64_en-US.msi"
     }
   }
 }

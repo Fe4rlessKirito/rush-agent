@@ -157,15 +157,18 @@ export function createPlanningTools(store: PlanningStore = planningStore): Tool[
         inputSchema: {
           type: "object",
           properties: {
-            question: { type: "string", description: "Question to ask the user." },
+            question: { type: "string", description: "Question to ask the user. Prefer this field." },
+            prompt: { type: "string", description: "Alias for question." },
+            text: { type: "string", description: "Alias for question." },
+            message: { type: "string", description: "Alias for question." },
+            query: { type: "string", description: "Alias for question." },
             choices: { type: "array", items: { type: "object" }, description: "Optional multiple-choice options." },
           },
-          required: ["question"],
         },
       },
       async execute(args) {
-        const question = text(args.question);
-        if (!question) return { ok: false, isError: true, content: "Missing question." };
+        const question = text(args.question ?? args.prompt ?? args.text ?? args.message ?? args.query);
+        if (!question) return { ok: false, isError: true, content: "Missing question. Call AskUserQuestion with a question field, for example { \"question\": \"Which option should I use?\" }." };
         const choices = formatChoices(args.choices);
         const prompt = choices ? `${question}\n\n${choices}` : question;
         store.ask(prompt);

@@ -1887,39 +1887,6 @@ export function ChatPanel({ mode }: Props) {
         </div>
       )}
       <div className="messages">
-        {pendingUserQuestion && (
-          <div className="ask-user-card">
-            <div className="ask-user-card-head">
-              <strong>Rush needs your input</strong>
-              <span>Answer to continue</span>
-            </div>
-            <p>{pendingUserQuestion.question}</p>
-            {pendingUserQuestion.choices.length > 0 && (
-              <div className="ask-user-choices">
-                {pendingUserQuestion.choices.map((choice, index) => (
-                  <button type="button" key={`${choice.value}:${index}`} onClick={() => submitPendingUserAnswer(choice.value)}>
-                    <span>{choice.label}</span>
-                    {choice.description && <small>{choice.description}</small>}
-                  </button>
-                ))}
-              </div>
-            )}
-            <form
-              className="ask-user-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                submitPendingUserAnswer(pendingUserAnswer);
-              }}
-            >
-              <input
-                value={pendingUserAnswer}
-                onChange={(event) => setPendingUserAnswer(event.target.value)}
-                placeholder="Type an answer..."
-              />
-              <button type="submit" disabled={!pendingUserAnswer.trim() || busy}>Send answer</button>
-            </form>
-          </div>
-        )}
         {hiddenMessageCount > 0 && (
           <button className="messages-window-notice" onClick={() => setShowAllMessages(true)}>
             Show {hiddenMessageCount} older message{hiddenMessageCount === 1 ? "" : "s"}
@@ -2062,6 +2029,39 @@ export function ChatPanel({ mode }: Props) {
           );
         })}
       </div>
+      {pendingUserQuestion && (
+        <div className="ask-user-card">
+          <div className="ask-user-card-head">
+            <strong>Rush needs your input</strong>
+            <span>Answer to continue</span>
+          </div>
+          <p>{pendingUserQuestion.question}</p>
+          {pendingUserQuestion.choices.length > 0 && (
+            <div className="ask-user-choices">
+              {pendingUserQuestion.choices.map((choice, index) => (
+                <button type="button" key={`${choice.value}:${index}`} onClick={() => submitPendingUserAnswer(choice.value)}>
+                  <span>{choice.label}</span>
+                  {choice.description && <small>{choice.description}</small>}
+                </button>
+              ))}
+            </div>
+          )}
+          <form
+            className="ask-user-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitPendingUserAnswer(pendingUserAnswer);
+            }}
+          >
+            <input
+              value={pendingUserAnswer}
+              onChange={(event) => setPendingUserAnswer(event.target.value)}
+              placeholder="Type an answer..."
+            />
+            <button type="submit" disabled={!pendingUserAnswer.trim() || busy}>Send answer</button>
+          </form>
+        </div>
+      )}
       {activeSubagent ? (
         <div className="composer subagent-readonly-composer">
           <span className={"subagent-status " + activeSubagent.status} aria-hidden="true" />
