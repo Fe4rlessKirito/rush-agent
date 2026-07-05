@@ -3,7 +3,7 @@
   "notes": "Improve subagent chats with coordinator task messages, read-only child transcripts, persisted subagent context, follow-up prompting, and retained worked timers.",
   "pub_date": "2026-07-05T00:00:00Z",
   "platforms": {
-    "windows-x86_64": {
+    "windows-x86_64-pc-windows-msvc": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0hIL0U1U3FsUFJiRmtCNE1aMVNneU5uS0JPZXpDSUtQemJOd0JDRVdSUDQvZkVxNVFqWmU5bXk1MHhESHhuMnM5Z3huUE5LTXM4Q29EWmJUYjkzWlFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMjExNzE0CWZpbGU6UnVzaF8xLjcuMjhfeDY0LXNldHVwLmV4ZQo1M0pkTGE4emc0aDV0OEpWTTdvZnRCTVhoNGJObDQvTk9meXFDUUY1cU5ZQ1Zsa3N0WndUKzZNai9LckM0aW11d1NzUXpad3BJcVFPTDl2ZGQrdk1CUT09Cg==",
       "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.28/Rush_1.7.28_x64-setup.exe"
     }
