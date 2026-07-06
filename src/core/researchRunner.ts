@@ -28,6 +28,9 @@ export interface RunDeepResearchOptions {
   providerConfig?: ProviderConfig;
   model: string;
   searchConfig: SearchConfig;
+  continuation?: string;
+  previousContent?: string;
+  previousSources?: SearchResult[];
   callbacks?: ResearchRunCallbacks;
 }
 
@@ -80,14 +83,20 @@ function partialStepLimitReport(prompt: string, content: string, sources: Search
 
 export async function runDeepResearch(options: RunDeepResearchOptions): Promise<RunDeepResearchResult> {
   const prompt = options.prompt.trim();
+  const continuation = options.continuation?.trim() ?? "";
+  const previousContent = options.previousContent?.trim() ?? "";
+  const previousSources = options.previousSources ?? [];
+  const effectivePrompt = continuation
+    ? `${prompt}\n\nFollow-up instruction: ${continuation}`
+    : prompt;
   const engine = options.settings.engine as SearchEngine;
   options.callbacks?.onActivity?.("Searching initial sources...");
-  const searchResponse = await searchWeb(prompt, engine, options.searchConfig);
+  const searchResponse = await searchWeb(effectivePrompt, engine, options.searchConfig);
   options.callbacks?.onActivity?.(searchResponse.warning && searchResponse.results.length === 0 && engine !== "duckduckgo" ? "Initial search had no usable results. Trying DuckDuckGo fallback..." : "Initial source search complete.");
   const initialSearchResponse = searchResponse.warning && searchResponse.results.length === 0 && engine !== "duckduckgo"
-    ? await searchWeb(prompt, "duckduckgo", options.searchConfig)
+    ? await searchWeb(effectivePrompt, "duckduckgo", options.searchConfig)
     : searchResponse;
-  let gatheredSources = initialSearchResponse.results;
+  let gatheredSources = mergeSources(previousSources, initialSearchResponse.results);
   let warning = initialSearchResponse === searchResponse
     ? searchResponse.warning
     : initialSearchResponse.results.length > 0
@@ -140,10 +149,13 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
         role: "user",
         content: [
           `Research prompt:\n${prompt}`,
+          continuation ? `Follow-up instruction:\n${continuation}` : "",
+          previousContent ? `Previous report to continue or refine:\n${previousContent}` : "",
+          previousSources.length > 0 ? `Previously gathered sources:\n${formatSearchResults({ engine, results: previousSources })}` : "",
           "",
           `Settings:\n${settingsText}`,
           "",
-          "Initial search results:",
+          "Initial search results for this pass:",
           formatSearchResults(initialSearchResponse),
         ].join("\n"),
       },

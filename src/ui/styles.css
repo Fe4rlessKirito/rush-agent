@@ -854,6 +854,35 @@ body {
 }
 .research-live-content p:first-child { margin-top: 0; }
 .research-live-content p:last-child { margin-bottom: 0; }
+.research-followup-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.research-followup-form textarea {
+  min-height: 58px;
+  margin: 0;
+}
+.research-followup-form button {
+  height: 36px;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 750;
+}
+.research-followup-form button:hover:not(:disabled) {
+  filter: none;
+  transform: translateY(-1px);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, 0.2);
+}
+.research-followup-form button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .brain-shell {
   position: fixed;
   top: 50%;
