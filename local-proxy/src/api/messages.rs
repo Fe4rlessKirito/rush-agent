@@ -696,6 +696,16 @@ async fn handler(State(pool): State<AccountPool>, Json(req): Json<AnthropicReque
                 });
                 yield Ok(axum::response::sse::Event::default().data(ping_event.to_string()));
 
+                let text_block_start = serde_json::json!({
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {
+                        "type": "text",
+                        "text": "",
+                    }
+                });
+                let mut text_block_open = false;
+
                 let mut stream = stream_completion(CompletionRequest {
                     model: model.clone(),
                     messages: openai_messages.clone(),
@@ -706,32 +716,36 @@ async fn handler(State(pool): State<AccountPool>, Json(req): Json<AnthropicReque
                 let mut stream_error = None;
                 while let Some(chunk) = stream.next().await {
                     match chunk {
-                        Ok(text) => reply.push_str(&text),
+                        Ok(text) => {
+                            reply.push_str(&text);
+                            if !text.is_empty() {
+                                if !text_block_open {
+                                    yield Ok(axum::response::sse::Event::default().data(text_block_start.to_string()));
+                                    text_block_open = true;
+                                }
+                                let delta = serde_json::json!({
+                                    "type": "content_block_delta",
+                                    "index": 0,
+                                    "delta": {
+                                        "type": "text_delta",
+                                        "text": text,
+                                    }
+                                });
+                                yield Ok(axum::response::sse::Event::default().data(delta.to_string()));
+                            }
+                        }
                         Err(e) => {
                             stream_error = Some(e.to_string());
                             break;
                         }
                     }
                 }
-                if stream_error.is_none() {
-                    let _ = crate::usage::record_tokens(
-                        &session_id,
-                        &model,
-                        input_tokens,
-                        crate::usage::estimate_tokens(&reply),
-                    );
-                }
 
-                if let Some(error) = stream_error {
-                    let block_start = serde_json::json!({
-                        "type": "content_block_start",
-                        "index": 0,
-                        "content_block": {
-                            "type": "text",
-                            "text": "",
-                        }
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(block_start.to_string()));
+                if let Some(error) = stream_error.as_ref() {
+                    if !text_block_open {
+                        yield Ok(axum::response::sse::Event::default().data(text_block_start.to_string()));
+                        text_block_open = true;
+                    }
                     let delta = serde_json::json!({
                         "type": "content_block_delta",
                         "index": 0,
@@ -741,19 +755,32 @@ async fn handler(State(pool): State<AccountPool>, Json(req): Json<AnthropicReque
                         }
                     });
                     yield Ok(axum::response::sse::Event::default().data(delta.to_string()));
-                    let block_stop = serde_json::json!({
+                } else {
+                    let _ = crate::usage::record_tokens(
+                        &session_id,
+                        &model,
+                        input_tokens,
+                        crate::usage::estimate_tokens(&reply),
+                    );
+                }
+
+                if text_block_open {
+                    let text_block_stop = serde_json::json!({
                         "type": "content_block_stop",
                         "index": 0,
                     });
-                    yield Ok(axum::response::sse::Event::default().data(block_stop.to_string()));
-                } else {
+                    yield Ok(axum::response::sse::Event::default().data(text_block_stop.to_string()));
+                }
+
+                if stream_error.is_none() {
                     let parsed_calls = parse_tool_uses(&reply);
                     if !parsed_calls.is_empty() {
                         for (idx, (name, input)) in parsed_calls.iter().enumerate() {
+                            let block_index = idx + 1;
                             let tool_id = format!("toolu_{}", uuid::Uuid::new_v4().simple());
                             let block_start = serde_json::json!({
                                 "type": "content_block_start",
-                                "index": idx,
+                                "index": block_index,
                                 "content_block": {
                                     "type": "tool_use",
                                     "id": tool_id,
@@ -766,7 +793,7 @@ async fn handler(State(pool): State<AccountPool>, Json(req): Json<AnthropicReque
                             for partial_json in input_json.as_bytes().chunks(32) {
                                 let delta = serde_json::json!({
                                     "type": "content_block_delta",
-                                    "index": idx,
+                                    "index": block_index,
                                     "delta": {
                                         "type": "input_json_delta",
                                         "partial_json": String::from_utf8_lossy(partial_json),
@@ -776,119 +803,21 @@ async fn handler(State(pool): State<AccountPool>, Json(req): Json<AnthropicReque
                             }
                             let block_stop = serde_json::json!({
                                 "type": "content_block_stop",
-                                "index": idx,
+                                "index": block_index,
                             });
                             yield Ok(axum::response::sse::Event::default().data(block_stop.to_string()));
                         }
-                    let message_delta = serde_json::json!({
-                        "type": "message_delta",
-                        "delta": {
-                            "stop_reason": "tool_use",
-                            "stop_sequence": null,
-                        },
-                        "usage": {
-                            "output_tokens": 0,
-                        }
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(message_delta.to_string()));
-                    } else if is_tool_call_incomplete(&reply) {
-                    let block_start = serde_json::json!({
-                        "type": "content_block_start",
-                        "index": 0,
-                        "content_block": {
-                            "type": "text",
-                            "text": "",
-                        }
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(block_start.to_string()));
-                    let delta = serde_json::json!({
-                        "type": "content_block_delta",
-                        "index": 0,
-                        "delta": {
-                            "type": "text_delta",
-                            "text": "[ERROR] Incomplete tool call generated by upstream model",
-                        }
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(delta.to_string()));
-                    let block_stop = serde_json::json!({
-                        "type": "content_block_stop",
-                        "index": 0,
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(block_stop.to_string()));
-                    } else if looks_like_tool_call(&reply) {
-                    let block_start = serde_json::json!({
-                        "type": "content_block_start",
-                        "index": 0,
-                        "content_block": {
-                            "type": "text",
-                            "text": "",
-                        }
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(block_start.to_string()));
-                    let delta = serde_json::json!({
-                        "type": "content_block_delta",
-                        "index": 0,
-                        "delta": {
-                            "type": "text_delta",
-                            "text": "[ERROR] Tool call was detected but could not be converted safely",
-                        }
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(delta.to_string()));
-                    let block_stop = serde_json::json!({
-                        "type": "content_block_stop",
-                        "index": 0,
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(block_stop.to_string()));
-                    } else if looks_like_tool_refusal(&reply) {
-                    let block_start = serde_json::json!({
-                        "type": "content_block_start",
-                        "index": 0,
-                        "content_block": {
-                            "type": "text",
-                            "text": "",
-                        }
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(block_start.to_string()));
-                    let delta = serde_json::json!({
-                        "type": "content_block_delta",
-                        "index": 0,
-                        "delta": {
-                            "type": "text_delta",
-                            "text": "[ERROR] Upstream model refused tool usage instead of emitting a tool call",
-                        }
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(delta.to_string()));
-                    let block_stop = serde_json::json!({
-                        "type": "content_block_stop",
-                        "index": 0,
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(block_stop.to_string()));
-                    } else {
-                    let block_start = serde_json::json!({
-                        "type": "content_block_start",
-                        "index": 0,
-                        "content_block": {
-                            "type": "text",
-                            "text": "",
-                        }
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(block_start.to_string()));
-                    if !reply.is_empty() {
-                        let delta = serde_json::json!({
-                            "type": "content_block_delta",
-                            "index": 0,
+                        let message_delta = serde_json::json!({
+                            "type": "message_delta",
                             "delta": {
-                                "type": "text_delta",
-                                "text": reply,
+                                "stop_reason": "tool_use",
+                                "stop_sequence": null,
+                            },
+                            "usage": {
+                                "output_tokens": 0,
                             }
                         });
-                        yield Ok(axum::response::sse::Event::default().data(delta.to_string()));
-                    }
-                    let block_stop = serde_json::json!({
-                        "type": "content_block_stop",
-                        "index": 0,
-                    });
-                    yield Ok(axum::response::sse::Event::default().data(block_stop.to_string()));
+                        yield Ok(axum::response::sse::Event::default().data(message_delta.to_string()));
                     }
                 }
 
