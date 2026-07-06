@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useAppStore, type Conversation, type ConversationMode } from "../../core/store";
-import { useResearchStore, type ResearchRun } from "../../core/researchStore";
+import { useResearchStore } from "../../core/researchStore";
 import { Markdown } from "./Markdown";
 
 interface Props {
@@ -67,11 +67,13 @@ function sortItems(items: Conversation[], sortBy: SortBy): Conversation[] {
 export function LibraryView({ onOpenConversation, filter, onFilterChange }: Props) {
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortBy>("updated");
-  const [selectedRun, setSelectedRun] = useState<ResearchRun | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const conversations = useAppStore((s) => s.conversations);
   const deleteConversation = useAppStore((s) => s.deleteConversation);
   const researchRuns = useResearchStore((s) => s.runs);
   const deleteRun = useResearchStore((s) => s.deleteRun);
+
+  const selectedRun = selectedRunId ? researchRuns.find((run) => run.id === selectedRunId) ?? null : null;
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -155,7 +157,7 @@ export function LibraryView({ onOpenConversation, filter, onFilterChange }: Prop
               <div
                 key={run.id}
                 className="library-card"
-                onClick={() => setSelectedRun(run)}
+                onClick={() => setSelectedRunId(run.id)}
               >
                 <div className="library-card-top">
                   <span className="library-card-icon research">{modeIcon("flow")}</span>
@@ -241,14 +243,14 @@ export function LibraryView({ onOpenConversation, filter, onFilterChange }: Prop
           </div>
         )}
         {selectedRun && (
-          <div className="library-preview-overlay" onMouseDown={() => setSelectedRun(null)}>
+          <div className="library-preview-overlay" onMouseDown={() => setSelectedRunId(null)}>
             <div className="library-preview" onMouseDown={(e) => e.stopPropagation()}>
               <div className="library-preview-head">
                 <div>
                   <strong>{selectedRun.title}</strong>
                   <span>{selectedRun.status} · {relTime(selectedRun.updatedAt)}</span>
                 </div>
-                <button onClick={() => setSelectedRun(null)} aria-label="Close research preview">x</button>
+                <button onClick={() => setSelectedRunId(null)} aria-label="Close research preview">x</button>
               </div>
               <div className="library-preview-body">
                 {selectedRun.sources.length > 0 && (

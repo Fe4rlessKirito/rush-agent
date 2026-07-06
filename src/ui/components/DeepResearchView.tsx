@@ -6,6 +6,7 @@ import { useNotificationStore } from "../../core/notificationStore";
 import { useResearchStore } from "../../core/researchStore";
 import { searchProviderStatus, type SearchEngine } from "../../core/searchProviders";
 import { runDeepResearch } from "../../core/researchRunner";
+import { Markdown } from "./Markdown";
 
 type SelectId = "rounds" | "format" | "engine" | "endpoint" | "model";
 
@@ -88,12 +89,15 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
   const updateRun = useResearchStore((s) => s.updateRun);
   const notify = useNotificationStore((s) => s.notify);
   const searchConfig = useResearchStore((s) => s.searchConfig);
+  const researchRuns = useResearchStore((s) => s.runs);
   const setSearchConfig = useResearchStore((s) => s.setSearchConfig);
   const { onMouseDown, style } = useDraggable(".research-shell");
   const [prompt, setPrompt] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const queued = useResearchStore((s) => s.runs.filter((run) => run.status === "queued").length);
   const [running, setRunning] = useState(false);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const activeRun = activeRunId ? researchRuns.find((run) => run.id === activeRunId) ?? null : null;
   const [values, setValues] = useState<Record<SelectId, string>>({
     rounds: "Auto",
     format: "Auto",
@@ -129,6 +133,8 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
     }
 
     const id = createRun({ prompt: prompt.trim(), settings: values, status: "running" });
+    setActiveRunId(id);
+    updateRun(id, { activity: "Queued research run. Starting..." });
     notify({
       title: "Deep Research started",
       message: "The run is saved to Library and will update as results stream in.",
@@ -147,17 +153,19 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
         callbacks: {
           onSources: (sources, warning) => updateRun(id, { sources, searchWarning: warning }),
           onContent: (content) => updateRun(id, { content }),
-          onError: (error, content) => updateRun(id, { content, error }),
+          onActivity: (activity) => updateRun(id, { activity }),
+          onError: (error, content) => updateRun(id, { status: "error", content, error, activity: "Deep Research stopped with an error." }),
         },
       });
       updateRun(id, {
         status: "completed",
+        activity: "Research report complete.",
         content: result.content,
         sources: result.sources,
         searchWarning: result.warning,
       });
     } catch (err) {
-      updateRun(id, { status: "error", error: String(err) });
+      updateRun(id, { status: "error", error: String(err), activity: "Deep Research stopped with an error." });
     } finally {
       setRunning(false);
     }
@@ -247,6 +255,38 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
             <button className="research-queue" onClick={createQueuedRun} disabled={!prompt.trim()}><Icon name="queue" /> Queue</button>
             <button className="research-start" disabled={!prompt.trim() || running} onClick={startRun}><Icon name="play" /> {running ? "Running..." : "Start"}</button>
           </div>
+          {activeRun && (
+            <div className="research-live-panel">
+              <div className="research-live-head">
+                <div>
+                  <strong>{activeRun.title}</strong>
+                  <span>{activeRun.status} · {activeRun.sources.length} source{activeRun.sources.length === 1 ? "" : "s"}</span>
+                </div>
+                <button type="button" onClick={onOpenLibrary}>Open in Library</button>
+              </div>
+              <div className={`research-live-activity ${activeRun.status}`}>
+                {activeRun.status === "running" && <span className="research-live-pulse" aria-hidden="true" />}
+                <span>{activeRun.activity || (activeRun.status === "running" ? "Working..." : activeRun.status)}</span>
+              </div>
+              {activeRun.searchWarning && <div className="research-live-warning">{activeRun.searchWarning}</div>}
+              {activeRun.error && <div className="research-live-error">{activeRun.error}</div>}
+              {activeRun.sources.length > 0 && (
+                <details className="research-live-sources">
+                  <summary>Sources</summary>
+                  <div>
+                    {activeRun.sources.map((source, index) => (
+                      <a key={`${source.url}-${index}`} href={source.url || undefined} target="_blank" rel="noreferrer">
+                        {index + 1}. {source.title || source.url || source.source}
+                      </a>
+                    ))}
+                  </div>
+                </details>
+              )}
+              <div className="research-live-content">
+                {activeRun.content ? <Markdown>{activeRun.content}</Markdown> : <p>Waiting for the first streamed report text...</p>}
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </div>

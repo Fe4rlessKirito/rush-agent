@@ -1,15 +1,15 @@
 {
-  "version": "1.7.42",
-  "notes": "Rush v1.7.42 records the model/provider used for each assistant message, fixes the composer project-root folder chip, and hardens Deep Research search/fetch failures with DuckDuckGo fallback and clearer warnings.",
-  "pub_date": "2026-07-06T11:19:25Z",
+  "version": "1.7.43",
+  "notes": "Rush v1.7.43 makes Deep Research visibly stream in the research window, adds live activity updates for search/tool/report phases, fixes stale Library research previews, and marks research runner errors clearly.",
+  "pub_date": "2026-07-06T11:40:50Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na09nQ0wwM1J2RGQxZmFkL3hZZWdhaXhHb3ZRdnhLaDY0ZHpQUGFnQ3hLUzlEeS9tWnl0SGpzQk0yYVI1TUl5WWhGaUdKOVBDTFlPTk5JT3BUYlh3eVE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMzM2NzUwCWZpbGU6UnVzaF8xLjcuNDJfeDY0LXNldHVwLmV4ZQpYV3NGNkp4VWdVUlZiOWVJQmU1M3ZJcWRDUEJxeWFkSW4ramdmRW80SWJ0VDE1dVhsWmJkMmxEamR5SWtHMXBmOE16akk1dDJxTjdBbnZFc1BabzBCUT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.42/Rush_1.7.42_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0F2N0Q4bzFIZm10MCtrNm1OR3h2cThzejg2SzcySlBLVlZaWDc1SlBiUDVyZ2hoKzJ6YTRwS25Sckk3MkJoNHA1bjZJWHRTbnlRb0czOHBnWGlHcmdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMzM4MDI3CWZpbGU6UnVzaF8xLjcuNDNfeDY0LXNldHVwLmV4ZQpnUFJPSlNnUVVRTS9YbkhLMnI2M1RSM2xTSDVqT0ZqSTAyWEJ1WjhOWkZ3OVI2Z3JMVkUvckl3d3RVRk9IVWJzV3dYTUJSaVZSVXdidFJvMkswRnVCQT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.43/Rush_1.7.43_x64-setup.exe"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0ZSRWQwSW13L1h0YzFCOXZEemhTc2VRdXNkWFpXRTNmWlVwVUdtQWRVeWE0TWwzQkF6aUtaWXNKOUdFTnFhYnpYMkZoeFBwTW1qSHdQb1R4bGR4RXdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMzM2NzUwCWZpbGU6UnVzaF8xLjcuNDJfeDY0X2VuLVVTLm1zaQpHbSs3d0w2V0ZEeXZvOTRIMHdmSzFjejVSUjhBWWVNWUhVOGhUWGRpYWUvaERlRmFMVWMrckUxRlRkcnBsL2Npa2FEdXByakk1WXRJcmlQWTBmd0dBUT09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.42/Rush_1.7.42_x64_en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0NseTEyVzJ6U3QrbUkyengvVUMzYnJXcjRLcUN0aUc4eDI1cSs2WVoxcTVDYWFZeXVuVTBsaVVBOWZvZWJZbVcvMHMwbVBVL3AycU84clRFNXRDMUFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMzM4MDI3CWZpbGU6UnVzaF8xLjcuNDNfeDY0X2VuLVVTLm1zaQo3c09OT0p2T0txVkd2anczRjlsWUhsZ3o3cGgvWFdXS09LNWZRa1hqSDJCVjB2cG4wTXlOaEZJVTBBd1AwNmJJNVAvazIzei9iNGhtbFFjTG1uRTFCUT09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.43/Rush_1.7.43_x64_en-US.msi"
     }
   }
 }

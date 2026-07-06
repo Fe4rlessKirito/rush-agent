@@ -20,6 +20,7 @@ export interface ResearchRun {
   settings: ResearchSettings;
   content: string;
   sources: SearchResult[];
+  activity?: string;
   searchWarning?: string;
   createdAt: number;
   updatedAt: number;
@@ -68,6 +69,7 @@ export const useResearchStore = create<ResearchState>()(
           settings: input.settings,
           content: "",
           sources: [],
+          activity: input.status === "running" ? "Starting Deep Research..." : undefined,
           createdAt: now,
           updatedAt: now,
         };
@@ -101,7 +103,7 @@ export const useResearchStore = create<ResearchState>()(
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         state.searchConfig = { ...DEFAULT_SEARCH_CONFIG, ...(state.searchConfig ?? {}) };
-        state.runs = state.runs.map((run) => ({ ...run, sources: run.sources ?? [] }));
+        state.runs = state.runs.map((run) => ({ ...run, sources: run.sources ?? [], activity: run.activity }));
       },
     },
   ),

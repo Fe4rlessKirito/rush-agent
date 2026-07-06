@@ -17,6 +17,7 @@ import type { ResearchSettings } from "./researchStore";
 export interface ResearchRunCallbacks {
   onSources?: (sources: SearchResult[], warning?: string) => void;
   onContent?: (content: string) => void;
+  onActivity?: (activity: string) => void;
   onError?: (error: string, content: string) => void;
 }
 
@@ -60,7 +61,9 @@ export function mergeSources<T extends { url: string; title: string; snippet: st
 export async function runDeepResearch(options: RunDeepResearchOptions): Promise<RunDeepResearchResult> {
   const prompt = options.prompt.trim();
   const engine = options.settings.engine as SearchEngine;
+  options.callbacks?.onActivity?.("Searching initial sources...");
   const searchResponse = await searchWeb(prompt, engine, options.searchConfig);
+  options.callbacks?.onActivity?.(searchResponse.warning && searchResponse.results.length === 0 && engine !== "duckduckgo" ? "Initial search had no usable results. Trying DuckDuckGo fallback..." : "Initial source search complete.");
   const initialSearchResponse = searchResponse.warning && searchResponse.results.length === 0 && engine !== "duckduckgo"
     ? await searchWeb(prompt, "duckduckgo", options.searchConfig)
     : searchResponse;
@@ -74,6 +77,7 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
 
   options.callbacks?.onSources?.(gatheredSources, warning);
   if (content) options.callbacks?.onContent?.(content);
+  options.callbacks?.onActivity?.(gatheredSources.length > 0 ? "Writing report from gathered sources..." : "No initial sources yet. Asking the research agent to search deeper...");
 
   const settingsText = [
     `Rounds: ${options.settings.rounds}`,
@@ -88,10 +92,12 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
     engine,
     getSearchConfig: () => options.searchConfig,
     search: async (query, selectedEngine, config) => {
+      options.callbacks?.onActivity?.(`Searching web: ${query}`);
       const response = await searchWeb(query, selectedEngine, config);
       gatheredSources = mergeSources(gatheredSources, response.results);
       warning = response.warning ?? warning;
       options.callbacks?.onSources?.(gatheredSources, warning);
+      options.callbacks?.onActivity?.(response.results.length > 0 ? `Found ${response.results.length} source${response.results.length === 1 ? "" : "s"}.` : "Search returned no usable sources.");
       return response;
     },
   }));
@@ -128,11 +134,17 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
   )) {
     if (event.type === "text" && event.text) {
       content += event.text;
+      options.callbacks?.onActivity?.("Streaming report...");
       options.callbacks?.onContent?.(content);
     } else if (event.type === "tool_call") {
+      options.callbacks?.onActivity?.(`Using ${event.toolName ?? "web tool"}...`);
       options.callbacks?.onContent?.(content || `Searching with ${event.toolName ?? "web tool"}...\n\n`);
+    } else if (event.type === "tool_result") {
+      options.callbacks?.onActivity?.(`${event.toolName ?? "Web tool"} finished.`);
     } else if (event.type === "error") {
-      options.callbacks?.onError?.(event.text ?? "Deep Research tool run failed.", content);
+      const message = event.text ?? "Deep Research tool run failed.";
+      options.callbacks?.onError?.(message, content);
+      throw new Error(message);
     }
   }
 
@@ -145,5 +157,6 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
     options.callbacks?.onContent?.(content);
   }
 
+  options.callbacks?.onActivity?.("Research report complete.");
   return { content, sources: gatheredSources, warning };
 }
