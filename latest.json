@@ -1,15 +1,15 @@
 {
-  "version": "1.7.46",
-  "notes": "Adds Deep Research follow-up controls to Library previews and improves local proxy Anthropic streaming in tool-capable requests.",
-  "pub_date": "2026-07-06T13:26:38Z",
+  "version": "1.7.47",
+  "notes": "Improves local proxy streaming so tool-capable requests stream normal text without waiting for the full response while still converting real tool calls safely.",
+  "pub_date": "2026-07-06T14:21:44Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0lPcXBwREtBRXF2U3ZpRHFFSWMzeExtWVpBSDlYbkRJVjZMUCs5U2hnT3Y1SXg5dWNIY3U5bkE2UGJGTEZGeTdIU3MrRHVyZ0NISjdzTTh5dHZ4elE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMzQ0MzgyCWZpbGU6UnVzaF8xLjcuNDZfeDY0LXNldHVwLmV4ZQpVcGdtRVpieTFDendWN1lEVlQxcm0zMXVqSitEOTBwQ2U3eC9IZXdBeDNKOUgwSDJwbS91TGhJMHNEZXNIenBnc1pFQVVRbHA1MWFSdjFwbUNtZENCdz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.46/Rush_1.7.46_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0NxQlZmczlTTmJvZTRpbkR3V20weUIwNnNGSG1GR1pDMWlrZzYwakhnd2VXa0F5UGdwbkZiK0huYmpXQzBDTlM1cXdnd2dGWXRNci9LU1RJa0VBbkF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMzQ3NjgxCWZpbGU6UnVzaF8xLjcuNDdfeDY0LXNldHVwLmV4ZQpJbWVUMThOSWNERjVFTjZnSU1mOExCbE85bjZCWkhsVVNtU1dDdDlOa2tPVTU3MW52WjloeHQrenBPUWNIbXY5MXhxN0d3d3dEMk4xSlNNcUVwY0xCZz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.47/Rush_1.7.47_x64-setup.exe"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0s4Smp4Ulc5ZVUxM1FzbytrLzkvTEpmT3FKZG0wcFc5NkxzNitXMTZQWndBT0Q4dnVObmtleEFWRGtsUVZjS2pTUFc1Zm9aMExXemlYdXVyZ1Jnd3dRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMzQ0MzgyCWZpbGU6UnVzaF8xLjcuNDZfeDY0X2VuLVVTLm1zaQpyUGwvamxmd3BxbXNNTlc1UkVKZllIajhYV1FYRXN5Q2o0aXpybXl4KzRqMlppNVJ6SzRldmwySTVMNkd1L01NZ1ZZYlluaEwrcjl6bEZpYnc0VUFEdz09Cg==",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.46/Rush_1.7.46_x64_en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0pzNTh0UmhKdmRDc3pLM1dVVlV6TjFoSGx5Q245a1VZa1pQMEpkcDRCSko3U0RUSEpteTl3YVZTelpHQ1JUMnhWWGg5ZEZTakdWRW5kdGNFcUFlcVFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMzQ3NjgxCWZpbGU6UnVzaF8xLjcuNDdfeDY0X2VuLVVTLm1zaQpmZW9ROENLeUFUNmtlc29wLzFyNkJpZjNiNlRraHFFSGNYckdLTDgxaGRRUUpqczcyODUrQnc1dVB6SFZsYVhMQXdZNUZUcUd2SnQxL0ZyS2FEMXNCZz09Cg==",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.7.47/Rush_1.7.47_x64_en-US.msi"
     }
   }
 }

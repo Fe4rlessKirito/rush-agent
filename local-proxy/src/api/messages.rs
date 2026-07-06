@@ -24,6 +24,7 @@ const THINKING_LEVELS: &[(&str, usize)] = &[
     ("high", 16000),
     ("max", 32000),
 ];
+const TOOL_STREAM_GUARD_CHARS: usize = 96;
 
 const TOOL_PROMPT: &str = r#"You may be given tools.
 
@@ -470,8 +471,66 @@ fn looks_like_tool_refusal(reply: &str) -> bool {
 
 fn is_tool_call_incomplete(reply: &str) -> bool {
     let trimmed = strip_runtime_tags(reply);
-    (trimmed.contains("<tool_use>") && !trimmed.contains("</tool_use>"))
+    (trimmed.contains("<​tool_use>") && !trimmed.contains("<​/tool_use>"))
         || (looks_like_tool_call(&trimmed) && parse_tool_use(&trimmed).is_none())
+}
+
+#[derive(Default)]
+struct ToolModeStreamBuffer {
+    reply: String,
+    pending: String,
+    normal_text: bool,
+}
+
+impl ToolModeStreamBuffer {
+    fn push(&mut self, text: &str) -> Vec<String> {
+        self.reply.push_str(text);
+        if self.normal_text {
+            return vec![text.to_string()];
+        }
+
+        self.pending.push_str(text);
+        let trimmed = self.pending.trim_start();
+        if starts_like_tool_syntax(trimmed) {
+            return Vec::new();
+        }
+
+        if self.pending.chars().count() <= TOOL_STREAM_GUARD_CHARS && maybe_tool_syntax_prefix(trimmed) {
+            return Vec::new();
+        }
+
+        self.normal_text = true;
+        vec![std::mem::take(&mut self.pending)]
+    }
+
+    fn finish(self) -> (String, Vec<String>) {
+        if self.normal_text {
+            (self.reply, Vec::new())
+        } else if self.pending.is_empty() {
+            (self.reply, Vec::new())
+        } else {
+            (self.reply, vec![self.pending])
+        }
+    }
+}
+
+fn starts_like_tool_syntax(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    lower.starts_with("<​tool_use")
+        || lower.starts_with("<tool_use")
+        || lower.starts_with("```json")
+        || lower.starts_with('{')
+        || lower.starts_with('[')
+}
+
+fn maybe_tool_syntax_prefix(text: &str) -> bool {
+    if text.is_empty() {
+        return true;
+    }
+    let lower = text.to_lowercase();
+    ["<​tool_use", "<tool_use", "```json", "{", "["].iter().any(|tag| tag.starts_with(&lower))
+        || lower.starts_with("<​thinking")
+        || lower.starts_with("<thinking")
 }
 
 fn normalize_openai_tool_schema(tool: &serde_json::Value) -> Option<serde_json::Value> {
@@ -712,26 +771,27 @@ async fn handler(State(pool): State<AccountPool>, Json(req): Json<AnthropicReque
                     proxy_url: proxy_url.clone(),
                     account: account.clone(),
                 }).await;
-                let mut reply = String::new();
+                let mut tool_buffer = ToolModeStreamBuffer::default();
                 let mut stream_error = None;
                 while let Some(chunk) = stream.next().await {
                     match chunk {
                         Ok(text) => {
-                            reply.push_str(&text);
-                            if !text.is_empty() {
-                                if !text_block_open {
-                                    yield Ok(axum::response::sse::Event::default().data(text_block_start.to_string()));
-                                    text_block_open = true;
-                                }
-                                let delta = serde_json::json!({
-                                    "type": "content_block_delta",
-                                    "index": 0,
-                                    "delta": {
-                                        "type": "text_delta",
-                                        "text": text,
+                            for text_part in tool_buffer.push(&text) {
+                                if !text_part.is_empty() {
+                                    if !text_block_open {
+                                        yield Ok(axum::response::sse::Event::default().data(text_block_start.to_string()));
+                                        text_block_open = true;
                                     }
-                                });
-                                yield Ok(axum::response::sse::Event::default().data(delta.to_string()));
+                                    let delta = serde_json::json!({
+                                        "type": "content_block_delta",
+                                        "index": 0,
+                                        "delta": {
+                                            "type": "text_delta",
+                                            "text": text_part,
+                                        }
+                                    });
+                                    yield Ok(axum::response::sse::Event::default().data(delta.to_string()));
+                                }
                             }
                         }
                         Err(e) => {
@@ -740,6 +800,8 @@ async fn handler(State(pool): State<AccountPool>, Json(req): Json<AnthropicReque
                         }
                     }
                 }
+
+                let (reply, held_text) = tool_buffer.finish();
 
                 if let Some(error) = stream_error.as_ref() {
                     if !text_block_open {
@@ -756,6 +818,26 @@ async fn handler(State(pool): State<AccountPool>, Json(req): Json<AnthropicReque
                     });
                     yield Ok(axum::response::sse::Event::default().data(delta.to_string()));
                 } else {
+                    let parsed_calls = parse_tool_uses(&reply);
+                    if parsed_calls.is_empty() {
+                        for text_part in held_text {
+                            if !text_part.is_empty() {
+                                if !text_block_open {
+                                    yield Ok(axum::response::sse::Event::default().data(text_block_start.to_string()));
+                                    text_block_open = true;
+                                }
+                                let delta = serde_json::json!({
+                                    "type": "content_block_delta",
+                                    "index": 0,
+                                    "delta": {
+                                        "type": "text_delta",
+                                        "text": text_part,
+                                    }
+                                });
+                                yield Ok(axum::response::sse::Event::default().data(delta.to_string()));
+                            }
+                        }
+                    }
                     let _ = crate::usage::record_tokens(
                         &session_id,
                         &model,

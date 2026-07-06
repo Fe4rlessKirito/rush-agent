@@ -21,6 +21,7 @@ use crate::providers::{
 };
 
 const STREAM_CHUNK_CHARS: usize = 32;
+const TOOL_STREAM_GUARD_CHARS: usize = 96;
 const TOOL_PROMPT: &str = r#"You may be given tools.
 
 When tools are available and the task requires reading, searching, creating, editing, patching, or inspecting files, respond with one or more tool calls.
@@ -315,8 +316,66 @@ fn looks_like_tool_refusal(reply: &str) -> bool {
 
 fn is_tool_call_incomplete(reply: &str) -> bool {
     let trimmed = strip_runtime_tags(reply);
-    (trimmed.contains("<tool_use>") && !trimmed.contains("</tool_use>"))
+    (trimmed.contains("<​tool_use>") && !trimmed.contains("<​/tool_use>"))
         || (looks_like_tool_call(&trimmed) && parse_tool_use(&trimmed).is_none())
+}
+
+#[derive(Default)]
+struct ToolModeStreamBuffer {
+    reply: String,
+    pending: String,
+    normal_text: bool,
+}
+
+impl ToolModeStreamBuffer {
+    fn push(&mut self, text: &str) -> Vec<String> {
+        self.reply.push_str(text);
+        if self.normal_text {
+            return split_stream_text(text);
+        }
+
+        self.pending.push_str(text);
+        let trimmed = self.pending.trim_start();
+        if starts_like_tool_syntax(trimmed) {
+            return Vec::new();
+        }
+
+        if self.pending.chars().count() <= TOOL_STREAM_GUARD_CHARS && maybe_tool_syntax_prefix(trimmed) {
+            return Vec::new();
+        }
+
+        self.normal_text = true;
+        let pending = std::mem::take(&mut self.pending);
+        split_stream_text(&pending)
+    }
+
+    fn finish(self) -> (String, Vec<String>) {
+        if self.normal_text {
+            (self.reply, Vec::new())
+        } else {
+            let pending = self.pending;
+            (self.reply, split_stream_text(&pending))
+        }
+    }
+}
+
+fn starts_like_tool_syntax(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    lower.starts_with("<​tool_use")
+        || lower.starts_with("<tool_use")
+        || lower.starts_with("```json")
+        || lower.starts_with('{')
+        || lower.starts_with("[")
+}
+
+fn maybe_tool_syntax_prefix(text: &str) -> bool {
+    if text.is_empty() {
+        return true;
+    }
+    let lower = text.to_lowercase();
+    ["<​tool_use", "<tool_use", "```json", "{", "["].iter().any(|tag| tag.starts_with(&lower))
+        || lower.starts_with("<​thinking")
+        || lower.starts_with("<thinking")
 }
 
 fn normalize_tool_messages(messages: &mut [Value]) {
@@ -553,13 +612,31 @@ async fn chat_handler(State(pool): State<AccountPool>, Json(req): Json<ChatReque
             }).await;
 
             let mut buffered_reply = String::new();
+            let mut tool_buffer = ToolModeStreamBuffer::default();
+            let mut stream_failed = false;
             while let Some(chunk) = stream.next().await {
                 match chunk {
                     Ok(text) => {
                         if tool_mode_expected {
-                            buffered_reply.push_str(&text);
+                            for text_part in tool_buffer.push(&text) {
+                                let chunk_obj = serde_json::json!({
+                                    "id": id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created,
+                                    "model": model_clone,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {
+                                            "content": text_part,
+                                        },
+                                        "finish_reason": null,
+                                    }]
+                                });
+                                yield Ok::<_, Infallible>(Event::default().data(chunk_obj.to_string()));
+                            }
                             continue;
                         }
+                        buffered_reply.push_str(&text);
                         for text_part in split_stream_text(&text) {
                             let mut delta = serde_json::Map::new();
                             delta.insert("content".to_string(), serde_json::Value::String(text_part));
@@ -579,6 +656,26 @@ async fn chat_handler(State(pool): State<AccountPool>, Json(req): Json<ChatReque
                         }
                     }
                     Err(e) => {
+                        stream_failed = true;
+                        if tool_mode_expected {
+                            for text_part in tool_buffer.push(&format!("[ERROR] {}", e)) {
+                                let error_chunk = serde_json::json!({
+                                    "id": id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created,
+                                    "model": model_clone,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {
+                                            "content": text_part
+                                        },
+                                        "finish_reason": null,
+                                    }]
+                                });
+                                yield Ok(Event::default().data(error_chunk.to_string()));
+                            }
+                            break;
+                        }
                         let error_chunk = serde_json::json!({
                             "id": id,
                             "object": "chat.completion.chunk",
@@ -599,102 +696,99 @@ async fn chat_handler(State(pool): State<AccountPool>, Json(req): Json<ChatReque
             }
 
             if tool_mode_expected {
-                let parsed_calls = parse_tool_uses(&buffered_reply);
-                if !parsed_calls.is_empty() {
-                    let _ = crate::usage::record_tokens(
-                        &session_id,
-                        &model,
-                        input_tokens,
-                        crate::usage::estimate_tokens(&buffered_reply),
-                    );
-                    let tool_call_ids = parsed_calls
-                        .iter()
-                        .map(|_| format!("call_{}", uuid::Uuid::new_v4().simple()))
-                        .collect::<Vec<_>>();
-                    let name_chunk = serde_json::json!({
-                        "id": id,
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": model_clone,
-                        "choices": [{
-                            "index": 0,
-                            "delta": {
-                                "tool_calls": parsed_calls.iter().enumerate().map(|(idx, (name, _))| serde_json::json!({
-                                    "index": idx,
-                                    "id": tool_call_ids[idx],
-                                    "type": "function",
-                                    "function": {
-                                        "name": name,
-                                        "arguments": "",
-                                    }
-                                })).collect::<Vec<_>>()
-                            },
-                            "finish_reason": null,
-                        }]
-                    });
-                    yield Ok::<_, Infallible>(Event::default().data(name_chunk.to_string()));
+                let (finished_reply, held_text) = tool_buffer.finish();
+                buffered_reply = finished_reply;
+                if !stream_failed {
+                    let parsed_calls = parse_tool_uses(&buffered_reply);
+                    if !parsed_calls.is_empty() {
+                        let _ = crate::usage::record_tokens(
+                            &session_id,
+                            &model,
+                            input_tokens,
+                            crate::usage::estimate_tokens(&buffered_reply),
+                        );
+                        let tool_call_ids = parsed_calls
+                            .iter()
+                            .map(|_| format!("call_{}", uuid::Uuid::new_v4().simple()))
+                            .collect::<Vec<_>>();
+                        let name_chunk = serde_json::json!({
+                            "id": id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": model_clone,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {
+                                    "tool_calls": parsed_calls.iter().enumerate().map(|(idx, (name, _))| serde_json::json!({
+                                        "index": idx,
+                                        "id": tool_call_ids[idx],
+                                        "type": "function",
+                                        "function": {
+                                            "name": name,
+                                            "arguments": "",
+                                        }
+                                    })).collect::<Vec<_>>()
+                                },
+                                "finish_reason": null,
+                            }]
+                        });
+                        yield Ok::<_, Infallible>(Event::default().data(name_chunk.to_string()));
 
-                    for (idx, (_, input)) in parsed_calls.iter().enumerate() {
-                        let arguments = input.to_string();
-                        for arg_part in split_stream_text(&arguments) {
-                            let arg_chunk = serde_json::json!({
-                                "id": id,
-                                "object": "chat.completion.chunk",
-                                "created": created,
-                                "model": model_clone,
-                                "choices": [{
-                                    "index": 0,
-                                    "delta": {
-                                        "tool_calls": [{
-                                            "index": idx,
-                                            "function": {
-                                                "arguments": arg_part,
-                                            }
-                                        }]
-                                    },
-                                    "finish_reason": null,
-                                }]
-                            });
-                            yield Ok::<_, Infallible>(Event::default().data(arg_chunk.to_string()));
+                        for (idx, (_, input)) in parsed_calls.iter().enumerate() {
+                            let arguments = input.to_string();
+                            for arg_part in split_stream_text(&arguments) {
+                                let arg_chunk = serde_json::json!({
+                                    "id": id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created,
+                                    "model": model_clone,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {
+                                            "tool_calls": [{
+                                                "index": idx,
+                                                "function": {
+                                                    "arguments": arg_part,
+                                                }
+                                            }]
+                                        },
+                                        "finish_reason": null,
+                                    }]
+                                });
+                                yield Ok::<_, Infallible>(Event::default().data(arg_chunk.to_string()));
+                            }
                         }
+
+                        let final_chunk = serde_json::json!({
+                            "id": id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": model_clone,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {},
+                                "finish_reason": "tool_calls",
+                            }]
+                        });
+                        yield Ok::<_, Infallible>(Event::default().data(final_chunk.to_string()));
+                        yield Ok::<_, Infallible>(Event::default().data("[DONE]"));
+                        return;
                     }
 
-                    let final_chunk = serde_json::json!({
-                        "id": id,
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": model_clone,
-                        "choices": [{
-                            "index": 0,
-                            "delta": {},
-                            "finish_reason": "tool_calls",
-                        }]
-                    });
-                    yield Ok::<_, Infallible>(Event::default().data(final_chunk.to_string()));
-                    yield Ok::<_, Infallible>(Event::default().data("[DONE]"));
-                    return;
+                    if is_tool_call_incomplete(&buffered_reply) {
+                        debug!("Incomplete tool call from upstream, raw reply: {}", buffered_reply);
+                    }
+
+                    if looks_like_tool_call(&buffered_reply) {
+                        debug!("Unconvertible tool call from upstream, raw reply: {}", buffered_reply);
+                    }
+
+                    if looks_like_tool_refusal(&buffered_reply) {
+                        debug!("Upstream refused tool usage, raw reply: {}", buffered_reply);
+                    }
                 }
 
-                if is_tool_call_incomplete(&buffered_reply) {
-                    debug!("Incomplete tool call from upstream, raw reply: {}", buffered_reply);
-                    // Falls through to stream the real text below rather than
-                    // injecting a synthetic "[ERROR] ..." string, which the client
-                    // would store as a genuine assistant turn (finish_reason=stop)
-                    // and replay back on later requests, making the model think
-                    // it already gave up on tool calls.
-                }
-
-                if looks_like_tool_call(&buffered_reply) {
-                    debug!("Unconvertible tool call from upstream, raw reply: {}", buffered_reply);
-                    // See note above: fall through instead of faking content.
-                }
-
-                if looks_like_tool_refusal(&buffered_reply) {
-                    debug!("Upstream refused tool usage, raw reply: {}", buffered_reply);
-                    // See note above: fall through instead of faking content.
-                }
-
-                for text_part in split_stream_text(&buffered_reply) {
+                for text_part in held_text {
                     let chunk_obj = serde_json::json!({
                         "id": id,
                         "object": "chat.completion.chunk",
