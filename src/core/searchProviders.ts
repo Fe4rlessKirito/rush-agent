@@ -61,6 +61,32 @@ function normalizeEngine(engine: SearchEngine): SearchEngine {
   return engine === "Default" ? "duckduckgo" : engine;
 }
 
+function errorText(err: unknown): string {
+  if (err instanceof Error) return err.message || err.name;
+  return String(err);
+}
+
+function isFetchFailure(err: unknown): boolean {
+  const text = errorText(err).toLowerCase();
+  return text.includes("failed to fetch") || text.includes("networkerror") || text.includes("load failed");
+}
+
+function searchFailureWarning(engine: SearchEngine, err: unknown): string {
+  if (isFetchFailure(err)) {
+    if (engine === "searxng") {
+      return "SearXNG could not be reached from the app. The endpoint may be offline, require auth, block browser/Tauri requests, or not allow JSON search/CORS.";
+    }
+    if (engine === "tavily") {
+      return "Tavily search could not be reached from the app. Check network access, CORS/provider availability, API key validity, quota, and whether the provider allows this client.";
+    }
+    if (engine === "brave") {
+      return "Brave Search could not be reached from the app. Check network access, CORS/provider availability, API key validity, quota, and whether the provider allows this client.";
+    }
+    return "DuckDuckGo could not be reached from the app. This usually means network, DNS/TLS, CORS, proxy, firewall, or provider blocking prevented the webview fetch.";
+  }
+  return errorText(err);
+}
+
 export function searchProviderStatus(engine: SearchEngine, config: SearchConfig): SearchProviderStatus {
   const selected = normalizeEngine(engine);
   if (selected === "duckduckgo") {
@@ -217,26 +243,49 @@ async function searchDuckDuckGoHtml(query: string): Promise<SearchResponse> {
 
 async function searchDuckDuckGo(query: string): Promise<SearchResponse> {
   const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`DuckDuckGo ${res.status}: ${await res.text()}`);
-  const json = await res.json();
-  const results: SearchResult[] = [];
-  const abstract = clean(json.AbstractText);
-  if (abstract) {
-    results.push({
-      title: clean(json.Heading) || query,
-      url: clean(json.AbstractURL),
-      snippet: abstract,
-      source: "DuckDuckGo",
-    });
-  }
-  if (Array.isArray(json.RelatedTopics)) duckTopics(json.RelatedTopics, results);
-  const instantResults = uniqueResults(results).slice(0, 8);
-  if (instantResults.length > 0) {
-    return {
-      engine: "duckduckgo",
-      results: instantResults,
-    };
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`DuckDuckGo ${res.status}: ${await res.text()}`);
+    const json = await res.json();
+    const results: SearchResult[] = [];
+    const abstract = clean(json.AbstractText);
+    if (abstract) {
+      results.push({
+        title: clean(json.Heading) || query,
+        url: clean(json.AbstractURL),
+        snippet: abstract,
+        source: "DuckDuckGo",
+      });
+    }
+    if (Array.isArray(json.RelatedTopics)) duckTopics(json.RelatedTopics, results);
+    const instantResults = uniqueResults(results).slice(0, 8);
+    if (instantResults.length > 0) {
+      return {
+        engine: "duckduckgo",
+        results: instantResults,
+      };
+    }
+  } catch (err) {
+    try {
+      const htmlResponse = await searchDuckDuckGoHtml(query);
+      if (htmlResponse.results.length > 0) {
+        return {
+          ...htmlResponse,
+          warning: `${searchFailureWarning("duckduckgo", err)} Rush used DuckDuckGo HTML search results instead.`,
+        };
+      }
+      return {
+        engine: "duckduckgo",
+        results: [],
+        warning: htmlResponse.warning ?? searchFailureWarning("duckduckgo", err),
+      };
+    } catch (htmlErr) {
+      return {
+        engine: "duckduckgo",
+        results: [],
+        warning: `${searchFailureWarning("duckduckgo", err)} HTML fallback also failed: ${searchFailureWarning("duckduckgo", htmlErr)}`,
+      };
+    }
   }
 
   const htmlResponse = await searchDuckDuckGoHtml(query);
@@ -324,7 +373,7 @@ export async function searchWeb(query: string, engine: SearchEngine, config: Sea
     }
     return await searchDuckDuckGo(query);
   } catch (err) {
-    return { engine: selected, results: [], warning: String(err) };
+    return { engine: selected, results: [], warning: searchFailureWarning(selected, err) };
   }
 }
 

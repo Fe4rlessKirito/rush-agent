@@ -98,8 +98,46 @@ describe("DuckDuckGo search", () => {
       warning: expect.stringContaining("HTML search results"),
     });
   });
-});
+  it("falls back to DuckDuckGo HTML results when instant-answer fetch fails", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => `
+          <html><body>
+            <div class="result">
+              <a class="result__a" href="https://example.com/fallback">Fallback source</a>
+              <div class="result__snippet">HTML fallback snippet.</div>
+            </div>
+          </body></html>
+        `,
+      });
+    vi.stubGlobal("fetch", fetchMock);
 
+    await expect(searchWeb("fallback test", "duckduckgo", DEFAULT_SEARCH_CONFIG)).resolves.toMatchObject({
+      engine: "duckduckgo",
+      results: [
+        {
+          title: "Fallback source",
+          url: "https://example.com/fallback",
+          snippet: "HTML fallback snippet.",
+          source: "DuckDuckGo",
+        },
+      ],
+      warning: expect.stringContaining("HTML search results"),
+    });
+  });
+
+  it("normalizes fetch failures into actionable warnings", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    await expect(searchWeb("network test", "duckduckgo", DEFAULT_SEARCH_CONFIG)).resolves.toMatchObject({
+      engine: "duckduckgo",
+      results: [],
+      warning: expect.stringContaining("network"),
+    });
+  });
+});
 describe("searchProviderStatus", () => {
   it("marks keyless DuckDuckGo as ready with a coverage hint", () => {
     const status = searchProviderStatus("Default", DEFAULT_SEARCH_CONFIG);

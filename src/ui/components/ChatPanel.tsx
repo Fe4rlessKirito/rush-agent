@@ -42,7 +42,7 @@ import { createDynamicMcpTools, createMcpConfigTools, mcpRuntimeSource } from ".
 import { isToolAvailableInMode } from "../../core/agent/toolModes";
 import { buildFlowRuntimeInstructions } from "../../core/agent/flowPrompt";
 import { runAgent, type AgentEvent } from "../../core/agent/agentLoop";
-import { setDesktopProjectRoot } from "../../core/projectRoot";
+import { chooseAndSetProjectRoot, setDesktopProjectRoot } from "../../core/projectRoot";
 import {
   buildPackRuntimeContext,
   resolvePackCommandInvocation,
@@ -290,10 +290,10 @@ codeTools.registerAll(createFlowTools({
     } else if (event.type === "tool_call") {
       if (event.toolName) state.addSubagentToolName(id, event.toolName);
       state.appendSubagentLine(id, { role: "tool", text: describeToolCall(event.toolName, event.toolArgs) });
-      state.appendSubagentLine(id, { role: "agent", text: "" });
+      state.appendSubagentLine(id, { role: "agent", text: "", meta: { speaker: state.activeModel ? modelDisplayName(state.activeModel) : "Rush", model: state.activeModel ?? undefined, modelLabel: state.activeModel ? modelDisplayName(state.activeModel) : "Rush", providerId: state.activeProviderId ?? undefined, providerLabel: state.providers.find((item) => item.id === state.activeProviderId)?.label, startedAt: Date.now() } });
     } else if (event.type === "tool_result") {
       state.appendSubagentLine(id, { role: "tool", text: describeToolResult(event.toolName, event.toolResult) });
-      state.appendSubagentLine(id, { role: "agent", text: "" });
+      state.appendSubagentLine(id, { role: "agent", text: "", meta: { speaker: state.activeModel ? modelDisplayName(state.activeModel) : "Rush", model: state.activeModel ?? undefined, modelLabel: state.activeModel ? modelDisplayName(state.activeModel) : "Rush", providerId: state.activeProviderId ?? undefined, providerLabel: state.providers.find((item) => item.id === state.activeProviderId)?.label, startedAt: Date.now() } });
     } else if (event.type === "error") {
       state.appendSubagentLine(id, { role: "tool", text: `Error: ${event.text ?? "Subagent failed."}` });
     }
@@ -798,6 +798,10 @@ export function ChatPanel({ mode }: Props) {
   );
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
   const activeProject = useProjectStore((s) => s.projects.find((p) => p.id === s.activeProjectId));
+  const createProject = useProjectStore((s) => s.createProject);
+  const openProject = useProjectStore((s) => s.openProject);
+  const renameProject = useProjectStore((s) => s.renameProject);
+  const setProjectPath = useProjectStore((s) => s.setProjectPath);
   const [input, setInput] = useState("");
   const [selectedPackCommandIndex, setSelectedPackCommandIndex] = useState(0);
   const packSuggestionKey = usePackStore((s) =>
@@ -1011,6 +1015,23 @@ export function ChatPanel({ mode }: Props) {
     void send(`Answer to your clarification question:\n\nQuestion: ${question}\n\nAnswer: ${trimmed}`);
   }
 
+  function currentAssistantMeta() {
+    const provider = providers.find((item) => item.id === activeProviderId);
+    const label = activeModel ? modelDisplayName(activeModel) : "Rush";
+    return {
+      speaker: label,
+      model: activeModel ?? undefined,
+      modelLabel: label,
+      providerId: activeProviderId ?? undefined,
+      providerLabel: provider?.label,
+      startedAt: Date.now(),
+    } satisfies ChatLine["meta"];
+  }
+
+  function newAssistantLine(meta: ChatLine["meta"]): ChatLine {
+    return { role: "agent", text: "", meta };
+  }
+
   function appendToLatestAgent(patch: Partial<Pick<ChatLine, "text" | "thinking">>) {
     flushSync(() => {
       setChat((l) => {
@@ -1024,6 +1045,7 @@ export function ChatPanel({ mode }: Props) {
             patch.thinking === undefined
               ? cur.thinking
               : (cur.thinking ?? "") + patch.thinking,
+          meta: cur.meta ?? currentAssistantMeta(),
         };
         return next;
       });
@@ -1102,6 +1124,31 @@ export function ChatPanel({ mode }: Props) {
       "User message:",
       trimmed || "Use the selected Library context to answer.",
     ].join("\n");
+  }
+
+  async function openComposerProjectRoot() {
+    if (busy) return;
+    try {
+      const picked = await chooseAndSetProjectRoot();
+      if (!picked) return;
+      const cleanRoot = picked.trim().replace(/[\\/]+$/, "");
+      const folderName = cleanRoot.split(/[\\/]/).pop() || "Project";
+      let id = useProjectStore.getState().projects.find((project) => project.path.trim().replace(/[\\/]+$/, "") === cleanRoot)?.id;
+      if (!id) {
+        id = createProject(folderName);
+        setProjectPath(id, cleanRoot);
+        renameProject(id, folderName);
+      }
+      openProject(id);
+      useAppStore.getState().setConversationProjectContext({
+        projectId: id,
+        projectRoot: cleanRoot,
+        projectName: folderName,
+      });
+      await useFileStore.getState().loadFromDisk(cleanRoot);
+    } catch (err) {
+      setChat((l) => [...l, { role: "tool", text: `Open project root failed: ${String(err)}` }]);
+    }
   }
 
   async function syncConversationProjectRoot(): Promise<string> {
@@ -1387,7 +1434,8 @@ export function ChatPanel({ mode }: Props) {
     const visibleUserText = attachmentSummary
       ? `${userText || fallbackUserText}\n${attachmentSummary}`
       : userText;
-    setChat((l) => [...l, { role: "user", text: visibleUserText }, { role: "agent", text: "" }]);
+    const assistantMeta = currentAssistantMeta();
+    setChat((l) => [...l, { role: "user", text: visibleUserText }, newAssistantLine(assistantMeta)]);
     setBusy(true);
     abortRef.current = new AbortController();
 
@@ -1473,7 +1521,7 @@ export function ChatPanel({ mode }: Props) {
         setChat((l) => {
           const next = l.slice();
           const cur = next[next.length - 1];
-          next[next.length - 1] = { ...cur, role: "agent", text: message };
+          next[next.length - 1] = { ...cur, role: "agent", text: message, meta: cur.meta ?? assistantMeta };
           return next;
         });
         markLatestAgentCompleted();
@@ -1523,12 +1571,12 @@ export function ChatPanel({ mode }: Props) {
             } else if (ev.type === "tool_call") {
               if (ev.toolName) toolNamesUsed.push(ev.toolName);
               if (ev.toolName === "suggest_mode_switch") {
-                setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs), meta: { toolName: ev.toolName, toolArgs: ev.toolArgs } }, { role: "agent", text: "" }]);
+                setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs), meta: { toolName: ev.toolName, toolArgs: ev.toolArgs } }, newAssistantLine(assistantMeta)]);
               } else {
-                setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs), meta: { toolName: ev.toolName, toolArgs: ev.toolArgs } }, { role: "agent", text: "" }]);
+                setChat((l) => [...l, { role: "tool", text: describeToolCall(ev.toolName, ev.toolArgs), meta: { toolName: ev.toolName, toolArgs: ev.toolArgs } }, newAssistantLine(assistantMeta)]);
               }
             } else if (ev.type === "tool_result") {
-              setChat((l) => [...l, { role: "tool", text: describeToolResult(ev.toolName, ev.toolResult), meta: { toolName: ev.toolName, toolResult: ev.toolResult } }, { role: "agent", text: "" }]);
+              setChat((l) => [...l, { role: "tool", text: describeToolResult(ev.toolName, ev.toolResult), meta: { toolName: ev.toolName, toolResult: ev.toolResult } }, newAssistantLine(assistantMeta)]);
             } else if (ev.type === "user_question") {
               setPendingUserQuestion(pendingQuestionFromEvent(ev));
               setBusy(false);
@@ -1626,7 +1674,7 @@ export function ChatPanel({ mode }: Props) {
       } else if (e.type === "tool_call") {
         if (e.toolName) toolNamesUsed.push(e.toolName);
         if (!isFlow && e.toolName === "suggest_mode_switch") {
-          setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs), meta: { toolName: e.toolName, toolArgs: e.toolArgs } }, { role: "agent", text: "" }]);
+          setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs), meta: { toolName: e.toolName, toolArgs: e.toolArgs } }, newAssistantLine(assistantMeta)]);
           return;
         }
         if (flowRun) {
@@ -1663,7 +1711,7 @@ export function ChatPanel({ mode }: Props) {
             `\n${describeToolCall(e.toolName, e.toolArgs)}`,
           );
         }
-        setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs), meta: { toolName: e.toolName, toolArgs: e.toolArgs } }, { role: "agent", text: "" }]);
+        setChat((l) => [...l, { role: "tool", text: describeToolCall(e.toolName, e.toolArgs), meta: { toolName: e.toolName, toolArgs: e.toolArgs } }, newAssistantLine(assistantMeta)]);
       } else if (e.type === "tool_result") {
         if (e.toolName === "suggest_mode_switch" && flowRun) {
           return;
@@ -1679,7 +1727,7 @@ export function ChatPanel({ mode }: Props) {
             useFlowStore.getState().setLaneStatus(flowRun.id, laneId, "completed", "Subagent returned a result.");
           }
         }
-        setChat((l) => [...l, { role: "tool", text: describeToolResult(e.toolName, e.toolResult), meta: { toolName: e.toolName, toolResult: e.toolResult } }, { role: "agent", text: "" }]);
+        setChat((l) => [...l, { role: "tool", text: describeToolResult(e.toolName, e.toolResult), meta: { toolName: e.toolName, toolResult: e.toolResult } }, newAssistantLine(assistantMeta)]);
       } else if (e.type === "user_question") {
         setPendingUserQuestion(pendingQuestionFromEvent(e));
         if (flowRun) {
@@ -1921,7 +1969,7 @@ export function ChatPanel({ mode }: Props) {
           return (
             <div key={item.startIndex} className={"agent-run" + (isActiveRun ? " active" : "") }>
               <div className="agent-run-head">
-                <span className="agent-run-model">{lines.find(({ line }) => line.meta?.speaker)?.line.meta?.speaker ?? (activeModel ? modelDisplayName(activeModel) : "Rush")}</span>
+                <span className="agent-run-model">{lines.find(({ line }) => line.meta?.modelLabel || line.meta?.speaker)?.line.meta?.modelLabel ?? lines.find(({ line }) => line.meta?.speaker)?.line.meta?.speaker ?? (activeModel ? modelDisplayName(activeModel) : "Rush")}</span>
                 <span className="agent-run-status">{runStatusLabel}</span>
               </div>
 
@@ -2071,7 +2119,7 @@ export function ChatPanel({ mode }: Props) {
       <div className="composer">
         {showProjectSelector && (
           <div className="composer-context-bar">
-            <button type="button" className="composer-project-chip" title={projectChipTitle}>
+            <button type="button" className="composer-project-chip" title={projectChipTitle} onClick={openComposerProjectRoot} disabled={busy}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M3 7V6a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               </svg>

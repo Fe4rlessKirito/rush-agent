@@ -15,6 +15,10 @@ export interface ChatLine {
   thinking?: string;
   meta?: {
     speaker?: string;
+    model?: string;
+    modelLabel?: string;
+    providerId?: string;
+    providerLabel?: string;
     startedAt?: number;
     completedAt?: number;
     toolName?: string;

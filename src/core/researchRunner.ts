@@ -61,8 +61,15 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
   const prompt = options.prompt.trim();
   const engine = options.settings.engine as SearchEngine;
   const searchResponse = await searchWeb(prompt, engine, options.searchConfig);
-  let gatheredSources = searchResponse.results;
-  let warning = searchResponse.warning;
+  const initialSearchResponse = searchResponse.warning && searchResponse.results.length === 0 && engine !== "duckduckgo"
+    ? await searchWeb(prompt, "duckduckgo", options.searchConfig)
+    : searchResponse;
+  let gatheredSources = initialSearchResponse.results;
+  let warning = initialSearchResponse === searchResponse
+    ? searchResponse.warning
+    : initialSearchResponse.results.length > 0
+      ? `${searchResponse.warning} Rush used DuckDuckGo fallback results instead.`
+      : initialSearchResponse.warning ?? searchResponse.warning;
   let content = warning ? `Search warning: ${warning}\n\n` : "";
 
   options.callbacks?.onSources?.(gatheredSources, warning);
@@ -102,7 +109,7 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
           `Settings:\n${settingsText}`,
           "",
           "Initial search results:",
-          formatSearchResults(searchResponse),
+          formatSearchResults(initialSearchResponse),
         ].join("\n"),
       },
     ],
@@ -130,11 +137,11 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
   }
 
   if (gatheredSources.length === 0) {
-    content = buildNoSearchResultsReport(prompt, {
-      ...searchResponse,
-      results: [],
-      warning: warning ?? searchResponse.warning ?? "No search results returned after follow-up searches.",
-    } satisfies SearchResponse);
+      content = buildNoSearchResultsReport(prompt, {
+        ...initialSearchResponse,
+        results: [],
+        warning: warning ?? initialSearchResponse.warning ?? "No search results returned after follow-up searches.",
+      } satisfies SearchResponse);
     options.callbacks?.onContent?.(content);
   }
 

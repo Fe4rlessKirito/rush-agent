@@ -39,6 +39,27 @@ function htmlToText(html: string): string {
   );
 }
 
+function toolErrorText(err: unknown): string {
+  if (err instanceof Error) return err.message || err.name;
+  return String(err);
+}
+
+function searchToolError(err: unknown): string {
+  const text = toolErrorText(err);
+  if (text.toLowerCase().includes("failed to fetch")) {
+    return "Search failed before results were returned. The provider may be unreachable from the app, blocked by CORS/network policy, down, or rejecting this client.";
+  }
+  return `Search failed: ${text}`;
+}
+
+function fetchToolError(url: string, err: unknown): string {
+  const text = toolErrorText(err);
+  if (text.toLowerCase().includes("failed to fetch")) {
+    return `Fetch failed for ${url}. The site may be unreachable from the app, blocked by CORS/network policy, down, or rejecting this client.`;
+  }
+  return `Fetch failed for ${url}: ${text}`;
+}
+
 function hostAllowed(url: string, allowedDomains?: unknown, blockedDomains?: unknown): boolean {
   let host: string;
   try {
@@ -85,7 +106,12 @@ export function createWebTools(options: WebToolOptions = {}): Tool[] {
         const query = String(args.query ?? "").trim();
         if (!query) return { ok: false, isError: true, content: "Missing query." };
         const engine = String(args.engine ?? defaultEngine) as SearchEngine;
-        const response = await search(query, engine, getSearchConfig());
+        let response: SearchResponse;
+        try {
+          response = await search(query, engine, getSearchConfig());
+        } catch (err) {
+          return { ok: false, isError: true, content: searchToolError(err) };
+        }
         const filtered = {
           ...response,
           results: response.results.filter((result) =>
@@ -115,7 +141,12 @@ export function createWebTools(options: WebToolOptions = {}): Tool[] {
         const query = String(args.query ?? "").trim();
         if (!query) return { ok: false, isError: true, content: "Missing query." };
         const engine = String(args.engine ?? defaultEngine) as SearchEngine;
-        const response = await search(query, engine, getSearchConfig());
+        let response: SearchResponse;
+        try {
+          response = await search(query, engine, getSearchConfig());
+        } catch (err) {
+          return { ok: false, isError: true, content: searchToolError(err) };
+        }
         const filtered = {
           ...response,
           results: response.results.filter((result) =>
@@ -153,7 +184,12 @@ export function createWebTools(options: WebToolOptions = {}): Tool[] {
           return { ok: false, isError: true, content: `Unsupported URL protocol: ${parsed.protocol}` };
         }
 
-        const res = await fetcher(url, { headers: { Accept: "text/html,text/plain,application/json;q=0.9,*/*;q=0.5" } });
+        let res: Response;
+        try {
+          res = await fetcher(url, { headers: { Accept: "text/html,text/plain,application/json;q=0.9,*/*;q=0.5" } });
+        } catch (err) {
+          return { ok: false, isError: true, content: fetchToolError(url, err) };
+        }
         const raw = await res.text();
         if (!res.ok) return { ok: false, isError: true, content: `Fetch ${res.status}: ${raw.slice(0, 2000)}` };
 
