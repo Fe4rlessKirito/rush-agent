@@ -2571,7 +2571,7 @@ dependencies = [
 
 [[package]]
 name = "rush-agent"
-version = "1.7.43"
+version = "1.7.44"
 dependencies = [
  "serde",
  "serde_json",

@@ -39,8 +39,8 @@ export interface RunDeepResearchResult {
 
 export function maxResearchSteps(rounds: string): number {
   const explicit = Number(rounds.match(/\d+/)?.[0] ?? 0);
-  if (explicit > 0) return Math.max(4, Math.min(14, explicit * 3 + 2));
-  return 8;
+  if (explicit > 0) return Math.max(8, Math.min(20, explicit * 4 + 6));
+  return 14;
 }
 
 export function mergeSources<T extends { url: string; title: string; snippet: string; source: string }>(
@@ -56,6 +56,26 @@ export function mergeSources<T extends { url: string; title: string; snippet: st
     next.push(source);
   }
   return next.slice(0, 30);
+}
+
+function isStepLimitError(message: string): boolean {
+  return /^Stopped after \d+ steps\.?$/i.test(message.trim());
+}
+
+function partialStepLimitReport(prompt: string, content: string, sources: SearchResult[]): string {
+  const trimmed = content.trim();
+  if (trimmed) {
+    return `${trimmed}\n\n---\n\nNote: Rush reached the Deep Research step limit and saved this partial report instead of discarding the run.`;
+  }
+  return [
+    "# Partial Deep Research Report",
+    "",
+    `Rush reached the Deep Research step limit while researching: ${prompt}`,
+    "",
+    sources.length > 0
+      ? "It gathered sources but the model did not finish synthesizing the final report. Review the sources below and rerun with a more specific prompt if needed."
+      : "No usable source context was gathered before the step limit was reached.",
+  ].join("\n");
 }
 
 export async function runDeepResearch(options: RunDeepResearchOptions): Promise<RunDeepResearchResult> {
@@ -88,10 +108,18 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
   ].join("\n");
 
   const researchTools = new ToolRegistry();
+  let followUpSearches = 0;
+  const maxFollowUpSearches = Math.max(2, Math.min(6, Math.ceil(maxResearchSteps(options.settings.rounds) / 3)));
   researchTools.registerAll(createWebTools({
     engine,
     getSearchConfig: () => options.searchConfig,
     search: async (query, selectedEngine, config) => {
+      followUpSearches += 1;
+      if (followUpSearches > maxFollowUpSearches) {
+        const limitMessage = `Follow-up search limit reached (${maxFollowUpSearches}). Stop searching and synthesize the report from the gathered sources. If the query is ambiguous, explain the ambiguity and the most likely meanings.`;
+        options.callbacks?.onActivity?.(limitMessage);
+        return { engine: selectedEngine, results: [], warning: limitMessage };
+      }
       options.callbacks?.onActivity?.(`Searching web: ${query}`);
       const response = await searchWeb(query, selectedEngine, config);
       gatheredSources = mergeSources(gatheredSources, response.results);
@@ -102,6 +130,7 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
     },
   }));
 
+  let reachedStepLimit = false;
   for await (const event of runAgent(
     options.provider,
     options.model,
@@ -124,7 +153,10 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
     [
       "You are Rush Deep Research.",
       "Build a careful, structured Markdown research report.",
-      "Use WebSearch to run follow-up searches when the initial results are missing, weak, too broad, or too narrow.",
+      "Prefer synthesis over repeated searching. Once you have enough sources to answer, stop using tools and write the report.",
+      "For short or ambiguous prompts, explain the likely meanings and focus on the most common interpretation instead of repeatedly searching acronym expansions.",
+      `You may run at most ${maxFollowUpSearches} follow-up web searches. After that, synthesize from gathered sources.`,
+      "Use WebSearch to run follow-up searches only when the initial results are missing, weak, too broad, or too narrow.",
       "Use WebFetch on relevant URLs when snippets are not enough.",
       "Use only gathered search/fetch source context for factual claims. Do not fill gaps from memory.",
       "If no usable sources can be found after trying alternate queries, say that clearly and do not produce a guessed report.",
@@ -143,20 +175,28 @@ export async function runDeepResearch(options: RunDeepResearchOptions): Promise<
       options.callbacks?.onActivity?.(`${event.toolName ?? "Web tool"} finished.`);
     } else if (event.type === "error") {
       const message = event.text ?? "Deep Research tool run failed.";
+      if (isStepLimitError(message) && (content.trim() || gatheredSources.length > 0)) {
+        reachedStepLimit = true;
+        warning = warning ? `${warning} ${message}` : message;
+        content = partialStepLimitReport(prompt, content, gatheredSources);
+        options.callbacks?.onActivity?.("Reached research step limit. Saving partial report.");
+        options.callbacks?.onContent?.(content);
+        break;
+      }
       options.callbacks?.onError?.(message, content);
       throw new Error(message);
     }
   }
 
   if (gatheredSources.length === 0) {
-      content = buildNoSearchResultsReport(prompt, {
-        ...initialSearchResponse,
-        results: [],
-        warning: warning ?? initialSearchResponse.warning ?? "No search results returned after follow-up searches.",
-      } satisfies SearchResponse);
+    content = buildNoSearchResultsReport(prompt, {
+      ...initialSearchResponse,
+      results: [],
+      warning: warning ?? initialSearchResponse.warning ?? "No search results returned after follow-up searches.",
+    } satisfies SearchResponse);
     options.callbacks?.onContent?.(content);
   }
 
-  options.callbacks?.onActivity?.("Research report complete.");
+  options.callbacks?.onActivity?.(reachedStepLimit ? "Partial research report saved." : "Research report complete.");
   return { content, sources: gatheredSources, warning };
 }
