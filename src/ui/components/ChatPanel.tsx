@@ -636,6 +636,13 @@ export function ChatPanel({ mode }: Props) {
     }
   }
 
+  function cancelStreaming() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    markLatestAgentCompleted();
+    setBusy(false);
+  }
+
   function completePackCommand(name: string) {
     const args = input.trim().match(/^\/[^\s]+(?:\s+([\s\S]*))?$/)?.[1]?.trim() ?? "";
     setInput(args ? `/${name} ${args}` : `/${name} `);
@@ -743,6 +750,7 @@ export function ChatPanel({ mode }: Props) {
           effort={effort}
           setEffort={setEffort}
           send={() => void send()}
+          cancel={cancelStreaming}
         />
       )}
 

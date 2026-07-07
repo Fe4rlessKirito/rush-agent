@@ -362,7 +362,7 @@ export class ToolRegistry {
     // registry is the single chokepoint every built-in and future MCP tool
     // passes through, so the policy lives here rather than in ad hoc UI checks.
     const risk = riskOf(name, args);
-    if ((risk === "destructive" && permission?.effect !== "allow") || permission?.effect === "ask") {
+    if (risk !== "read" && ((risk === "destructive" && permission?.effect !== "allow") || permission?.effect === "ask")) {
       if (!this.confirmer) {
         return {
           ok: false,

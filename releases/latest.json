@@ -1,15 +1,15 @@
 {
-  "version": "1.8.1",
-  "notes": "Updates the bundled local proxy from the latest leech-rs source and refreshes the packaged proxy binary.",
-  "pub_date": "2026-07-07T22:54:30Z",
+  "version": "1.8.2",
+  "notes": "Fixes Code mode suggestions under Ask before changes and turns the streaming send button into a cancel button.",
+  "pub_date": "2026-07-07T23:36:38Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0RlNVc1RTVhbklvbzhZbHI4MmZ5WDNVRFNFWjlIWVlUeEo5VnpnTUpQUzVMeURvQWsvNmVsdlR2U1F6ZnN5aHg5cEdKRlMxazVGVzRkVDhmb0F2OWdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDY0ODAzCWZpbGU6UnVzaF8xLjguMV94NjQtc2V0dXAuZXhlCnhUeEFLckFzaWxWOVdwYUVjTkxiVWYrZGlWZVlGQ0lHeitsRG16d3R5VGZ4Z0dQS0dCZU1tbWphRFdES0JuVnpBSlNuaXgzR3ZScjZDWGVWY2JWaUN3PT0K",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.8.1/Rush_1.8.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0FMM3E5SW93WmhrWVl6aGVjbytWcUdLY2JFSURmaWU0OXNBZEIzNUFnQVE4YmlVMUg2MVQ0dTNjQWErVzRYZVdWcDdTRGhUcm1nWTZ3V1pxTzlUMkFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDY3MzU3CWZpbGU6UnVzaF8xLjguMl94NjQtc2V0dXAuZXhlCldWeDNHQ0xVTGRveFBjSG5QcXQyRGxWQURDV2lEYlRvcjgxTUtteXRlMGk4Yk5oMW5IRjh4bHpQOWJ1WFJvY24wUDJRNlVOMysrYy9XQ3Fad21ZV0N3PT0K",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.8.2/Rush_1.8.2_x64-setup.exe"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0U5QUo4d0R3K3ZMT0s4NFZMaVA1azRCbnFzRDliMG9Xc2tuRmdxWVQ2VWRPb1MzRXBTVldTVm4rbm9vKzA0U0t5VVVaMGV5c0pESDhyTnpiYUgxOGdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDY0ODAzCWZpbGU6UnVzaF8xLjguMV94NjRfZW4tVVMubXNpCmtySzg2ZWRvTU92ZVkrL1F1UUdoNEVmNE1XaElmNVZQNnJ1dTNJRGlQTGkyK0ltVUZ1NCs2WENKaHF4ekMzS2dEUHJQWEhzTC9wSnFGY1Eyd1JIT0FnPT0K",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.8.1/Rush_1.8.1_x64_en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0JmTUNDZmZLNVBaaVRIOGU4UDBrSUlLTkVKeENTNzF6V1NKdFN3aXJMRlhYZGEwSDZpb2xqbmtzMTdSejhiYyt6QzVXUXJ2ZEhwZGxiSWdId0xVcWdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDY3MzU3CWZpbGU6UnVzaF8xLjguMl94NjRfZW4tVVMubXNpClNVZUFCRXh0S2ZiOCsrVlA0VkJMRTZ5cEpKcjkzc1lzdHFMcTlGZldRb2hqQTMwV3p1NHBlVXQ2REpTNEd0RW5DUHViWFBnaldjZzRsaUlraFhENEFRPT0K",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.8.2/Rush_1.8.2_x64_en-US.msi"
     }
   }
 }

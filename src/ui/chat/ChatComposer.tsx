@@ -47,6 +47,7 @@ interface ChatComposerProps {
   effort: number;
   setEffort: (effort: number) => void;
   send: () => void;
+  cancel: () => void;
 }
 
 function attachmentTypeLabel(item: Attachment): string {
@@ -104,6 +105,7 @@ export function ChatComposer({
   effort,
   setEffort,
   send,
+  cancel,
 }: ChatComposerProps) {
   return (
     <div className="composer">
@@ -184,7 +186,7 @@ export function ChatComposer({
           }
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            send();
+            if (!busy) send();
           }
         }}
       />
@@ -382,9 +384,16 @@ export function ChatComposer({
           </label>
         </div>
 
-        <button className="send-btn" onClick={send} disabled={busy} aria-label="Send">
+        <button
+          className="send-btn"
+          onClick={busy ? cancel : send}
+          aria-label={busy ? "Cancel" : "Send"}
+          title={busy ? "Cancel" : "Send"}
+        >
           {busy ? (
-            <span className="send-spinner" />
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M8 8h8v8H8z" fill="currentColor" />
+            </svg>
           ) : (
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <path d="M12 19V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
