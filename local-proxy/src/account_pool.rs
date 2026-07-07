@@ -21,6 +21,11 @@ pub struct Account {
     pub user_id: String,
     pub cookie_header: String,
     pub token: String,
+    /// The proxy this account was created through. Must be reused for
+    /// session refresh and the WS connection, because use.ai binds the
+    /// session to the signup IP. Connecting from a different IP causes
+    /// AUTH_REQUIRED (4001) on the agent WebSocket.
+    pub proxy_url: Option<String>,
     pub(crate) born: f64,
 }
 

@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
-import { createProvider } from "../../core/providers/registry";
 import { useAppStore, type Conversation, type ConversationMode } from "../../core/store";
 import { useResearchStore } from "../../core/researchStore";
-import { runDeepResearch } from "../../core/researchRunner";
+import { useResearchContinuation } from "../hooks/useResearchContinuation";
 import { Markdown } from "./Markdown";
 
 interface Props {
@@ -70,8 +69,6 @@ export function LibraryView({ onOpenConversation, filter, onFilterChange }: Prop
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortBy>("updated");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const [followUpText, setFollowUpText] = useState("");
-  const [continuingRunId, setContinuingRunId] = useState<string | null>(null);
   const conversations = useAppStore((s) => s.conversations);
   const providers = useAppStore((s) => s.providers);
   const activeProviderId = useAppStore((s) => s.activeProviderId);
@@ -85,52 +82,15 @@ export function LibraryView({ onOpenConversation, filter, onFilterChange }: Prop
   const selectedRun = selectedRunId ? researchRuns.find((run) => run.id === selectedRunId) ?? null : null;
   const selectedProvider = providers.find((provider) => provider.id === activeProviderId) ?? providers.find((provider) => provider.enabled);
   const selectedModel = activeModel ?? selectedProvider?.defaultModel ?? "default";
+  const {
+    followUpText,
+    setFollowUpText,
+    continuingRunId,
+    continueResearchRun,
+  } = useResearchContinuation({ selectedProvider, selectedModel, searchConfig, updateRun });
   const continuing = continuingRunId === selectedRun?.id;
 
-  async function continueResearchRun() {
-    if (!selectedRun || continuingRunId || !followUpText.trim()) return;
-    if (!selectedProvider) {
-      updateRun(selectedRun.id, { status: "error", error: "Pick a provider and model in Settings first." });
-      return;
-    }
 
-    const id = selectedRun.id;
-    const instruction = followUpText.trim();
-    setFollowUpText("");
-    setContinuingRunId(id);
-    updateRun(id, { status: "running", error: undefined, activity: "Continuing research..." });
-    try {
-      const provider = createProvider(selectedProvider);
-      const result = await runDeepResearch({
-        prompt: selectedRun.prompt,
-        settings: selectedRun.settings,
-        provider,
-        providerConfig: selectedProvider,
-        model: selectedModel,
-        searchConfig,
-        continuation: instruction,
-        previousContent: selectedRun.content,
-        previousSources: selectedRun.sources,
-        callbacks: {
-          onSources: (sources, warning) => updateRun(id, { sources, searchWarning: warning }),
-          onContent: (content) => updateRun(id, { content }),
-          onActivity: (activity) => updateRun(id, { activity }),
-          onError: (error, content) => updateRun(id, { status: "error", content, error, activity: "Deep Research stopped with an error." }),
-        },
-      });
-      updateRun(id, {
-        status: "completed",
-        activity: "Research report updated.",
-        content: result.content,
-        sources: result.sources,
-        searchWarning: result.warning,
-      });
-    } catch (err) {
-      updateRun(id, { status: "error", error: String(err), activity: "Deep Research stopped with an error." });
-    } finally {
-      setContinuingRunId(null);
-    }
-  }
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -331,7 +291,7 @@ export function LibraryView({ onOpenConversation, filter, onFilterChange }: Prop
                 <div className="library-preview-markdown">
                   <Markdown>{selectedRun.content || selectedRun.prompt}</Markdown>
                 </div>
-                <form className="library-followup-form" onSubmit={(e) => { e.preventDefault(); void continueResearchRun(); }}>
+                <form className="library-followup-form" onSubmit={(e) => { e.preventDefault(); void continueResearchRun(selectedRun); }}>
                   <textarea
                     value={followUpText}
                     onChange={(e) => setFollowUpText(e.target.value)}

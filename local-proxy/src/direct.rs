@@ -238,10 +238,14 @@ fn is_rate_limit_error(err: &anyhow::Error) -> bool {
 
 fn build_client_with_jar(proxy_url: Option<&str>) -> Result<(Client, Arc<Jar>)> {
     let jar = Arc::new(Jar::default());
+    let mut default_headers = reqwest::header::HeaderMap::new();
+    default_headers.insert("Origin", tungstenite::http::HeaderValue::from_static("https://use.ai"));
+    default_headers.insert("Referer", tungstenite::http::HeaderValue::from_static("https://use.ai/"));
     let client_builder = Client::builder()
         .timeout(Duration::from_secs(30))
         .cookie_provider(jar.clone())
         .user_agent(USER_AGENT)
+        .default_headers(default_headers)
         .no_proxy();
 
     let client = if let Some(url) = proxy_url {
@@ -297,6 +301,19 @@ async fn create_account_once(proxy_url: Option<&str>) -> Result<Account> {
         error!("sign-in/credentials failed: {} - {}", status, text);
         anyhow::bail!("sign-in/credentials failed: {} - {}", status, text);
     }
+    // Capture the short-lived JWT from the set-auth-jwt header. This is the
+    // worker auth token the browser sends as ?token=<JWT> on the WS URL.
+    let set_auth_jwt = resp
+        .headers()
+        .get("set-auth-jwt")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    if !set_auth_jwt.is_empty() {
+        debug!("sign-in/credentials returned set-auth-jwt: {}...", &set_auth_jwt[..set_auth_jwt.len().min(16)]);
+    }
+    // Consume the body so the connection can be reused for get-session.
+    let _ = resp.text().await;
 
     // 3. get-session
     let resp = client
@@ -319,6 +336,35 @@ async fn create_account_once(proxy_url: Option<&str>) -> Result<Account> {
         .ok_or_else(|| anyhow!("user id not found"))?
         .to_string();
 
+    // Capture all available tokens for debugging and fallback.
+    let access_token_jwt = body["session"]["accessToken"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let opaque_token = body["session"]["token"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+
+    debug!("accessToken JWT (first 80 chars): {}...", &access_token_jwt[..access_token_jwt.len().min(80)]);
+    if !opaque_token.is_empty() {
+        debug!("session.token (opaque): {}...", &opaque_token[..opaque_token.len().min(16)]);
+    }
+    if !set_auth_jwt.is_empty() {
+        debug!("set-auth-jwt header: {}...", &set_auth_jwt[..set_auth_jwt.len().min(16)]);
+    }
+
+    // Prefer the set-auth-jwt header (short-lived worker JWT for the WS
+    // ?token= query param). Fall back to opaque session.token, then JWT
+    // accessToken.
+    let token = if !set_auth_jwt.is_empty() {
+        set_auth_jwt
+    } else if !opaque_token.is_empty() {
+        opaque_token
+    } else {
+        access_token_jwt
+    };
+
     let url = "https://api.use.ai".parse()?;
     let cookie_header = jar
         .cookies(&url)
@@ -334,9 +380,73 @@ async fn create_account_once(proxy_url: Option<&str>) -> Result<Account> {
         email,
         user_id,
         cookie_header,
-        token: "".to_string(),
+        token,
+        proxy_url: proxy_url.map(String::from),
         born: now_secs(),
     })
+}
+
+/// Refresh the session cookies and extract a fresh worker auth JWT before
+/// connecting to the agent WebSocket.
+///
+/// The __Secure-better-auth.session_data cookie has a 60-second TTL, so
+/// pooled accounts must be refreshed before each WS connection or the agent
+/// gateway rejects them with AUTH_REQUIRED (4001).
+///
+/// The get-session response includes a set-auth-jwt header containing the
+/// short-lived worker JWT. This is the same JWT the browser gets from
+/// authClient.token() and sends as ?token=<JWT> in the WS URL.
+async fn refresh_session(account: &Account, proxy_url: Option<&str>) -> Result<(String, String)> {
+    let cfg = Config::load().unwrap_or_default();
+    let auth_base = cfg.direct.auth_base;
+
+    let (client, jar) = build_client_with_jar(proxy_url)?;
+    let url = "https://api.use.ai".parse()?;
+
+    // Seed the jar with ONLY the long-lived session_token cookie. If we also
+    // seed session_data, the jar ends up with two session_data entries (old
+    // + new) and the server reads the stale one.
+    for cookie_pair in account.cookie_header.split("; ") {
+        if cookie_pair.starts_with("__Secure-better-auth.session_token=") {
+            jar.add_cookie_str(cookie_pair, &url);
+        }
+    }
+
+    // 1. Refresh session_data cookie.
+    let resp = client
+        .get(&format!("{}/get-session", auth_base))
+        .send()
+        .await
+        .map_err(|e| anyhow!("refresh get-session failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        anyhow::bail!("refresh get-session failed: {} - {}", status, text);
+    }
+
+    // 2. Extract the JWT from the set-auth-jwt response header.
+    let token = resp
+        .headers()
+        .get("set-auth-jwt")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| account.token.clone());
+
+    let _body: Value = resp.json().await?;
+
+    let cookie_header = jar
+        .cookies(&url)
+        .and_then(|value| value.to_str().ok().map(ToOwned::to_owned))
+        .unwrap_or_else(|| account.cookie_header.clone());
+
+    debug!(
+        "Refreshed session for user {} (token: {}...)",
+        account.user_id.chars().take(8).collect::<String>(),
+        if token.is_empty() { "(none)" } else { &token[..token.len().min(16)] }
+    );
+
+    Ok((cookie_header, token))
 }
 
 // ---------- WebSocket connection with SOCKS5 ----------
@@ -345,12 +455,27 @@ async fn connect_websocket_with_proxy(
     uri: &str,
     proxy_url: Option<&str>,
     open_timeout: Duration,
+    cookie: Option<&str>,
 ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
     let mut request = uri.into_client_request()?;
     request.headers_mut().insert(
         "User-Agent",
         tungstenite::http::HeaderValue::from_static(USER_AGENT),
     );
+
+    // Origin header is required by use.ai's agent gateway.
+    request.headers_mut().insert(
+        "Origin",
+        tungstenite::http::HeaderValue::from_static("https://use.ai"),
+    );
+
+    // Send the session cookie.
+    if let Some(cookie) = cookie.filter(|c| !c.is_empty()) {
+        request.headers_mut().insert(
+            "Cookie",
+            tungstenite::http::HeaderValue::from_str(cookie)?,
+        );
+    }
 
     if let Some(proxy) = proxy_url {
         let (host, port) = parse_socks5_proxy(proxy)?;
@@ -918,8 +1043,39 @@ pub async fn stream_completion(
         open_timeout: Duration,
         idle_timeout: Duration,
     ) -> Result<BoxStream<'static, Result<String>>> {
+        // Use the account's original signup proxy for refresh and WS — use.ai
+        // binds the session to the signup IP. Connecting from a different Tor
+        // exit causes AUTH_REQUIRED (4001) on the agent WebSocket.
+        let account_proxy = account
+            .proxy_url
+            .as_deref()
+            .or_else(|| proxy_url.as_deref());
+
+        // Refresh the session cookies and get a fresh worker JWT before
+        // connecting. The __Secure-better-auth.session_data JWT has a
+        // 60-second TTL and the worker JWT is short-lived.
+        let (cookie_header, token) = match refresh_session(&account, account_proxy).await {
+            Ok((c, t)) => (c, t),
+            Err(e) => {
+                debug!("Session refresh failed ({}), using original cookies", e);
+                (account.cookie_header.clone(), account.token.clone())
+            }
+        };
+
+        // Build the WS URI with ?token=<JWT> query param. use.ai's agent
+        // gateway authenticates via this query param (from the browser's
+        // authClient.token() / set-auth-jwt header), NOT via Authorization
+        // header.
+        let uri = if !token.is_empty() {
+            let sep = if uri.contains('?') { "&" } else { "?" };
+            format!("{uri}{sep}token={token}")
+        } else {
+            uri.clone()
+        };
+
         let mut ws_stream =
-            connect_websocket_with_proxy(&uri, proxy_url.as_deref(), open_timeout).await?;
+            connect_websocket_with_proxy(&uri, account_proxy, open_timeout, Some(&cookie_header))
+                .await?;
 
         let frame = build_frame(
             &chat_id,
@@ -1066,6 +1222,7 @@ mod tests {
             user_id: "user_test".to_string(),
             cookie_header: String::new(),
             token: String::new(),
+            proxy_url: None,
             born: 0.0,
         }
     }

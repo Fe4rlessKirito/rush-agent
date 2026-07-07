@@ -7,7 +7,8 @@ import { runFlowScheduledLane, type FlowScheduledLaneResult } from "../../core/f
 import { cancelFlowLane } from "../../core/flowRuntime";
 import { buildPackRuntimeContext } from "../../core/packs/packRuntime";
 import type { Provider } from "../../core/providers/types";
-import { ChatPanel, codeTools } from "./ChatPanel";
+import { ChatPanel } from "./ChatPanel";
+import { codeTools } from "../chat/chatToolRegistries";
 
 type FlowCountKey = "queued" | "running" | "completed" | "blocked" | "skipped";
 

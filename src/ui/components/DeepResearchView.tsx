@@ -6,6 +6,7 @@ import { useNotificationStore } from "../../core/notificationStore";
 import { useResearchStore } from "../../core/researchStore";
 import { searchProviderStatus, type SearchEngine } from "../../core/searchProviders";
 import { runDeepResearch } from "../../core/researchRunner";
+import { useResearchContinuation } from "../hooks/useResearchContinuation";
 import { Markdown } from "./Markdown";
 
 type SelectId = "rounds" | "format" | "engine" | "endpoint" | "model";
@@ -98,7 +99,6 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
   const [running, setRunning] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const activeRun = activeRunId ? researchRuns.find((run) => run.id === activeRunId) ?? null : null;
-  const [followUpText, setFollowUpText] = useState("");
   const [values, setValues] = useState<Record<SelectId, string>>({
     rounds: "Auto",
     format: "Auto",
@@ -119,6 +119,13 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
   }) ?? providers.find((p) => p.id === activeProviderId);
   const selectedModel = values.model === "Default" ? (activeModel ?? selectedProvider?.defaultModel ?? "default") : values.model;
   const searchStatus = searchProviderStatus(values.engine as SearchEngine, searchConfig);
+  const {
+    followUpText,
+    setFollowUpText,
+    continuingRunId,
+    continueResearchRun,
+  } = useResearchContinuation({ selectedProvider, selectedModel, searchConfig, updateRun });
+  const continuing = continuingRunId === activeRun?.id;
 
   function createQueuedRun() {
     if (!prompt.trim()) return;
@@ -172,50 +179,7 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
     }
   }
 
-  async function continueRun() {
-    const instruction = followUpText.trim();
-    if (!instruction || running || !activeRun) return;
-    if (!selectedProvider) {
-      updateRun(activeRun.id, { status: "error", error: "Pick a provider and model in Settings first." });
-      return;
-    }
 
-    const id = activeRun.id;
-    setFollowUpText("");
-    setRunning(true);
-    updateRun(id, { status: "running", error: undefined, activity: "Continuing research..." });
-    try {
-      const provider = createProvider(selectedProvider);
-      const result = await runDeepResearch({
-        prompt: activeRun.prompt,
-        settings: activeRun.settings,
-        provider,
-        providerConfig: selectedProvider,
-        model: selectedModel,
-        searchConfig,
-        continuation: instruction,
-        previousContent: activeRun.content,
-        previousSources: activeRun.sources,
-        callbacks: {
-          onSources: (sources, warning) => updateRun(id, { sources, searchWarning: warning }),
-          onContent: (content) => updateRun(id, { content }),
-          onActivity: (activity) => updateRun(id, { activity }),
-          onError: (error, content) => updateRun(id, { status: "error", content, error, activity: "Deep Research stopped with an error." }),
-        },
-      });
-      updateRun(id, {
-        status: "completed",
-        activity: "Research report updated.",
-        content: result.content,
-        sources: result.sources,
-        searchWarning: result.warning,
-      });
-    } catch (err) {
-      updateRun(id, { status: "error", error: String(err), activity: "Deep Research stopped with an error." });
-    } finally {
-      setRunning(false);
-    }
-  }
 
   return (
     <div className="research-overlay" onMouseDown={onClose}>
@@ -331,15 +295,15 @@ export function DeepResearchView({ onClose, onOpenLibrary }: { onClose: () => vo
               <div className="research-live-content">
                 {activeRun.content ? <Markdown>{activeRun.content}</Markdown> : <p>Waiting for the first streamed report text...</p>}
               </div>
-              <form className="research-followup-form" onSubmit={(e) => { e.preventDefault(); void continueRun(); }}>
+              <form className="research-followup-form" onSubmit={(e) => { e.preventDefault(); void continueResearchRun(activeRun); }}>
                 <textarea
                   value={followUpText}
                   onChange={(e) => setFollowUpText(e.target.value)}
                   placeholder="Tell Rush to continue, expand a section, focus the report, or make it shorter..."
-                  disabled={running}
+                  disabled={continuing}
                 />
-                <button type="submit" disabled={running || !followUpText.trim()}>
-                  {running ? "Working..." : "Send"}
+                <button type="submit" disabled={continuing || !followUpText.trim()}>
+                  {continuing ? "Working..." : "Send"}
                 </button>
               </form>
             </div>
