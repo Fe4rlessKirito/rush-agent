@@ -85,9 +85,7 @@ static MODEL_SET: LazyLock<HashSet<&'static str>> =
 
 /// Resolve a model name (slug or alias) to a real slug.
 pub fn resolve_model(name: &str) -> String {
-    if name.starts_with("faceb-") {
-        name.to_string()
-    } else if MODEL_SET.contains(name) {
+    if name.starts_with("faceb-") || MODEL_SET.contains(name) {
         name.to_string()
     } else if let Some(&alias) = ALIAS_MAP.get(name) {
         alias.to_string()

@@ -22,7 +22,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, warn};
-use tracing_subscriber;
+use tracing_subscriber::EnvFilter;
 
 use load_monitor::LoadMonitor;
 use scale_controller::ScaleController;
@@ -30,15 +30,17 @@ use tor_manager::TorManager;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt().with_env_filter("debug").init();
-
     let cfg = config::Config::load()?;
+    init_logging(&cfg);
 
     usage::init().unwrap_or_else(|e| {
         eprintln!("Failed to init usage metering: {}", e);
     });
 
-    info!("Starting Leech-RS with config: {:?}", cfg);
+    info!(
+        "Starting Leech-RS on {}:{}",
+        cfg.server.host, cfg.server.port
+    );
     log_startup_diagnostics(&cfg);
 
     let tor_manager = Arc::new(TorManager::new(9050));
@@ -53,12 +55,9 @@ async fn main() -> Result<()> {
     }
 
     let active_proxies = tor_manager.get_proxies().await;
-    let use_ai_proxies =
-        active_provider_proxies(&active_proxies, &cfg.provider_proxies.use_ai_ports);
-    let sakana_proxies =
-        active_provider_proxies(&active_proxies, &cfg.provider_proxies.sakana_ports);
-    let faceb_proxies = active_provider_proxies(&active_proxies, &cfg.provider_proxies.faceb_ports);
-    provider_proxies::init_active(&use_ai_proxies, &sakana_proxies, &faceb_proxies).await;
+    provider_proxies::sync_active(&active_proxies, &cfg.provider_proxies).await;
+    let use_ai_proxies = provider_proxies::assigned("use_ai").await;
+    let faceb_proxies = provider_proxies::assigned("faceb").await;
 
     if let Some(url) = &cfg.proxy.socks5_url {
         if !url.is_empty() && tor_manager.get_proxies().await.is_empty() {
@@ -87,7 +86,10 @@ async fn main() -> Result<()> {
         load_monitor.clone(),
         pool.clone(),
         cfg.account_pool.size,
-        cfg.proxy.tor_instances.max(1),
+        cfg.proxy
+            .tor_instances
+            .max(1)
+            .min(cfg.provider_proxies.use_ai_ports.len().max(1)),
         cfg.provider_proxies.use_ai_ports.len().max(1),
         cfg.provider_proxies.use_ai_ports.clone(),
         5.0,
@@ -134,6 +136,16 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+fn init_logging(cfg: &config::Config) {
+    let filter = std::env::var("LEECH_LOG")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| cfg.logging.level.clone());
+
+    let filter = EnvFilter::try_new(filter).unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::fmt().with_env_filter(filter).init();
+}
+
 fn log_startup_diagnostics(cfg: &config::Config) {
     info!("Model endpoints:");
     info!("  POST /v1/chat/completions");
@@ -142,6 +154,7 @@ fn log_startup_diagnostics(cfg: &config::Config) {
     info!("  GET /v1/models");
     info!("  GET /health");
     info!("  GET /bank");
+    info!("  GET /v1/pool");
     info!("  GET /proxies");
     info!("  GET /usage/overview");
     info!("  GET /usage/session/:session_id");
@@ -172,14 +185,6 @@ fn configured_initial_tor_ports(cfg: &config::Config) -> Vec<u16> {
     ports.sort_unstable();
     ports.dedup();
     ports
-}
-
-fn active_provider_proxies(active: &[String], ports: &[u16]) -> Vec<String> {
-    ports
-        .iter()
-        .map(|port| format!("socks5h://127.0.0.1:{}", port))
-        .filter(|proxy| active.iter().any(|active_proxy| active_proxy == proxy))
-        .collect()
 }
 
 async fn shutdown_signal() {

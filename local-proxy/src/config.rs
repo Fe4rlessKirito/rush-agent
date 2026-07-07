@@ -12,6 +12,7 @@ pub struct Config {
     pub provider_proxies: ProviderProxyConfig,
     pub models: ModelsConfig,
     pub thinking: ThinkingConfig,
+    pub logging: LoggingConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -61,6 +62,13 @@ pub struct ModelsConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ThinkingConfig {
     pub levels: HashMap<String, usize>,
+    pub expose_tool_thinking: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct LoggingConfig {
+    pub level: String,
+    pub debug_protocol: bool,
 }
 
 impl Default for Config {
@@ -99,6 +107,7 @@ impl Default for Config {
                 default: "gpt-5-4".into(),
             },
             thinking: ThinkingConfig {
+                expose_tool_thinking: true,
                 levels: [
                     ("low".into(), 1024),
                     ("medium".into(), 5000),
@@ -107,6 +116,10 @@ impl Default for Config {
                 ]
                 .into_iter()
                 .collect(),
+            },
+            logging: LoggingConfig {
+                level: "info".into(),
+                debug_protocol: false,
             },
         }
     }

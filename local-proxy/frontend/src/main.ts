@@ -29,7 +29,7 @@ type Proxies = {
   provider_assignments: Record<string, string[]>;
   load: {
     window_requests: number;
-    requests_per_second: number;
+    requests_per_minute: number;
   };
 };
 
@@ -358,15 +358,7 @@ function renderDailyUsage(overview: UsageOverview): void {
     .slice(-7);
   list.innerHTML = entries.length
     ? entries
-        .map(([day, tokens]) => {
-          const spend = Object.entries(overview.models).reduce((sum, [model, modelTokens]) => {
-            const ratio = overview.total_tokens > 0 ? modelTokens / overview.total_tokens : 0;
-            const inputTokens = tokens * ratio * 0.5;
-            const outputTokens = tokens * ratio * 0.5;
-            return sum + estimateSpend(inputTokens, outputTokens, model);
-          }, 0);
-          return `<li><strong>${day}</strong><span>${tokens.toLocaleString()} tokens | ${currency.format(spend)}</span></li>`;
-        })
+        .map(([day, tokens]) => `<li><strong>${day}</strong><span>${tokens.toLocaleString()} tokens</span></li>`)
         .join("")
     : "<li>No daily usage yet.</li>";
 }
@@ -448,7 +440,7 @@ async function loadDashboard(): Promise<void> {
     setText("pool-count", String(bank.warm_accounts));
     setText("pool-target", String(bank.pool_target));
     setText("tor-count", String(proxies.proxy_count));
-    setText("request-rate", `${proxies.load.requests_per_second.toFixed(2)} req/s`);
+    setText("request-rate", `${proxies.load.requests_per_minute.toFixed(2)} req/min`);
     setText("session-count", String(overview.sessions));
     setText("message-count", String(overview.messages));
     setText("token-total", overview.total_tokens.toLocaleString());
@@ -489,7 +481,7 @@ function renderShell(): void {
       <section class="grid cards">
         <article class="card"><span class="label">Estimated Spend</span><strong id="estimated-spend">$0.0000</strong><small>Total estimated cost across all models</small></article>
         <article class="card"><span class="label">Tor Instances</span><strong id="tor-count">0</strong><small>Active proxies under management</small></article>
-        <article class="card"><span class="label">Request Rate</span><strong id="request-rate">0.00 req/s</strong><small>Model endpoint request load</small></article>
+        <article class="card"><span class="label">Request Rate</span><strong id="request-rate">0.00 req/min</strong><small>Model endpoint request load</small></article>
         <article class="card"><span class="label">Favorite Model</span><strong id="favorite-model">n/a</strong><small>Most-used model by output tokens</small></article>
       </section>
 

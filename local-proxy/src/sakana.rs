@@ -284,19 +284,10 @@ fn unix_now() -> u64 {
 }
 
 fn extract_cookie_value(set_cookie: &str, cookie_name: &str) -> Option<String> {
-    for part in set_cookie.split(',') {
-        let trimmed = part.trim();
-        if let Some(rest) = trimmed.strip_prefix(&format!("{cookie_name}=")) {
-            return Some(rest.split(';').next().unwrap_or_default().to_string());
-        }
-        for segment in trimmed.split(';') {
-            let segment = segment.trim();
-            if let Some(rest) = segment.strip_prefix(&format!("{cookie_name}=")) {
-                return Some(rest.to_string());
-            }
-        }
-    }
-    None
+    let first_pair = set_cookie.split(';').next()?.trim();
+    first_pair
+        .strip_prefix(&format!("{cookie_name}="))
+        .map(ToOwned::to_owned)
 }
 
 fn build_client_with_session(proxy_url: Option<&str>, session_cookie: &str) -> Result<Client> {
@@ -471,14 +462,12 @@ async fn refresh_entry_session(
         anyhow::bail!("Sakana login returned {}: {}", status, body);
     }
 
-    let set_cookie = response
+    let session_cookie = response
         .headers()
         .get_all(reqwest::header::SET_COOKIE)
         .iter()
         .filter_map(|value| value.to_str().ok())
-        .collect::<Vec<_>>()
-        .join(",");
-    let session_cookie = extract_cookie_value(&set_cookie, "sakana-chat")
+        .find_map(|value| extract_cookie_value(value, "sakana-chat"))
         .ok_or_else(|| anyhow!("Sakana login response missing sakana-chat cookie"))?;
 
     entry.session_cookie = session_cookie.clone();

@@ -73,8 +73,7 @@ impl InjectionFilter {
                             .buf
                             .char_indices()
                             .map(|(idx, _)| idx)
-                            .filter(|idx| self.buf.len() - idx > TAG_GUARD)
-                            .last()
+                            .rfind(|idx| self.buf.len() - idx > TAG_GUARD)
                             .unwrap_or(0);
                         let safe = self.buf[..safe_len].to_string();
                         out.push_str(&safe);

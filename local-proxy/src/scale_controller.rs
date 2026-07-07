@@ -44,7 +44,7 @@ impl ScaleController {
             load_monitor,
             pool,
             target_pool_size,
-            min_proxies,
+            min_proxies: min_proxies.min(max_proxies),
             max_proxies,
             scale_ports,
             scale_up_threshold,
@@ -77,7 +77,7 @@ impl ScaleController {
             );
 
             let mut last_scale = self.last_scale.lock().await;
-            if !last_scale.map_or(true, |t| t.elapsed() >= self.cooldown) {
+            if !last_scale.is_none_or(|t| t.elapsed() >= self.cooldown) {
                 continue;
             }
 
@@ -96,7 +96,7 @@ impl ScaleController {
                 {
                     Ok(url) => {
                         info!("New proxy spawned: {}", url);
-                        self.sync_use_ai_assignments().await;
+                        self.sync_provider_assignments().await;
                         *last_scale = Some(Instant::now());
                     }
                     Err(e) => warn!("Failed to spawn new Tor proxy: {}", e),
@@ -110,13 +110,13 @@ impl ScaleController {
 
             if should_scale_down {
                 let proxies = self.active_provider_proxies().await;
-                if let Some(url) = proxies.first() {
+                if let Some(url) = proxies.last() {
                     if let Some(port) = url.rsplit(':').next().and_then(|p| p.parse::<u16>().ok()) {
                         if let Err(e) = self.tor_manager.remove_proxy(port).await {
                             warn!("Failed to remove proxy on port {}: {}", port, e);
                         } else {
                             info!("Removed proxy on port {}", port);
-                            self.sync_use_ai_assignments().await;
+                            self.sync_provider_assignments().await;
                             *last_scale = Some(Instant::now());
                         }
                     }
@@ -144,9 +144,17 @@ impl ScaleController {
             .collect()
     }
 
-    async fn sync_use_ai_assignments(&self) {
+    async fn sync_provider_assignments(&self) {
         let proxies = self.active_provider_proxies().await;
-        self.pool.set_proxies(proxies.clone()).await;
-        crate::provider_proxies::set_provider_proxies("use_ai", proxies).await;
+        self.pool.set_proxies(proxies).await;
+
+        let active = self.tor_manager.get_proxies().await;
+        crate::provider_proxies::sync_active(
+            &active,
+            &crate::config::Config::load()
+                .unwrap_or_default()
+                .provider_proxies,
+        )
+        .await;
     }
 }

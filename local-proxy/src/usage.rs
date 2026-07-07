@@ -209,12 +209,18 @@ pub fn record(
     }
     let total = in_tok + out_tok;
     let total_tokens = input_tokens + output_tokens;
-    let cap_reached = cap.map_or(false, |c| total_tokens >= c);
+    let cap_reached = cap.is_some_and(|c| total_tokens >= c);
     let _ = s;
     if !model.is_empty() {
         *data.models.entry(model.to_string()).or_insert(0) += out_tok;
-        *data.model_input_tokens.entry(model.to_string()).or_insert(0) += in_tok;
-        *data.model_output_tokens.entry(model.to_string()).or_insert(0) += out_tok;
+        *data
+            .model_input_tokens
+            .entry(model.to_string())
+            .or_insert(0) += in_tok;
+        *data
+            .model_output_tokens
+            .entry(model.to_string())
+            .or_insert(0) += out_tok;
     }
     *data.daily.entry(day).or_insert(0) += total;
     *data.hourly.entry(hour).or_insert(0) += total;
@@ -243,8 +249,6 @@ pub fn record_tokens(
     } else {
         session_id
     };
-    let in_tok = in_tok.max(0);
-    let out_tok = out_tok.max(0);
     let now = now_secs();
     let day = chrono::Local::now().format("%Y-%m-%d").to_string();
     let hour = chrono::Local::now().format("%H").to_string();
@@ -267,12 +271,18 @@ pub fn record_tokens(
     }
     let total = in_tok + out_tok;
     let total_tokens = input_tokens + output_tokens;
-    let cap_reached = cap.map_or(false, |c| total_tokens >= c);
+    let cap_reached = cap.is_some_and(|c| total_tokens >= c);
     let _ = s;
     if !model.is_empty() {
         *data.models.entry(model.to_string()).or_insert(0) += out_tok;
-        *data.model_input_tokens.entry(model.to_string()).or_insert(0) += in_tok;
-        *data.model_output_tokens.entry(model.to_string()).or_insert(0) += out_tok;
+        *data
+            .model_input_tokens
+            .entry(model.to_string())
+            .or_insert(0) += in_tok;
+        *data
+            .model_output_tokens
+            .entry(model.to_string())
+            .or_insert(0) += out_tok;
     }
     *data.daily.entry(day).or_insert(0) += total;
     *data.hourly.entry(hour).or_insert(0) += total;
@@ -311,7 +321,7 @@ pub fn set_cap(session_id: &str, cap: Option<u64>) -> Result<SessionSnapshot> {
         output_tokens: s.output_tokens,
         total_tokens: total,
         cap,
-        cap_reached: cap.map_or(false, |c| total >= c),
+        cap_reached: cap.is_some_and(|c| total >= c),
     };
     drop(data);
     save()?;
@@ -334,7 +344,7 @@ pub fn session_snapshot(session_id: &str) -> SessionSnapshot {
             output_tokens: s.output_tokens,
             total_tokens: total,
             cap: s.cap,
-            cap_reached: s.cap.map_or(false, |c| total >= c),
+            cap_reached: s.cap.is_some_and(|c| total >= c),
         }
     } else {
         SessionSnapshot {
@@ -398,11 +408,11 @@ fn streak_days(daily: &HashMap<String, u64>) -> (u64, u64) {
     let mut current = 0;
     let mut cursor = today;
     if !dset.contains(&cursor) {
-        cursor = cursor - chrono::Duration::days(1);
+        cursor -= chrono::Duration::days(1);
     }
     while dset.contains(&cursor) {
         current += 1;
-        cursor = cursor - chrono::Duration::days(1);
+        cursor -= chrono::Duration::days(1);
     }
     (current, longest)
 }

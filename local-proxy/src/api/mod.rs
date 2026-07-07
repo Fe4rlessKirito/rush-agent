@@ -1,10 +1,12 @@
 //! API router aggregation.
 
 pub mod chat;
+mod format;
 pub mod health;
 pub mod messages;
 pub mod models;
 pub mod proxies;
+mod tools;
 pub mod usage;
 
 use axum::{

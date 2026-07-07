@@ -42,4 +42,9 @@ faceb_ports = [9071, 9072, 9073, 9074, 9075, 9076, 9077, 9078, 9079, 9080]
 default = "gpt-5-4"
 
 [thinking]
+expose_tool_thinking = false
 levels = { low = 1024, medium = 5000, high = 16000, max = 32000 }
+
+[logging]
+level = "info"
+debug_protocol = false

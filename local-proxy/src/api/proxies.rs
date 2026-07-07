@@ -19,6 +19,7 @@ async fn proxies_handler(
     let proxies = tor_manager.get_proxies().await;
     let provider_assignments = crate::provider_proxies::assignments().await;
     let (window_requests, requests_per_second) = load_monitor.snapshot().await;
+    let requests_per_minute = requests_per_second * 60.0;
 
     Json(json!({
         "proxies": proxies,
@@ -26,7 +27,7 @@ async fn proxies_handler(
         "provider_assignments": provider_assignments,
         "load": {
             "window_requests": window_requests,
-            "requests_per_second": requests_per_second,
+            "requests_per_minute": requests_per_minute,
         }
     }))
 }

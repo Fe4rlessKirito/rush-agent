@@ -1,5 +1,6 @@
 //! Provider-specific proxy rotation.
 
+use crate::config::ProviderProxyConfig;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -31,6 +32,32 @@ pub async fn init_active(use_ai: &[String], sakana: &[String], faceb: &[String])
     ]);
 }
 
+pub async fn sync_active(active: &[String], config: &ProviderProxyConfig) {
+    let use_ai = active_provider_proxies(active, &config.use_ai_ports);
+    let sakana = active_provider_proxies(active, &config.sakana_ports);
+    let faceb = active_provider_proxies(active, &config.faceb_ports);
+    init_active(&use_ai, &sakana, &faceb).await;
+    crate::providers::faceb::set_proxies(faceb).await;
+}
+
+pub async fn assigned(provider: &str) -> Vec<String> {
+    PROVIDER_PROXIES
+        .lock()
+        .await
+        .proxies
+        .get(provider)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn active_provider_proxies(active: &[String], ports: &[u16]) -> Vec<String> {
+    ports
+        .iter()
+        .map(|port| format!("socks5h://127.0.0.1:{}", port))
+        .filter(|proxy| active.iter().any(|active_proxy| active_proxy == proxy))
+        .collect()
+}
+
 pub async fn next_proxy(provider: &str) -> Option<String> {
     let state = PROVIDER_PROXIES.lock().await;
     let proxies = state.proxies.get(provider)?;
@@ -47,10 +74,4 @@ pub async fn next_proxy(provider: &str) -> Option<String> {
 
 pub async fn assignments() -> HashMap<&'static str, Vec<String>> {
     PROVIDER_PROXIES.lock().await.proxies.clone()
-}
-
-pub async fn set_provider_proxies(provider: &'static str, proxies: Vec<String>) {
-    let mut state = PROVIDER_PROXIES.lock().await;
-    state.proxies.insert(provider, proxies);
-    state.indexes.insert(provider, AtomicUsize::new(0));
 }
