@@ -1,15 +1,15 @@
 {
-  "version": "1.8.3",
-  "notes": "Add scope-aware passive Bug Bounty tools, Bug Bounty program profiles, and scoped navigation wrappers.",
-  "pub_date": "2026-07-08T17:54:03Z",
+  "version": "1.8.4",
+  "notes": "Style the Bug Bounty workspace so program profiles, import controls, and scope details match the app UI.",
+  "pub_date": "2026-07-08T19:21:49Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0R3c1dnd2pSczBFVWJUd3laeXgvSDhlck9yNitvb0Zwb0tEanNoR0hGREQ2aERxS014NjIyVUNVT05VMVMwK1djazJsalI0THFzZ1d0ZHVIR1k1S0E0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNTMzMTYzCWZpbGU6UnVzaF8xLjguM194NjQtc2V0dXAuZXhlCkdEaWZ6VGpha3RtbU9tNUdpREdja05jSXBORXh6Qjk5ZEk5Z2RVOHF4OStQWEozT2wvWTJFS2hVTENVZ2k2d3NlTDhKVmQ4NVcwa05MNVc2VW9rMERBPT0K",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.8.3/Rush_1.8.3_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0dNWUxGSXJ1bjBaU2N0eVpxM0R3NVpoaU9vQWhaYmdFSHJ5R2ZCQXJ4OW9DTzY2NCtlV0tNK3NPMlBtRDB3Q0l1ZzZhMVZjb0pRNkdZN3JkR3kzZkFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNTM4MTA1CWZpbGU6UnVzaF8xLjguNF94NjQtc2V0dXAuZXhlCnV2Ym5sVkhJYzJIYzBwUHF6YVRrZW9RMkxNQUNrMkpRVEFGOGoxMU9hUjNwQWhCQzBZL3Y0c21XUlAydm9wTTdCSVE4SG1NL3IrQ09rc2dxeEJyNUF3PT0K",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.8.4/Rush_1.8.4_x64-setup.exe"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na0pkK0RqNy9NSEhLWUthcG9LVlRSOVQ0L0YvOHZ1eWdpVmhLYVM4TVlZNFB3R3Vsd3I1aEtrUFJjeERtL2pCZnNGYkhBd0ZJTEV0ZFlEYndLa0E0VFFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNTMzMTYzCWZpbGU6UnVzaF8xLjguM194NjRfZW4tVVMubXNpCnhEUmhjM3BPT3JDVGtUVythbEcvUW1jZU5LMFE3dXo5V3N2VVYxaUcybzJKdEh5SXM1RkFTZUVQaGJJT1JZYzEzN1F0TkVJU2dPQlJGRFVndHJmN0F3PT0K",
-      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.8.3/Rush_1.8.3_x64_en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVROUJQbFdxTy9na1BEaitBeVR3RHdTSSs1d2p3Zkc2TjNIS2FycXQrMkhYTjI3bFFWWUpCbVI0WmFCc08yMUlMb2Z4M29sUTFkQkVTZm9vd2pYQndab2ZtNGVvckRZaUFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNTM4MTA1CWZpbGU6UnVzaF8xLjguNF94NjRfZW4tVVMubXNpCkxZdVVzdERBR3h0Q01jWFd1d25MRE5kVmVlV0UwRGdTRGFzZXVMYWcza2JiM2lMUG9hUVlZZTJXWXZiaVF1Tm1yTElDclhrREtDblV3cVRkbFAxa0RRPT0K",
+      "url": "https://github.com/Fe4rlessKirito/rush-agent/releases/download/v1.8.4/Rush_1.8.4_x64_en-US.msi"
     }
   }
 }

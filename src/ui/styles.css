@@ -7493,3 +7493,300 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
 .app-titlebar .titlebar-session-title {
   max-width: clamp(220px, 34vw, 560px);
 }
+
+
+/* Bug Bounty profile workspace. */
+.bug-bounty-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(320px, 460px) minmax(420px, 1fr);
+  gap: 14px;
+  padding: 18px;
+  overflow: auto;
+  background: radial-gradient(circle at top left, rgba(109, 92, 255, 0.08), transparent 30%), var(--bg);
+}
+.bug-bounty-panel {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+}
+.bug-bounty-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.bug-bounty-head span {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.bug-bounty-head small {
+  max-width: 210px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: right;
+}
+.bug-bounty-empty {
+  display: grid;
+  min-height: 120px;
+  place-items: center;
+  padding: 18px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+}
+.bug-bounty-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+}
+.bug-bounty-list button {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-dim);
+  text-align: left;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+.bug-bounty-list button:hover,
+.bug-bounty-list button.active {
+  filter: none;
+  color: var(--text);
+  background: var(--panel-2);
+  border-color: rgba(109, 92, 255, 0.42);
+  transform: translateY(-1px);
+}
+.bug-bounty-list strong {
+  color: inherit;
+  font-size: 13px;
+}
+.bug-bounty-list span {
+  color: var(--accent-2);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.bug-bounty-list small {
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.bug-bounty-import textarea,
+.bug-bounty-form input,
+.bug-bounty-form textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  outline: none;
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.bug-bounty-import textarea {
+  min-height: 220px;
+  resize: vertical;
+}
+.bug-bounty-form textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+.bug-bounty-import textarea:hover,
+.bug-bounty-import textarea:focus,
+.bug-bounty-form input:hover,
+.bug-bounty-form input:focus,
+.bug-bounty-form textarea:hover,
+.bug-bounty-form textarea:focus {
+  background: var(--panel-2);
+  border-color: rgba(109, 92, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(109, 92, 255, 0.12);
+}
+.bug-bounty-import textarea::placeholder,
+.bug-bounty-form input::placeholder,
+.bug-bounty-form textarea::placeholder {
+  color: var(--text-faint);
+}
+.bug-bounty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bug-bounty-actions button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(109, 92, 255, 0.38);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
+}
+.bug-bounty-actions button:hover:not(:disabled) {
+  filter: none;
+  background: var(--accent-2);
+  transform: translateY(-1px);
+}
+.bug-bounty-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.bug-bounty-profile .bug-bounty-actions button:first-child {
+  background: rgba(255, 107, 107, 0.14);
+  border-color: rgba(255, 107, 107, 0.36);
+  color: #ff9f9f;
+}
+.bug-bounty-safety {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid rgba(122, 215, 159, 0.22);
+  border-radius: 9px;
+  background: rgba(122, 215, 159, 0.08);
+  color: #a7d8ba;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.bug-bounty-details {
+  overflow: hidden;
+}
+.bug-bounty-form,
+.bug-bounty-profile {
+  min-height: 0;
+  overflow: auto;
+}
+.bug-bounty-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.bug-bounty-form label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 700;
+}
+.bug-bounty-form label:nth-child(n + 4) {
+  grid-column: 1 / -1;
+}
+.bug-bounty-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bug-bounty-profile h2,
+.bug-bounty-profile h3,
+.bug-bounty-profile p {
+  margin: 0;
+}
+.bug-bounty-profile h2 {
+  color: var(--text);
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+.bug-bounty-profile p {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.bug-bounty-profile h3 {
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+.bug-bounty-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.bug-bounty-grid div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.bug-bounty-grid strong {
+  color: var(--text-faint);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.bug-bounty-grid span {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bug-bounty-profile pre {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #111218;
+  color: var(--text-dim);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+@media (max-width: 1280px) {
+  .bug-bounty-view {
+    grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  }
+  .bug-bounty-details {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 860px) {
+  .bug-bounty-view,
+  .bug-bounty-form,
+  .bug-bounty-grid {
+    grid-template-columns: 1fr;
+  }
+  .bug-bounty-head {
+    flex-direction: column;
+  }
+  .bug-bounty-head small {
+    max-width: none;
+    text-align: left;
+  }
+}
