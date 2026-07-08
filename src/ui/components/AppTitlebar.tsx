@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import rushLogoSrc from "../../../Rush-app-logo.png";
 
-type View = "chat" | "projects" | "library" | "flow" | "webProbing";
+type View = "chat" | "projects" | "library" | "flow" | "webProbing" | "bugBounty";
 
 interface Props {
   view: View;

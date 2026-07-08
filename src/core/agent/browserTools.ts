@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Tool } from "./tools";
+import { activeBugBountyScopeDecision, mergeBugBountyHeaders } from "../bugBountyRuntime";
 
 type ScreenshotBackend = (url: string, args: Record<string, unknown>) => Promise<string>;
 type BrowserAutomationBackend = (command: string, args: Record<string, unknown>) => Promise<string>;
@@ -118,12 +119,20 @@ function defaultAutomation(command: string, args: Record<string, unknown>): Prom
   return invoke<{ content: string }>(command, { args }).then((result) => result.content);
 }
 
+function scopedUrlArgs(args: Record<string, unknown>): { ok: true; args: Record<string, unknown>; message: string } | { ok: false; content: string } {
+  const url = String(args.url ?? "").trim();
+  const scope = activeBugBountyScopeDecision(url);
+  if (!scope.ok) return { ok: false, content: scope.message ?? "Blocked by Bug Bounty scope." };
+  return { ok: true, args: { ...args, url, headers: mergeBugBountyHeaders(args.headers as HeadersInit | undefined, scope.headers) }, message: scope.message ?? "Allowed by Bug Bounty scope." };
+}
+
 function browserTool(
   name: string,
   description: string,
   properties: Record<string, unknown>,
   required: string[],
   automation: BrowserAutomationBackend,
+  scopeUrl = false,
 ): Tool {
   return {
     definition: {
@@ -136,6 +145,11 @@ function browserTool(
       },
     },
     async execute(args) {
+      if (scopeUrl) {
+        const scoped = scopedUrlArgs(args);
+        if (!scoped.ok) return { ok: false, isError: true, denied: true, content: scoped.content };
+        return { ok: true, content: await automation(name, scoped.args) };
+      }
       return { ok: true, content: await automation(name, args) };
     },
   };
@@ -161,7 +175,12 @@ export function createBrowserTools(options: BrowserToolOptions = {}): Tool[] {
       async execute(args) {
         const url = String(args.url ?? "").trim();
         if (!/^https?:\/\//i.test(url)) return { ok: false, isError: true, content: `Invalid URL: ${url}` };
-        const res = await fetcher(url, { cache: "no-store", headers: { Accept: "text/html,*/*;q=0.5" } });
+        const scope = activeBugBountyScopeDecision(url);
+        if (!scope.ok) return { ok: false, isError: true, denied: true, content: scope.message ?? "Blocked by Bug Bounty scope." };
+        const res = await fetcher(url, {
+          cache: "no-store",
+          headers: mergeBugBountyHeaders({ Accept: "text/html,*/*;q=0.5" }, scope.headers),
+        });
         const text = await res.text();
         if (!res.ok) return { ok: false, isError: true, content: `Fetch ${res.status}: ${text.slice(0, 2000)}` };
         return { ok: true, content: summarizeWebsiteEnvironment(url, res, text) };
@@ -183,7 +202,11 @@ export function createBrowserTools(options: BrowserToolOptions = {}): Tool[] {
       async execute(args) {
         const url = String(args.url ?? "").trim();
         if (!/^https?:\/\//i.test(url)) return { ok: false, isError: true, content: `Invalid URL: ${url}` };
-        const res = await fetcher(url, { headers: { Accept: "text/html,*/*;q=0.5" } });
+        const scope = activeBugBountyScopeDecision(url);
+        if (!scope.ok) return { ok: false, isError: true, denied: true, content: scope.message ?? "Blocked by Bug Bounty scope." };
+        const res = await fetcher(url, {
+          headers: mergeBugBountyHeaders({ Accept: "text/html,*/*;q=0.5" }, scope.headers),
+        });
         const text = await res.text();
         if (!res.ok) return { ok: false, isError: true, content: `Fetch ${res.status}: ${text.slice(0, 2000)}` };
         return { ok: true, content: summarizeHtml(url, text) };
@@ -207,14 +230,16 @@ export function createBrowserTools(options: BrowserToolOptions = {}): Tool[] {
       async execute(args) {
         const url = String(args.url ?? "").trim();
         if (!/^https?:\/\//i.test(url)) return { ok: false, isError: true, content: `Invalid URL: ${url}` };
+        const scoped = scopedUrlArgs({ ...args, url });
+        if (!scoped.ok) return { ok: false, isError: true, denied: true, content: scoped.content };
         if (!options.screenshot) {
           try {
-            return { ok: true, content: await automation("browser_screenshot", { ...args, url }) };
+            return { ok: true, content: await automation("browser_screenshot", scoped.args) };
           } catch (err) {
             return { ok: false, isError: true, content: `no browser screenshot backend: ${String(err)}` };
           }
         }
-        return { ok: true, content: await options.screenshot(url, args) };
+        return { ok: true, content: await options.screenshot(url, scoped.args) };
       },
     },
     browserTool(
@@ -223,6 +248,7 @@ export function createBrowserTools(options: BrowserToolOptions = {}): Tool[] {
       { url: { type: "string" }, sessionId: { type: "string" }, headless: { type: "boolean" }, width: { type: "number" }, height: { type: "number" } },
       ["url"],
       automation,
+      true,
     ),
     browserTool(
       "browser_navigate",
@@ -230,6 +256,7 @@ export function createBrowserTools(options: BrowserToolOptions = {}): Tool[] {
       { url: { type: "string" }, sessionId: { type: "string" } },
       ["url"],
       automation,
+      true,
     ),
     browserTool(
       "browser_click",

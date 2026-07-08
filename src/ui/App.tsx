@@ -15,9 +15,10 @@ const LibraryView = lazy(() => import("./components/LibraryView").then((m) => ({
 const BrainView = lazy(() => import("./components/BrainView").then((m) => ({ default: m.BrainView })));
 const DeepResearchView = lazy(() => import("./components/DeepResearchView").then((m) => ({ default: m.DeepResearchView })));
 const WebProbingView = lazy(() => import("./components/WebProbingView").then((m) => ({ default: m.WebProbingView })));
+const BugBountyView = lazy(() => import("./components/BugBountyView").then((m) => ({ default: m.BugBountyView })));
 const FlowView = lazy(() => import("./components/FlowView").then((m) => ({ default: m.FlowView })));
 
-type View = "chat" | "projects" | "library" | "flow" | "webProbing";
+type View = "chat" | "projects" | "library" | "flow" | "webProbing" | "bugBounty";
 type SettingsTab = "general" | "providers" | "proxies" | "tools" | "packs" | "lsp" | "mcp";
 function normalizeProjectRoot(path: string): string {
   return path.trim().replace(/[\\/]+$/, "");
@@ -53,7 +54,9 @@ export function App() {
       ? "Library"
       : view === "projects"
         ? "Projects"
-        : view === "webProbing"
+        : view === "bugBounty"
+          ? "Bug Bounty"
+          : view === "webProbing"
           ? "Web Probing"
           : view === "flow"
             ? "Flow"
@@ -236,6 +239,12 @@ export function App() {
         {view === "webProbing" && (
           <Suspense fallback={null}>
             <WebProbingView />
+          </Suspense>
+        )}
+
+        {view === "bugBounty" && (
+          <Suspense fallback={null}>
+            <BugBountyView />
           </Suspense>
         )}
 

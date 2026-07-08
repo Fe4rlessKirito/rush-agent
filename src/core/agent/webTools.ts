@@ -7,6 +7,7 @@ import {
   type SearchResponse,
 } from "../searchProviders";
 import type { Tool } from "./tools";
+import { activeBugBountyScopeDecision, mergeBugBountyHeaders } from "../bugBountyRuntime";
 
 type Fetcher = typeof fetch;
 type Searcher = (query: string, engine: SearchEngine, config: SearchConfig) => Promise<SearchResponse>;
@@ -185,8 +186,12 @@ export function createWebTools(options: WebToolOptions = {}): Tool[] {
         }
 
         let res: Response;
+        const scope = activeBugBountyScopeDecision(url);
+        if (!scope.ok) return { ok: false, isError: true, denied: true, content: scope.message ?? "Blocked by Bug Bounty scope." };
         try {
-          res = await fetcher(url, { headers: { Accept: "text/html,text/plain,application/json;q=0.9,*/*;q=0.5" } });
+          res = await fetcher(url, {
+            headers: mergeBugBountyHeaders({ Accept: "text/html,text/plain,application/json;q=0.9,*/*;q=0.5" }, scope.headers),
+          });
         } catch (err) {
           return { ok: false, isError: true, content: fetchToolError(url, err) };
         }

@@ -6,7 +6,7 @@ import { useProjectStore } from "../../core/projectStore";
 import { chooseAndSetProjectRoot } from "../../core/projectRoot";
 import { isTauriRuntime } from "../../core/agent/tauriFs";
 
-type View = "chat" | "projects" | "library" | "flow" | "webProbing";
+type View = "chat" | "projects" | "library" | "flow" | "webProbing" | "bugBounty";
 
 interface Props {
   view: View;
@@ -221,18 +221,17 @@ export function Sidebar({ view, onSelectView, projectContext = null, onOpenProje
         </button>
 
         <button
-          className={"sb-item" + (view === "webProbing" ? " active" : "")}
-          onClick={() => onSelectView("webProbing")}
-          title="Web Probing"
+          className={"sb-item" + (view === "bugBounty" ? " active" : "")}
+          onClick={() => onSelectView("bugBounty")}
+          title="Bug Bounty"
         >
-          <span className="sb-ico sb-ico-web-probing">
+          <span className="sb-ico sb-ico-bug-bounty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="8" />
-              <path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16" />
-              <path d="m15.5 15.5 3 3" />
+              <path d="M12 3 5 6v5c0 4.5 3 7.6 7 9 4-1.4 7-4.5 7-9V6l-7-3Z" />
+              <path d="M9 12h6M12 9v6" />
             </svg>
           </span>
-          <span className="sb-label">Web Probing</span>
+          <span className="sb-label">Bug Bounty</span>
         </button>
       </nav>
 
