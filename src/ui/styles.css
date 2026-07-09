@@ -7790,3 +7790,61 @@ button.ghost:hover { border-color: var(--accent); color: var(--text); filter: no
     text-align: left;
   }
 }
+
+.bug-bounty-url-import {
+  display: flex;
+  gap: 8px;
+}
+.bug-bounty-url-import input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.bug-bounty-url-import input:hover,
+.bug-bounty-url-import input:focus {
+  background: var(--panel-2);
+  border-color: rgba(109, 92, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(109, 92, 255, 0.12);
+}
+.bug-bounty-url-import input::placeholder {
+  color: var(--text-faint);
+}
+.bug-bounty-url-import button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(109, 92, 255, 0.38);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
+}
+.bug-bounty-url-import button:hover:not(:disabled) {
+  filter: none;
+  background: var(--accent);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.bug-bounty-url-import button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.bug-bounty-import-status {
+  padding: 9px 10px;
+  border: 1px solid rgba(79, 140, 255, 0.26);
+  border-radius: 9px;
+  background: rgba(79, 140, 255, 0.08);
+  color: #b7c9ff;
+  font-size: 12px;
+  line-height: 1.4;
+}

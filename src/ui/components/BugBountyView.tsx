@@ -22,6 +22,27 @@ function parseHeadersText(value: string) {
   }).filter((header) => header.name || header.value);
 }
 
+function cleanText(value: string): string {
+  return value.replace(/\s+/g, " ").replace(/\s+([,.;:!?])/g, "$1").trim();
+}
+
+function htmlToPolicyText(html: string): string {
+  return cleanText(
+    html
+      .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|section|article|li|h[1-6]|tr)>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'"),
+  );
+}
+
 function programSummary(program: BugBountyProgramProfile) {
   return [
     `${program.inScopeAssets.length} in scope`,
@@ -42,6 +63,9 @@ export function BugBountyView() {
     [activeProgramId, programs],
   );
   const [policyText, setPolicyText] = useState("");
+  const [policyUrl, setPolicyUrl] = useState("");
+  const [importStatus, setImportStatus] = useState("");
+  const [importingUrl, setImportingUrl] = useState(false);
   const [draft, setDraft] = useState<BugBountyProgramDraft | null>(null);
   const [draftFields, setDraftFields] = useState({
     name: "",
@@ -54,8 +78,8 @@ export function BugBountyView() {
     notes: "",
   });
 
-  function parsePolicy() {
-    const next = parseBugBountyPolicy(policyText);
+  function populateDraft(text: string, status: string) {
+    const next = parseBugBountyPolicy(text);
     setDraft(next);
     setDraftFields({
       name: next.name ?? "",
@@ -67,6 +91,49 @@ export function BugBountyView() {
       excludedVulnerabilityClasses: listText(next.excludedVulnerabilityClasses ?? []),
       notes: next.notes ?? "",
     });
+    setImportStatus(status);
+  }
+
+  function parsePolicy() {
+    populateDraft(policyText, "Parsed pasted policy. Review the draft before saving.");
+  }
+
+  async function fetchPolicyUrl() {
+    const url = policyUrl.trim();
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      setImportStatus("Enter a valid HTTP or HTTPS policy URL.");
+      return;
+    }
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      setImportStatus("Only HTTP and HTTPS policy URLs can be imported.");
+      return;
+    }
+
+    setImportingUrl(true);
+    setImportStatus(`Fetching policy from ${url}...`);
+    try {
+      const response = await fetch(url, {
+        cache: "no-store",
+        headers: { Accept: "text/html,text/plain,*/*;q=0.5" },
+      });
+      const raw = await response.text();
+      if (!response.ok) {
+        setImportStatus(`Policy fetch failed with HTTP ${response.status}.`);
+        return;
+      }
+      const contentType = response.headers.get("content-type") ?? "";
+      const body = contentType.includes("html") ? htmlToPolicyText(raw) : cleanText(raw);
+      const importedText = [`Source URL: ${url}`, "", body].join("\n");
+      setPolicyText(importedText);
+      populateDraft(importedText, "Fetched and parsed policy. Review the draft before saving.");
+    } catch (err) {
+      setImportStatus(`Policy fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setImportingUrl(false);
+    }
   }
 
   function saveDraft() {
@@ -119,6 +186,16 @@ export function BugBountyView() {
           <span>Import policy</span>
           <small>Paste HackerOne/Bugcrowd/Intigriti scope text</small>
         </div>
+        <div className="bug-bounty-url-import">
+          <input
+            value={policyUrl}
+            onChange={(event) => setPolicyUrl(event.target.value)}
+            placeholder="Paste a program policy URL..."
+          />
+          <button type="button" onClick={fetchPolicyUrl} disabled={importingUrl || !policyUrl.trim()}>
+            {importingUrl ? "Fetching..." : "Fetch URL"}
+          </button>
+        </div>
         <textarea
           value={policyText}
           onChange={(event) => setPolicyText(event.target.value)}
@@ -132,6 +209,7 @@ export function BugBountyView() {
             Save profile
           </button>
         </div>
+        {importStatus && <div className="bug-bounty-import-status">{importStatus}</div>}
         <p className="bug-bounty-safety">
           Rush will only store and review scope here. Active testing and scanners are not run from this view.
         </p>
